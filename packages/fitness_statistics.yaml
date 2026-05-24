@@ -1,0 +1,29 @@
+input_number:
+  fitness_volume_last_set:
+    name: Fitness Volume Last Set
+    min: 0
+    max: 50000
+    step: 0.01
+    unit_of_measurement: kg
+
+template:
+  - sensor:
+      - name: Fitness PR Bench Press
+        unique_id: fitness_pr_bench_press
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_input_weight') | float(0) }}"
+      - name: Fitness Total Volume Benchmark
+        unique_id: fitness_volume_benchpress_total
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_volume_last_set') | float(0) }}"
+
+utility_meter:
+  fitness_volume_weekly:
+    source: sensor.fitness_total_volume_benchmark
+    cycle: weekly
+  fitness_volume_monthly:
+    source: sensor.fitness_total_volume_benchmark
+    cycle: monthly
+  fitness_volume_yearly:
+    source: sensor.fitness_total_volume_benchmark
+    cycle: yearly

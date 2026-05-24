@@ -1,0 +1,32 @@
+script:
+  fitness_save_set:
+    alias: Fitness Save Set
+    mode: queued
+    sequence:
+      - variables:
+          exercise_key: "{{ states('input_select.fitness_active_exercise') | lower | replace(' ', '_') }}"
+          weight: "{{ states('input_number.fitness_input_weight') | float(0) }}"
+          reps: "{{ states('input_number.fitness_input_reps') | int(0) }}"
+          volume: "{{ (weight * reps) | round(2) }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.fitness_volume_last_set
+        data:
+          value: "{{ volume }}"
+      - service: timer.start
+        target:
+          entity_id: timer.fitness_rest_timer
+
+automation:
+  - alias: Fitness Workout Start Clears Notes
+    id: fitness_workout_start_clears_notes
+    trigger:
+      - platform: state
+        entity_id: input_boolean.fitness_workout_active
+        to: "on"
+    action:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""

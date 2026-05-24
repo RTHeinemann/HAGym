@@ -1,0 +1,40 @@
+input_boolean:
+  fitness_workout_active:
+    name: Fitness Workout Active
+    icon: mdi:dumbbell
+
+input_select:
+  fitness_active_exercise:
+    name: Fitness Active Exercise
+    options:
+      - Bench Press
+      - Squat
+      - Deadlift
+      - Shoulder Press
+      - Row
+      - Lat Pulldown
+      - Bicep Curl
+      - Tricep Pushdown
+
+input_number:
+  fitness_input_weight:
+    name: Fitness Input Weight
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_input_reps:
+    name: Fitness Input Reps
+    min: 0
+    max: 100
+    step: 1
+
+input_text:
+  fitness_set_notes:
+    name: Fitness Set Notes
+    max: 255
+
+timer:
+  fitness_rest_timer:
+    name: Fitness Rest Timer
+    duration: "00:01:30"
