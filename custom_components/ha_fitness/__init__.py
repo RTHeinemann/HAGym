@@ -36,7 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    _register_services(hass, coordinator)
+    _register_services(hass)
 
     return True
 
@@ -49,8 +49,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-def _register_services(hass: HomeAssistant, coordinator: HAFitnessCoordinator) -> None:
-    """Register integration services (idempotent)."""
+def _register_services(hass: HomeAssistant) -> None:
+    """Register integration services once (idempotent).
+
+    Service handlers iterate all loaded config entries so that
+    every coordinator instance receives the call.
+    """
     if (
         hass.services.has_service(DOMAIN, SERVICE_START_WORKOUT)
         and hass.services.has_service(DOMAIN, SERVICE_FINISH_WORKOUT)
@@ -58,19 +62,25 @@ def _register_services(hass: HomeAssistant, coordinator: HAFitnessCoordinator) -
     ):
         return
 
+    def _all_coordinators() -> list[HAFitnessCoordinator]:
+        return list(hass.data.get(DOMAIN, {}).values())
+
     async def handle_start_workout(call: ServiceCall) -> None:
-        coordinator.start_workout()
+        for coordinator in _all_coordinators():
+            coordinator.start_workout()
 
     async def handle_finish_workout(call: ServiceCall) -> None:
-        coordinator.finish_workout()
+        for coordinator in _all_coordinators():
+            coordinator.finish_workout()
 
     async def handle_save_set(call: ServiceCall) -> None:
-        coordinator.save_set(
-            exercise=call.data[ATTR_EXERCISE],
-            weight=call.data[ATTR_WEIGHT],
-            reps=call.data[ATTR_REPS],
-            notes=call.data.get(ATTR_NOTES),
-        )
+        for coordinator in _all_coordinators():
+            coordinator.save_set(
+                exercise=call.data[ATTR_EXERCISE],
+                weight=call.data[ATTR_WEIGHT],
+                reps=call.data[ATTR_REPS],
+                notes=call.data.get(ATTR_NOTES),
+            )
 
     hass.services.async_register(DOMAIN, SERVICE_START_WORKOUT, handle_start_workout)
     hass.services.async_register(DOMAIN, SERVICE_FINISH_WORKOUT, handle_finish_workout)

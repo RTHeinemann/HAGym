@@ -57,7 +57,6 @@ class HAFitnessStartWorkoutButton(_HAFitnessButtonBase):
 
     async def async_press(self) -> None:
         self._coordinator.start_workout()
-        self.async_write_ha_state()
 
 
 class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
@@ -73,4 +72,3 @@ class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
 
     async def async_press(self) -> None:
         self._coordinator.finish_workout()
-        self.async_write_ha_state()
