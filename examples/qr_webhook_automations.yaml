@@ -1,0 +1,108 @@
+automation:
+  - alias: Fitness QR Bench Press
+    id: fitness_qr_bench_press
+    trigger:
+      - platform: webhook
+        webhook_id: fitness_qr_bench_press
+        allowed_methods:
+          - POST
+          - GET
+        local_only: true
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.fitness_workout_active
+                state: "off"
+            sequence:
+              - service: script.fitness_start_workout
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.fitness_active_exercise
+        data:
+          option: Bench Press
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.fitness_rest_timer
+      - service: logbook.log
+        data:
+          name: Fitness QR
+          entity_id: input_select.fitness_active_exercise
+          message: QR selected Bench Press.
+
+  - alias: Fitness QR Squat
+    id: fitness_qr_squat
+    trigger:
+      - platform: webhook
+        webhook_id: fitness_qr_squat
+        allowed_methods:
+          - POST
+          - GET
+        local_only: true
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.fitness_workout_active
+                state: "off"
+            sequence:
+              - service: script.fitness_start_workout
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.fitness_active_exercise
+        data:
+          option: Squat
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.fitness_rest_timer
+      - service: logbook.log
+        data:
+          name: Fitness QR
+          entity_id: input_select.fitness_active_exercise
+          message: QR selected Squat.
+
+  - alias: Fitness QR Row
+    id: fitness_qr_row
+    trigger:
+      - platform: webhook
+        webhook_id: fitness_qr_row
+        allowed_methods:
+          - POST
+          - GET
+        local_only: true
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.fitness_workout_active
+                state: "off"
+            sequence:
+              - service: script.fitness_start_workout
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.fitness_active_exercise
+        data:
+          option: Row
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.fitness_rest_timer
+      - service: logbook.log
+        data:
+          name: Fitness QR
+          entity_id: input_select.fitness_active_exercise
+          message: QR selected Row.

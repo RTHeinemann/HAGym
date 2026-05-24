@@ -12,48 +12,68 @@ views:
           - entity: input_number.fitness_input_weight
           - entity: input_number.fitness_input_reps
           - entity: input_text.fitness_set_notes
-      - type: timer
-        entity: timer.fitness_rest_timer
+
       - type: button
         name: Start Workout
         icon: mdi:play
         tap_action:
           action: call-service
           service: script.fitness_start_workout
+
       - type: button
         name: Finish Workout
         icon: mdi:stop
         tap_action:
           action: call-service
           service: script.fitness_finish_workout
+
       - type: button
         name: Save Set
         icon: mdi:content-save
         tap_action:
           action: call-service
           service: script.fitness_save_set
+
+      - type: timer
+        entity: timer.fitness_rest_timer
+
       - type: entities
-        title: Weekly Volume by Exercise
+        title: Active Workout Summary
         entities:
-          - entity: sensor.fitness_volume_weekly_bench_press
-          - entity: sensor.fitness_volume_weekly_squat
-          - entity: sensor.fitness_volume_weekly_deadlift
-          - entity: sensor.fitness_volume_weekly_shoulder_press
-          - entity: sensor.fitness_volume_weekly_row
-          - entity: sensor.fitness_volume_weekly_lat_pulldown
-          - entity: sensor.fitness_volume_weekly_bicep_curl
-          - entity: sensor.fitness_volume_weekly_tricep_pushdown
-      - type: entities
-        title: Monthly Volume by Exercise
-        entities:
-          - entity: sensor.fitness_volume_monthly_bench_press
-          - entity: sensor.fitness_volume_monthly_squat
-          - entity: sensor.fitness_volume_monthly_deadlift
-          - entity: sensor.fitness_volume_monthly_shoulder_press
-          - entity: sensor.fitness_volume_monthly_row
-          - entity: sensor.fitness_volume_monthly_lat_pulldown
-          - entity: sensor.fitness_volume_monthly_bicep_curl
-          - entity: sensor.fitness_volume_monthly_tricep_pushdown
+          - entity: sensor.fitness_active_workout_summary
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: workout_active
+            name: Workout Active
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: active_exercise
+            name: Active Exercise
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: current_weight
+            name: Current Weight
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: current_reps
+            name: Current Reps
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: current_set_number_for_active_exercise
+            name: Current Set Number (Active)
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: current_set_volume
+            name: Current Set Volume
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: rest_timer_state
+            name: Rest Timer State
+          - type: attribute
+            entity: sensor.fitness_active_workout_summary
+            attribute: notes
+            name: Notes
+
       - type: entities
         title: Last Set by Exercise
         entities:
@@ -65,6 +85,7 @@ views:
           - entity: input_text.fitness_last_set_lat_pulldown
           - entity: input_text.fitness_last_set_bicep_curl
           - entity: input_text.fitness_last_set_tricep_pushdown
+
       - type: entities
         title: PR by Exercise
         entities:
@@ -76,6 +97,31 @@ views:
           - entity: sensor.fitness_pr_lat_pulldown
           - entity: sensor.fitness_pr_bicep_curl
           - entity: sensor.fitness_pr_tricep_pushdown
+
+      - type: entities
+        title: Weekly Volume by Exercise
+        entities:
+          - entity: sensor.fitness_volume_weekly_bench_press
+          - entity: sensor.fitness_volume_weekly_squat
+          - entity: sensor.fitness_volume_weekly_deadlift
+          - entity: sensor.fitness_volume_weekly_shoulder_press
+          - entity: sensor.fitness_volume_weekly_row
+          - entity: sensor.fitness_volume_weekly_lat_pulldown
+          - entity: sensor.fitness_volume_weekly_bicep_curl
+          - entity: sensor.fitness_volume_weekly_tricep_pushdown
+
+      - type: entities
+        title: Monthly Volume by Exercise
+        entities:
+          - entity: sensor.fitness_volume_monthly_bench_press
+          - entity: sensor.fitness_volume_monthly_squat
+          - entity: sensor.fitness_volume_monthly_deadlift
+          - entity: sensor.fitness_volume_monthly_shoulder_press
+          - entity: sensor.fitness_volume_monthly_row
+          - entity: sensor.fitness_volume_monthly_lat_pulldown
+          - entity: sensor.fitness_volume_monthly_bicep_curl
+          - entity: sensor.fitness_volume_monthly_tricep_pushdown
+
       - type: entities
         title: Yearly Volume by Exercise
         entities:
@@ -87,3 +133,49 @@ views:
           - entity: sensor.fitness_volume_yearly_lat_pulldown
           - entity: sensor.fitness_volume_yearly_bicep_curl
           - entity: sensor.fitness_volume_yearly_tricep_pushdown
+
+      - type: entities
+        title: Muscle Group Weekly Volume
+        entities:
+          - entity: sensor.fitness_muscle_volume_weekly_chest
+          - entity: sensor.fitness_muscle_volume_weekly_legs
+          - entity: sensor.fitness_muscle_volume_weekly_posterior_chain
+          - entity: sensor.fitness_muscle_volume_weekly_shoulders
+          - entity: sensor.fitness_muscle_volume_weekly_back
+          - entity: sensor.fitness_muscle_volume_weekly_biceps
+          - entity: sensor.fitness_muscle_volume_weekly_triceps
+
+      - type: entities
+        title: Muscle Group Monthly Volume
+        entities:
+          - entity: sensor.fitness_muscle_volume_monthly_chest
+          - entity: sensor.fitness_muscle_volume_monthly_legs
+          - entity: sensor.fitness_muscle_volume_monthly_posterior_chain
+          - entity: sensor.fitness_muscle_volume_monthly_shoulders
+          - entity: sensor.fitness_muscle_volume_monthly_back
+          - entity: sensor.fitness_muscle_volume_monthly_biceps
+          - entity: sensor.fitness_muscle_volume_monthly_triceps
+
+      - type: entities
+        title: Recovery Overview
+        entities:
+          - entity: sensor.fitness_recovery_bench_press
+          - entity: sensor.fitness_recovery_squat
+          - entity: sensor.fitness_recovery_deadlift
+          - entity: sensor.fitness_recovery_shoulder_press
+          - entity: sensor.fitness_recovery_row
+          - entity: sensor.fitness_recovery_lat_pulldown
+          - entity: sensor.fitness_recovery_bicep_curl
+          - entity: sensor.fitness_recovery_tricep_pushdown
+
+      - type: entities
+        title: Days Since Last Trained
+        entities:
+          - entity: sensor.fitness_days_since_bench_press
+          - entity: sensor.fitness_days_since_squat
+          - entity: sensor.fitness_days_since_deadlift
+          - entity: sensor.fitness_days_since_shoulder_press
+          - entity: sensor.fitness_days_since_row
+          - entity: sensor.fitness_days_since_lat_pulldown
+          - entity: sensor.fitness_days_since_bicep_curl
+          - entity: sensor.fitness_days_since_tricep_pushdown

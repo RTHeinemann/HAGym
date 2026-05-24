@@ -25,14 +25,17 @@ Build a local-first, privacy-first fitness subsystem for Home Assistant with:
 
 ## Current Phase
 
-This repository provides **Phase 1 (YAML MVP)** with:
+This repository provides **Phase 1.5 (YAML MVP+)** with:
 
 - modular package examples
 - dashboard and ApexCharts examples
 - exercise + muscle-group metadata
 - functional per-exercise set logging, PRs, and volume tracking
-- NFC/QR workflow docs
-- SQLite migration plan for future phases
+- recovery tracking and last-trained tracking
+- expanded dashboard examples
+- NFC/QR workflow docs and automation examples
+- weekly/monthly/yearly muscle-group statistics
+- SQLite migration plan for **Phase 2**
 
 ## Repository Structure
 
@@ -45,7 +48,7 @@ This repository provides **Phase 1 (YAML MVP)** with:
 - `/sqlite` - future backend notes
 - `/assets` - static assets placeholder
 
-## Quick Start (Phase 1)
+## Quick Start (Phase 1.5)
 
 1. Copy package files from `/packages` into your Home Assistant `packages` setup.
 2. Include dashboard YAML from `/dashboards` in Lovelace.
@@ -81,6 +84,7 @@ Planned model fields:
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - [`docs/NFC_WORKFLOW.md`](docs/NFC_WORKFLOW.md)
 - [`docs/QR_WORKFLOW.md`](docs/QR_WORKFLOW.md)
+- [`docs/WORKOUT_UX.md`](docs/WORKOUT_UX.md)
 - [`docs/SQLITE_MIGRATION.md`](docs/SQLITE_MIGRATION.md)
 - [`docs/HACS_PREPARATION.md`](docs/HACS_PREPARATION.md)
 - [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md)

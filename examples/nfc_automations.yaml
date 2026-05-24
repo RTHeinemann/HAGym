@@ -1,0 +1,96 @@
+automation:
+  - alias: Fitness NFC Bench Press
+    id: fitness_nfc_bench_press
+    trigger:
+      - platform: tag
+        tag_id: REPLACE_WITH_BENCH_PRESS_TAG_ID
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.fitness_workout_active
+                state: "off"
+            sequence:
+              - service: script.fitness_start_workout
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.fitness_active_exercise
+        data:
+          option: Bench Press
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.fitness_rest_timer
+      - service: logbook.log
+        data:
+          name: Fitness NFC
+          entity_id: input_select.fitness_active_exercise
+          message: NFC selected Bench Press.
+
+  - alias: Fitness NFC Squat
+    id: fitness_nfc_squat
+    trigger:
+      - platform: tag
+        tag_id: REPLACE_WITH_SQUAT_TAG_ID
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.fitness_workout_active
+                state: "off"
+            sequence:
+              - service: script.fitness_start_workout
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.fitness_active_exercise
+        data:
+          option: Squat
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.fitness_rest_timer
+      - service: logbook.log
+        data:
+          name: Fitness NFC
+          entity_id: input_select.fitness_active_exercise
+          message: NFC selected Squat.
+
+  - alias: Fitness NFC Row
+    id: fitness_nfc_row
+    trigger:
+      - platform: tag
+        tag_id: REPLACE_WITH_ROW_TAG_ID
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.fitness_workout_active
+                state: "off"
+            sequence:
+              - service: script.fitness_start_workout
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.fitness_active_exercise
+        data:
+          option: Row
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.fitness_set_notes
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.fitness_rest_timer
+      - service: logbook.log
+        data:
+          name: Fitness NFC
+          entity_id: input_select.fitness_active_exercise
+          message: NFC selected Row.

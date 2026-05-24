@@ -101,17 +101,20 @@ script:
           last_set_entity: "{{ 'input_text.fitness_last_set_' ~ exercise_key if exercise_is_valid else none }}"
           total_volume_entity: "{{ 'input_number.fitness_total_volume_' ~ exercise_key if exercise_is_valid else none }}"
           pr_entity: "{{ 'input_number.fitness_pr_' ~ exercise_key if exercise_is_valid else none }}"
+          last_trained_entity: "{{ 'input_datetime.fitness_last_trained_' ~ exercise_key if exercise_is_valid else none }}"
           entities_ready: >
             {{ set_number_entity is not none
                and lifetime_set_count_entity is not none
                and last_set_entity is not none
                and total_volume_entity is not none
                and pr_entity is not none
+               and last_trained_entity is not none
                and states(set_number_entity) not in ['unknown', 'unavailable']
                and states(lifetime_set_count_entity) not in ['unknown', 'unavailable']
                and states(last_set_entity) not in ['unknown', 'unavailable']
                and states(total_volume_entity) not in ['unknown', 'unavailable']
-               and states(pr_entity) not in ['unknown', 'unavailable'] }}
+               and states(pr_entity) not in ['unknown', 'unavailable']
+               and states(last_trained_entity) not in ['unknown', 'unavailable'] }}
       - choose:
           - conditions:
               - condition: template
@@ -201,6 +204,11 @@ script:
                   entity_id: "{{ total_volume_entity }}"
                 data:
                   value: "{{ new_total_volume }}"
+              - service: input_datetime.set_datetime
+                target:
+                  entity_id: "{{ last_trained_entity }}"
+                data:
+                  datetime: "{{ now().isoformat() }}"
               - choose:
                   - conditions:
                       - condition: template
