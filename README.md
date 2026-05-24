@@ -25,12 +25,12 @@ Build a local-first, privacy-first fitness subsystem for Home Assistant with:
 
 ## Current Phase
 
-This repository provides **Phase 1 (YAML MVP foundation)** with:
+This repository provides **Phase 1 (YAML MVP)** with:
 
 - modular package examples
 - dashboard and ApexCharts examples
 - exercise + muscle-group metadata
-- PR/volume/statistics scaffolding
+- functional per-exercise set logging, PRs, and volume tracking
 - NFC/QR workflow docs
 - SQLite migration plan for future phases
 

@@ -5,7 +5,7 @@ views:
     icon: mdi:dumbbell
     cards:
       - type: entities
-        title: Active Workout
+        title: Current Workout
         entities:
           - entity: input_boolean.fitness_workout_active
           - entity: input_select.fitness_active_exercise
@@ -21,10 +21,35 @@ views:
           action: call-service
           service: script.fitness_save_set
       - type: entities
-        title: KPI
+        title: Last Set by Exercise
+        entities:
+          - entity: input_text.fitness_last_set_bench_press
+          - entity: input_text.fitness_last_set_squat
+          - entity: input_text.fitness_last_set_deadlift
+          - entity: input_text.fitness_last_set_shoulder_press
+          - entity: input_text.fitness_last_set_row
+          - entity: input_text.fitness_last_set_lat_pulldown
+          - entity: input_text.fitness_last_set_bicep_curl
+          - entity: input_text.fitness_last_set_tricep_pushdown
+      - type: entities
+        title: PR by Exercise
         entities:
           - entity: sensor.fitness_pr_bench_press
-          - entity: sensor.fitness_total_volume_benchmark
-          - entity: sensor.fitness_volume_weekly
-          - entity: sensor.fitness_volume_monthly
-          - entity: sensor.fitness_volume_yearly
+          - entity: sensor.fitness_pr_squat
+          - entity: sensor.fitness_pr_deadlift
+          - entity: sensor.fitness_pr_shoulder_press
+          - entity: sensor.fitness_pr_row
+          - entity: sensor.fitness_pr_lat_pulldown
+          - entity: sensor.fitness_pr_bicep_curl
+          - entity: sensor.fitness_pr_tricep_pushdown
+      - type: entities
+        title: Yearly Volume by Exercise
+        entities:
+          - entity: sensor.fitness_volume_yearly_bench_press
+          - entity: sensor.fitness_volume_yearly_squat
+          - entity: sensor.fitness_volume_yearly_deadlift
+          - entity: sensor.fitness_volume_yearly_shoulder_press
+          - entity: sensor.fitness_volume_yearly_row
+          - entity: sensor.fitness_volume_yearly_lat_pulldown
+          - entity: sensor.fitness_volume_yearly_bicep_curl
+          - entity: sensor.fitness_volume_yearly_tricep_pushdown

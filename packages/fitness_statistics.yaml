@@ -1,9 +1,99 @@
 input_number:
-  fitness_volume_last_set:
-    name: Fitness Volume Last Set
+  fitness_total_volume_bench_press:
+    name: Fitness Total Volume Bench Press
     min: 0
-    max: 50000
+    max: 9999999
     step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_squat:
+    name: Fitness Total Volume Squat
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_deadlift:
+    name: Fitness Total Volume Deadlift
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_shoulder_press:
+    name: Fitness Total Volume Shoulder Press
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_row:
+    name: Fitness Total Volume Row
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_lat_pulldown:
+    name: Fitness Total Volume Lat Pulldown
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_bicep_curl:
+    name: Fitness Total Volume Bicep Curl
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_total_volume_tricep_pushdown:
+    name: Fitness Total Volume Tricep Pushdown
+    min: 0
+    max: 9999999
+    step: 0.01
+    unit_of_measurement: kg
+  fitness_pr_bench_press:
+    name: Fitness PR Bench Press
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_squat:
+    name: Fitness PR Squat
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_deadlift:
+    name: Fitness PR Deadlift
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_shoulder_press:
+    name: Fitness PR Shoulder Press
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_row:
+    name: Fitness PR Row
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_lat_pulldown:
+    name: Fitness PR Lat Pulldown
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_bicep_curl:
+    name: Fitness PR Bicep Curl
+    min: 0
+    max: 500
+    step: 0.5
+    unit_of_measurement: kg
+  fitness_pr_tricep_pushdown:
+    name: Fitness PR Tricep Pushdown
+    min: 0
+    max: 500
+    step: 0.5
     unit_of_measurement: kg
 
 template:
@@ -11,19 +101,146 @@ template:
       - name: Fitness PR Bench Press
         unique_id: fitness_pr_bench_press
         unit_of_measurement: kg
-        state: "{{ states('input_number.fitness_input_weight') | float(0) }}"
-      - name: Fitness Total Volume Benchmark
-        unique_id: fitness_total_volume_benchmark
+        state: "{{ states('input_number.fitness_pr_bench_press') | float(0) }}"
+      - name: Fitness PR Squat
+        unique_id: fitness_pr_squat
         unit_of_measurement: kg
-        state: "{{ states('input_number.fitness_volume_last_set') | float(0) }}"
+        state: "{{ states('input_number.fitness_pr_squat') | float(0) }}"
+      - name: Fitness PR Deadlift
+        unique_id: fitness_pr_deadlift
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_pr_deadlift') | float(0) }}"
+      - name: Fitness PR Shoulder Press
+        unique_id: fitness_pr_shoulder_press
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_pr_shoulder_press') | float(0) }}"
+      - name: Fitness PR Row
+        unique_id: fitness_pr_row
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_pr_row') | float(0) }}"
+      - name: Fitness PR Lat Pulldown
+        unique_id: fitness_pr_lat_pulldown
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_pr_lat_pulldown') | float(0) }}"
+      - name: Fitness PR Bicep Curl
+        unique_id: fitness_pr_bicep_curl
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_pr_bicep_curl') | float(0) }}"
+      - name: Fitness PR Tricep Pushdown
+        unique_id: fitness_pr_tricep_pushdown
+        unit_of_measurement: kg
+        state: "{{ states('input_number.fitness_pr_tricep_pushdown') | float(0) }}"
+      - name: Fitness Total Volume Bench Press
+        unique_id: fitness_total_volume_bench_press
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_bench_press') | float(0) }}"
+      - name: Fitness Total Volume Squat
+        unique_id: fitness_total_volume_squat
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_squat') | float(0) }}"
+      - name: Fitness Total Volume Deadlift
+        unique_id: fitness_total_volume_deadlift
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_deadlift') | float(0) }}"
+      - name: Fitness Total Volume Shoulder Press
+        unique_id: fitness_total_volume_shoulder_press
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_shoulder_press') | float(0) }}"
+      - name: Fitness Total Volume Row
+        unique_id: fitness_total_volume_row
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_row') | float(0) }}"
+      - name: Fitness Total Volume Lat Pulldown
+        unique_id: fitness_total_volume_lat_pulldown
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_lat_pulldown') | float(0) }}"
+      - name: Fitness Total Volume Bicep Curl
+        unique_id: fitness_total_volume_bicep_curl
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_bicep_curl') | float(0) }}"
+      - name: Fitness Total Volume Tricep Pushdown
+        unique_id: fitness_total_volume_tricep_pushdown
+        unit_of_measurement: kg
+        state_class: total_increasing
+        state: "{{ states('input_number.fitness_total_volume_tricep_pushdown') | float(0) }}"
 
 utility_meter:
-  fitness_volume_weekly:
-    source: sensor.fitness_total_volume_benchmark
+  fitness_volume_weekly_bench_press:
+    source: sensor.fitness_total_volume_bench_press
     cycle: weekly
-  fitness_volume_monthly:
-    source: sensor.fitness_total_volume_benchmark
+  fitness_volume_monthly_bench_press:
+    source: sensor.fitness_total_volume_bench_press
     cycle: monthly
-  fitness_volume_yearly:
-    source: sensor.fitness_total_volume_benchmark
+  fitness_volume_yearly_bench_press:
+    source: sensor.fitness_total_volume_bench_press
+    cycle: yearly
+  fitness_volume_weekly_squat:
+    source: sensor.fitness_total_volume_squat
+    cycle: weekly
+  fitness_volume_monthly_squat:
+    source: sensor.fitness_total_volume_squat
+    cycle: monthly
+  fitness_volume_yearly_squat:
+    source: sensor.fitness_total_volume_squat
+    cycle: yearly
+  fitness_volume_weekly_deadlift:
+    source: sensor.fitness_total_volume_deadlift
+    cycle: weekly
+  fitness_volume_monthly_deadlift:
+    source: sensor.fitness_total_volume_deadlift
+    cycle: monthly
+  fitness_volume_yearly_deadlift:
+    source: sensor.fitness_total_volume_deadlift
+    cycle: yearly
+  fitness_volume_weekly_shoulder_press:
+    source: sensor.fitness_total_volume_shoulder_press
+    cycle: weekly
+  fitness_volume_monthly_shoulder_press:
+    source: sensor.fitness_total_volume_shoulder_press
+    cycle: monthly
+  fitness_volume_yearly_shoulder_press:
+    source: sensor.fitness_total_volume_shoulder_press
+    cycle: yearly
+  fitness_volume_weekly_row:
+    source: sensor.fitness_total_volume_row
+    cycle: weekly
+  fitness_volume_monthly_row:
+    source: sensor.fitness_total_volume_row
+    cycle: monthly
+  fitness_volume_yearly_row:
+    source: sensor.fitness_total_volume_row
+    cycle: yearly
+  fitness_volume_weekly_lat_pulldown:
+    source: sensor.fitness_total_volume_lat_pulldown
+    cycle: weekly
+  fitness_volume_monthly_lat_pulldown:
+    source: sensor.fitness_total_volume_lat_pulldown
+    cycle: monthly
+  fitness_volume_yearly_lat_pulldown:
+    source: sensor.fitness_total_volume_lat_pulldown
+    cycle: yearly
+  fitness_volume_weekly_bicep_curl:
+    source: sensor.fitness_total_volume_bicep_curl
+    cycle: weekly
+  fitness_volume_monthly_bicep_curl:
+    source: sensor.fitness_total_volume_bicep_curl
+    cycle: monthly
+  fitness_volume_yearly_bicep_curl:
+    source: sensor.fitness_total_volume_bicep_curl
+    cycle: yearly
+  fitness_volume_weekly_tricep_pushdown:
+    source: sensor.fitness_total_volume_tricep_pushdown
+    cycle: weekly
+  fitness_volume_monthly_tricep_pushdown:
+    source: sensor.fitness_total_volume_tricep_pushdown
+    cycle: monthly
+  fitness_volume_yearly_tricep_pushdown:
+    source: sensor.fitness_total_volume_tricep_pushdown
     cycle: yearly
