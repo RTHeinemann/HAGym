@@ -9,51 +9,19 @@ script:
           weight: "{{ states('input_number.fitness_input_weight') | float(0) }}"
           reps: "{{ states('input_number.fitness_input_reps') | int(0) }}"
           volume: "{{ (weight * reps) | round(2) }}"
-          entity_map:
-            bench_press:
-              set_number: input_number.fitness_set_number_bench_press
-              last_set: input_text.fitness_last_set_bench_press
-              total_volume: input_number.fitness_total_volume_bench_press
-              pr: input_number.fitness_pr_bench_press
-            squat:
-              set_number: input_number.fitness_set_number_squat
-              last_set: input_text.fitness_last_set_squat
-              total_volume: input_number.fitness_total_volume_squat
-              pr: input_number.fitness_pr_squat
-            deadlift:
-              set_number: input_number.fitness_set_number_deadlift
-              last_set: input_text.fitness_last_set_deadlift
-              total_volume: input_number.fitness_total_volume_deadlift
-              pr: input_number.fitness_pr_deadlift
-            shoulder_press:
-              set_number: input_number.fitness_set_number_shoulder_press
-              last_set: input_text.fitness_last_set_shoulder_press
-              total_volume: input_number.fitness_total_volume_shoulder_press
-              pr: input_number.fitness_pr_shoulder_press
-            row:
-              set_number: input_number.fitness_set_number_row
-              last_set: input_text.fitness_last_set_row
-              total_volume: input_number.fitness_total_volume_row
-              pr: input_number.fitness_pr_row
-            lat_pulldown:
-              set_number: input_number.fitness_set_number_lat_pulldown
-              last_set: input_text.fitness_last_set_lat_pulldown
-              total_volume: input_number.fitness_total_volume_lat_pulldown
-              pr: input_number.fitness_pr_lat_pulldown
-            bicep_curl:
-              set_number: input_number.fitness_set_number_bicep_curl
-              last_set: input_text.fitness_last_set_bicep_curl
-              total_volume: input_number.fitness_total_volume_bicep_curl
-              pr: input_number.fitness_pr_bicep_curl
-            tricep_pushdown:
-              set_number: input_number.fitness_set_number_tricep_pushdown
-              last_set: input_text.fitness_last_set_tricep_pushdown
-              total_volume: input_number.fitness_total_volume_tricep_pushdown
-              pr: input_number.fitness_pr_tricep_pushdown
-          set_number_entity: "{{ entity_map[exercise_key].set_number if exercise_key in entity_map else none }}"
-          last_set_entity: "{{ entity_map[exercise_key].last_set if exercise_key in entity_map else none }}"
-          total_volume_entity: "{{ entity_map[exercise_key].total_volume if exercise_key in entity_map else none }}"
-          pr_entity: "{{ entity_map[exercise_key].pr if exercise_key in entity_map else none }}"
+          valid_exercises:
+            - bench_press
+            - squat
+            - deadlift
+            - shoulder_press
+            - row
+            - lat_pulldown
+            - bicep_curl
+            - tricep_pushdown
+          set_number_entity: "{{ 'input_number.fitness_set_number_' ~ exercise_key if exercise_key in valid_exercises else none }}"
+          last_set_entity: "{{ 'input_text.fitness_last_set_' ~ exercise_key if exercise_key in valid_exercises else none }}"
+          total_volume_entity: "{{ 'input_number.fitness_total_volume_' ~ exercise_key if exercise_key in valid_exercises else none }}"
+          pr_entity: "{{ 'input_number.fitness_pr_' ~ exercise_key if exercise_key in valid_exercises else none }}"
       - choose:
           - conditions:
               - condition: template
