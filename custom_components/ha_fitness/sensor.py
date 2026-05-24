@@ -11,17 +11,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN, EXERCISES, STATE_ACTIVE
 from .coordinator import HAFitnessCoordinator
 
-EXERCISE_KEY_MAP: dict[str, str] = {
-    "Bench Press": "bench_press",
-    "Squat": "squat",
-    "Deadlift": "deadlift",
-    "Shoulder Press": "shoulder_press",
-    "Row": "row",
-    "Lat Pulldown": "lat_pulldown",
-    "Bicep Curl": "bicep_curl",
-    "Tricep Pushdown": "tricep_pushdown",
-}
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -260,7 +249,7 @@ class HAFitnessPRByExerciseSensor(_HAFitnessSensorBase):
         exercise: str,
     ) -> None:
         super().__init__(coordinator, entry)
-        exercise_key = EXERCISE_KEY_MAP[exercise]
+        exercise_key = _exercise_key(exercise)
         self._exercise = exercise
         self._attr_translation_key = f"pr_{exercise_key}"
         self._attr_unique_id = f"{entry.entry_id}_pr_{exercise_key}"
@@ -283,7 +272,7 @@ class HAFitnessVolumeByExerciseSensor(_HAFitnessSensorBase):
         exercise: str,
     ) -> None:
         super().__init__(coordinator, entry)
-        exercise_key = EXERCISE_KEY_MAP[exercise]
+        exercise_key = _exercise_key(exercise)
         self._exercise = exercise
         self._attr_translation_key = f"volume_{exercise_key}_total"
         self._attr_unique_id = f"{entry.entry_id}_volume_{exercise_key}_total"
@@ -311,3 +300,7 @@ class HAFitnessRecentSetsSensor(_HAFitnessSensorBase):
     @property
     def extra_state_attributes(self) -> dict:
         return {"recent_sets": self._coordinator.recent_sets}
+
+
+def _exercise_key(exercise: str) -> str:
+    return exercise.lower().replace(" ", "_").replace("-", "_")

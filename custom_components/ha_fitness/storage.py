@@ -236,23 +236,28 @@ class HAFitnessStore:
             return int(row["value"] if row is not None else 0)
 
     def _connect(self) -> sqlite3.Connection:
+        conn: sqlite3.Connection | None = None
         try:
             conn = sqlite3.connect(self._db_path)
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON")
             return conn
         except sqlite3.Error:
+            if conn is not None:
+                conn.close()
             _LOGGER.exception("HA Fitness: failed to open sqlite database at %s", self._db_path)
             raise
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+    """Convert sqlite row to dict and keep None unchanged."""
     if row is None:
         return None
     return dict(row)
 
 
 def _isoformat(value: datetime) -> str:
+    """Return an ISO 8601 UTC timestamp string for sqlite storage."""
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc).isoformat()
     return value.astimezone(timezone.utc).isoformat()

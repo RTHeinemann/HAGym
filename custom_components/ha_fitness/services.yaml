@@ -17,14 +17,6 @@ save_set:
       example: "Bench Press"
       selector:
         text:
-
-refresh_statistics:
-  name: Refresh Statistics
-  description: Refreshes cached totals, PR values, and recent sets from the SQLite database.
-
-export_data:
-  name: Export Data
-  description: Exports totals, PR values, and recent sets to /config/ha_fitness/export.json.
     weight:
       name: Weight
       description: Weight used (in kg or lb, as preferred).
@@ -53,3 +45,11 @@ export_data:
       example: "Felt strong today"
       selector:
         text:
+
+refresh_statistics:
+  name: Refresh Statistics
+  description: Refreshes cached totals, PR values, and recent sets from the SQLite database.
+
+export_data:
+  name: Export Data
+  description: Exports totals, PR values, and recent sets to /config/ha_fitness/export.json.

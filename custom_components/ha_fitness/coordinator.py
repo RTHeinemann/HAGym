@@ -195,9 +195,7 @@ class HAFitnessCoordinator:
                         int(workout_id)
                     )
                 else:
-                    summary_set_number = (
-                        self._current_set_number if self._workout_state == STATE_ACTIVE else 1
-                    )
+                    summary_set_number = await self._store.async_get_set_count()
                 self._last_set_summary = self._format_set_summary(
                     set_number=summary_set_number,
                     exercise=str(last_set["exercise"]),
@@ -309,7 +307,7 @@ class HAFitnessCoordinator:
             weight=self._weight,
             reps=self._reps,
             require_active_workout=True,
-            require_workout_id=True,
+            require_current_workout_id=True,
         )
         if errors:
             message = " ".join(errors)
@@ -347,7 +345,7 @@ class HAFitnessCoordinator:
             weight=weight,
             reps=reps,
             require_active_workout=False,
-            require_workout_id=False,
+            require_current_workout_id=False,
         )
         if errors:
             message = " ".join(errors)
@@ -406,12 +404,13 @@ class HAFitnessCoordinator:
         reps: int,
         *,
         require_active_workout: bool,
-        require_workout_id: bool,
+        require_current_workout_id: bool,
     ) -> list[str]:
+        """Validate set input values and return a list of error messages."""
         errors: list[str] = []
         if require_active_workout and self._workout_state != STATE_ACTIVE:
             errors.append("No active workout. Press Start Workout first.")
-        if require_workout_id and self._current_workout_id is None:
+        if require_current_workout_id and self._current_workout_id is None:
             errors.append("No active workout id. Press Start Workout again.")
         if not exercise:
             errors.append("No exercise selected.")
@@ -485,6 +484,7 @@ def _now_utc() -> datetime:
 
 
 def _write_json(path: str, payload: dict[str, Any]) -> None:
+    """Create parent directory if needed and write payload as formatted JSON."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
