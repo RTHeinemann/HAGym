@@ -8,12 +8,12 @@ views:
           title: Yearly Volume
           show: true
         series:
-          - entity: sensor.fitness_volume_yearly
-            name: Volume
+          - entity: sensor.fitness_volume_yearly_bench_press
+            name: Bench Press Volume
       - type: custom:apexcharts-card
         header:
           title: Monthly Volume
           show: true
         series:
-          - entity: sensor.fitness_volume_monthly
-            name: Volume
+          - entity: sensor.fitness_volume_monthly_bench_press
+            name: Bench Press Volume

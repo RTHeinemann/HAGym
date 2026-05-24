@@ -28,10 +28,74 @@ input_number:
     min: 0
     max: 100
     step: 1
+  fitness_set_number_bench_press:
+    name: Fitness Set Number Bench Press
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_squat:
+    name: Fitness Set Number Squat
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_deadlift:
+    name: Fitness Set Number Deadlift
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_shoulder_press:
+    name: Fitness Set Number Shoulder Press
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_row:
+    name: Fitness Set Number Row
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_lat_pulldown:
+    name: Fitness Set Number Lat Pulldown
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_bicep_curl:
+    name: Fitness Set Number Bicep Curl
+    min: 0
+    max: 1000
+    step: 1
+  fitness_set_number_tricep_pushdown:
+    name: Fitness Set Number Tricep Pushdown
+    min: 0
+    max: 1000
+    step: 1
 
 input_text:
   fitness_set_notes:
     name: Fitness Set Notes
+    max: 255
+  fitness_last_set_bench_press:
+    name: Fitness Last Set Bench Press
+    max: 255
+  fitness_last_set_squat:
+    name: Fitness Last Set Squat
+    max: 255
+  fitness_last_set_deadlift:
+    name: Fitness Last Set Deadlift
+    max: 255
+  fitness_last_set_shoulder_press:
+    name: Fitness Last Set Shoulder Press
+    max: 255
+  fitness_last_set_row:
+    name: Fitness Last Set Row
+    max: 255
+  fitness_last_set_lat_pulldown:
+    name: Fitness Last Set Lat Pulldown
+    max: 255
+  fitness_last_set_bicep_curl:
+    name: Fitness Last Set Bicep Curl
+    max: 255
+  fitness_last_set_tricep_pushdown:
+    name: Fitness Last Set Tricep Pushdown
     max: 255
 
 timer:

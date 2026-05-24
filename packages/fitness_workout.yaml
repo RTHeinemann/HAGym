@@ -4,18 +4,105 @@ script:
     mode: queued
     sequence:
       - variables:
-          exercise_key: "{{ states('input_select.fitness_active_exercise') | lower | replace(' ', '_') }}"
+          active_exercise: "{{ states('input_select.fitness_active_exercise') }}"
+          exercise_key: "{{ active_exercise | lower | replace(' ', '_') }}"
           weight: "{{ states('input_number.fitness_input_weight') | float(0) }}"
           reps: "{{ states('input_number.fitness_input_reps') | int(0) }}"
           volume: "{{ (weight * reps) | round(2) }}"
-      - service: input_number.set_value
-        target:
-          entity_id: input_number.fitness_volume_last_set
-        data:
-          value: "{{ volume }}"
-      - service: timer.start
-        target:
-          entity_id: timer.fitness_rest_timer
+          entity_map:
+            bench_press:
+              set_number: input_number.fitness_set_number_bench_press
+              last_set: input_text.fitness_last_set_bench_press
+              total_volume: input_number.fitness_total_volume_bench_press
+              pr: input_number.fitness_pr_bench_press
+            squat:
+              set_number: input_number.fitness_set_number_squat
+              last_set: input_text.fitness_last_set_squat
+              total_volume: input_number.fitness_total_volume_squat
+              pr: input_number.fitness_pr_squat
+            deadlift:
+              set_number: input_number.fitness_set_number_deadlift
+              last_set: input_text.fitness_last_set_deadlift
+              total_volume: input_number.fitness_total_volume_deadlift
+              pr: input_number.fitness_pr_deadlift
+            shoulder_press:
+              set_number: input_number.fitness_set_number_shoulder_press
+              last_set: input_text.fitness_last_set_shoulder_press
+              total_volume: input_number.fitness_total_volume_shoulder_press
+              pr: input_number.fitness_pr_shoulder_press
+            row:
+              set_number: input_number.fitness_set_number_row
+              last_set: input_text.fitness_last_set_row
+              total_volume: input_number.fitness_total_volume_row
+              pr: input_number.fitness_pr_row
+            lat_pulldown:
+              set_number: input_number.fitness_set_number_lat_pulldown
+              last_set: input_text.fitness_last_set_lat_pulldown
+              total_volume: input_number.fitness_total_volume_lat_pulldown
+              pr: input_number.fitness_pr_lat_pulldown
+            bicep_curl:
+              set_number: input_number.fitness_set_number_bicep_curl
+              last_set: input_text.fitness_last_set_bicep_curl
+              total_volume: input_number.fitness_total_volume_bicep_curl
+              pr: input_number.fitness_pr_bicep_curl
+            tricep_pushdown:
+              set_number: input_number.fitness_set_number_tricep_pushdown
+              last_set: input_text.fitness_last_set_tricep_pushdown
+              total_volume: input_number.fitness_total_volume_tricep_pushdown
+              pr: input_number.fitness_pr_tricep_pushdown
+          set_number_entity: "{{ entity_map[exercise_key].set_number if exercise_key in entity_map else none }}"
+          last_set_entity: "{{ entity_map[exercise_key].last_set if exercise_key in entity_map else none }}"
+          total_volume_entity: "{{ entity_map[exercise_key].total_volume if exercise_key in entity_map else none }}"
+          pr_entity: "{{ entity_map[exercise_key].pr if exercise_key in entity_map else none }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ set_number_entity is not none }}"
+            sequence:
+              - variables:
+                  next_set_number: "{{ states(set_number_entity) | int(0) + 1 }}"
+                  new_total_volume: "{{ (states(total_volume_entity) | float(0) + volume) | round(2) }}"
+                  current_pr: "{{ states(pr_entity) | float(0) }}"
+                  set_summary: "Set {{ next_set_number }}: {{ reps }} reps @ {{ weight }} kg ({{ volume }} kg)"
+              - service: input_number.set_value
+                target:
+                  entity_id: "{{ set_number_entity }}"
+                data:
+                  value: "{{ next_set_number }}"
+              - service: input_text.set_value
+                target:
+                  entity_id: "{{ last_set_entity }}"
+                data:
+                  value: "{{ set_summary }}"
+              - service: input_number.set_value
+                target:
+                  entity_id: "{{ total_volume_entity }}"
+                data:
+                  value: "{{ new_total_volume }}"
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ weight > current_pr }}"
+                    sequence:
+                      - service: input_number.set_value
+                        target:
+                          entity_id: "{{ pr_entity }}"
+                        data:
+                          value: "{{ weight }}"
+              - service: timer.start
+                target:
+                  entity_id: timer.fitness_rest_timer
+              - service: logbook.log
+                data:
+                  name: Fitness Workout
+                  entity_id: input_select.fitness_active_exercise
+                  message: "{{ active_exercise }} - {{ set_summary }}"
+        default:
+          - service: logbook.log
+            data:
+              name: Fitness Workout
+              entity_id: input_select.fitness_active_exercise
+              message: "Unable to save set. Unknown exercise: {{ active_exercise }}"
 
 automation:
   - alias: Fitness Workout Start Clears Notes

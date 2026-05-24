@@ -18,4 +18,4 @@
 - Run Home Assistant config check.
 - Verify helpers/entities are created.
 - Start workout and save a sample set.
-- Confirm PR/volume sensors update.
+- Confirm the active exercise updates per-exercise last set, PR, and volume sensors.
