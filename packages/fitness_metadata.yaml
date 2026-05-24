@@ -29,3 +29,18 @@ template:
             deadlift:
               display_name: Deadlift
               muscle_group: posterior_chain
+            shoulder_press:
+              display_name: Shoulder Press
+              muscle_group: shoulders
+            row:
+              display_name: Row
+              muscle_group: back
+            lat_pulldown:
+              display_name: Lat Pulldown
+              muscle_group: back
+            bicep_curl:
+              display_name: Bicep Curl
+              muscle_group: biceps
+            tricep_pushdown:
+              display_name: Tricep Pushdown
+              muscle_group: triceps

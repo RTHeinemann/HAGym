@@ -7,6 +7,7 @@ input_select:
   fitness_active_exercise:
     name: Fitness Active Exercise
     options:
+      - Select Exercise
       - Bench Press
       - Squat
       - Deadlift
@@ -29,44 +30,84 @@ input_number:
     max: 100
     step: 1
   fitness_set_number_bench_press:
-    name: Fitness Set Number Bench Press
+    name: Fitness Current Set Number Bench Press
     min: 0
     max: 1000
     step: 1
   fitness_set_number_squat:
-    name: Fitness Set Number Squat
+    name: Fitness Current Set Number Squat
     min: 0
     max: 1000
     step: 1
   fitness_set_number_deadlift:
-    name: Fitness Set Number Deadlift
+    name: Fitness Current Set Number Deadlift
     min: 0
     max: 1000
     step: 1
   fitness_set_number_shoulder_press:
-    name: Fitness Set Number Shoulder Press
+    name: Fitness Current Set Number Shoulder Press
     min: 0
     max: 1000
     step: 1
   fitness_set_number_row:
-    name: Fitness Set Number Row
+    name: Fitness Current Set Number Row
     min: 0
     max: 1000
     step: 1
   fitness_set_number_lat_pulldown:
-    name: Fitness Set Number Lat Pulldown
+    name: Fitness Current Set Number Lat Pulldown
     min: 0
     max: 1000
     step: 1
   fitness_set_number_bicep_curl:
-    name: Fitness Set Number Bicep Curl
+    name: Fitness Current Set Number Bicep Curl
     min: 0
     max: 1000
     step: 1
   fitness_set_number_tricep_pushdown:
-    name: Fitness Set Number Tricep Pushdown
+    name: Fitness Current Set Number Tricep Pushdown
     min: 0
     max: 1000
+    step: 1
+  fitness_lifetime_set_count_bench_press:
+    name: Fitness Lifetime Set Count Bench Press
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_squat:
+    name: Fitness Lifetime Set Count Squat
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_deadlift:
+    name: Fitness Lifetime Set Count Deadlift
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_shoulder_press:
+    name: Fitness Lifetime Set Count Shoulder Press
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_row:
+    name: Fitness Lifetime Set Count Row
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_lat_pulldown:
+    name: Fitness Lifetime Set Count Lat Pulldown
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_bicep_curl:
+    name: Fitness Lifetime Set Count Bicep Curl
+    min: 0
+    max: 100000
+    step: 1
+  fitness_lifetime_set_count_tricep_pushdown:
+    name: Fitness Lifetime Set Count Tricep Pushdown
+    min: 0
+    max: 100000
     step: 1
 
 input_text:

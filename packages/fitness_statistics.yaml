@@ -170,6 +170,90 @@ template:
         unit_of_measurement: kg
         state_class: total_increasing
         state: "{{ states('input_number.fitness_total_volume_tricep_pushdown') | float(0) }}"
+      - name: Fitness Muscle Volume Chest
+        unique_id: fitness_muscle_volume_chest
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'chest' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
+      - name: Fitness Muscle Volume Legs
+        unique_id: fitness_muscle_volume_legs
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'legs' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
+      - name: Fitness Muscle Volume Posterior Chain
+        unique_id: fitness_muscle_volume_posterior_chain
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'posterior_chain' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
+      - name: Fitness Muscle Volume Shoulders
+        unique_id: fitness_muscle_volume_shoulders
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'shoulders' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
+      - name: Fitness Muscle Volume Back
+        unique_id: fitness_muscle_volume_back
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'back' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
+      - name: Fitness Muscle Volume Biceps
+        unique_id: fitness_muscle_volume_biceps
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'biceps' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
+      - name: Fitness Muscle Volume Triceps
+        unique_id: fitness_muscle_volume_triceps
+        unit_of_measurement: kg
+        state: >
+          {% set exercises = state_attr('sensor.fitness_metadata_exercises', 'exercises') | default({}, true) %}
+          {% set ns = namespace(total=0) %}
+          {% for exercise_key, exercise_meta in exercises.items() %}
+            {% if exercise_meta.get('muscle_group') == 'triceps' %}
+              {% set ns.total = ns.total + (states('sensor.fitness_total_volume_' ~ exercise_key) | float(0)) %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.total | round(2) }}
 
 utility_meter:
   fitness_volume_weekly_bench_press:

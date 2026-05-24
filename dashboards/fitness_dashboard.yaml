@@ -15,11 +15,45 @@ views:
       - type: timer
         entity: timer.fitness_rest_timer
       - type: button
+        name: Start Workout
+        icon: mdi:play
+        tap_action:
+          action: call-service
+          service: script.fitness_start_workout
+      - type: button
+        name: Finish Workout
+        icon: mdi:stop
+        tap_action:
+          action: call-service
+          service: script.fitness_finish_workout
+      - type: button
         name: Save Set
         icon: mdi:content-save
         tap_action:
           action: call-service
           service: script.fitness_save_set
+      - type: entities
+        title: Weekly Volume by Exercise
+        entities:
+          - entity: sensor.fitness_volume_weekly_bench_press
+          - entity: sensor.fitness_volume_weekly_squat
+          - entity: sensor.fitness_volume_weekly_deadlift
+          - entity: sensor.fitness_volume_weekly_shoulder_press
+          - entity: sensor.fitness_volume_weekly_row
+          - entity: sensor.fitness_volume_weekly_lat_pulldown
+          - entity: sensor.fitness_volume_weekly_bicep_curl
+          - entity: sensor.fitness_volume_weekly_tricep_pushdown
+      - type: entities
+        title: Monthly Volume by Exercise
+        entities:
+          - entity: sensor.fitness_volume_monthly_bench_press
+          - entity: sensor.fitness_volume_monthly_squat
+          - entity: sensor.fitness_volume_monthly_deadlift
+          - entity: sensor.fitness_volume_monthly_shoulder_press
+          - entity: sensor.fitness_volume_monthly_row
+          - entity: sensor.fitness_volume_monthly_lat_pulldown
+          - entity: sensor.fitness_volume_monthly_bicep_curl
+          - entity: sensor.fitness_volume_monthly_tricep_pushdown
       - type: entities
         title: Last Set by Exercise
         entities:
