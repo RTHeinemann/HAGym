@@ -1,0 +1,30 @@
+title: HA Fitness Tracker
+views:
+  - title: Workout
+    path: workout
+    icon: mdi:dumbbell
+    cards:
+      - type: entities
+        title: Active Workout
+        entities:
+          - entity: input_boolean.fitness_workout_active
+          - entity: input_select.fitness_active_exercise
+          - entity: input_number.fitness_input_weight
+          - entity: input_number.fitness_input_reps
+          - entity: input_text.fitness_set_notes
+      - type: timer
+        entity: timer.fitness_rest_timer
+      - type: button
+        name: Save Set
+        icon: mdi:content-save
+        tap_action:
+          action: call-service
+          service: script.fitness_save_set
+      - type: entities
+        title: KPI
+        entities:
+          - entity: sensor.fitness_pr_bench_press
+          - entity: sensor.fitness_total_volume_benchmark
+          - entity: sensor.fitness_volume_weekly
+          - entity: sensor.fitness_volume_monthly
+          - entity: sensor.fitness_volume_yearly

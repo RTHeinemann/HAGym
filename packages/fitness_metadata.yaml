@@ -1,0 +1,31 @@
+template:
+  - sensor:
+      - name: Fitness Metadata Users
+        unique_id: fitness_metadata_users
+        icon: mdi:account-group
+        state: "ready"
+        attributes:
+          users:
+            demo_user:
+              user_id: demo_user
+              display_name: Demo User
+              avatar: mdi:account
+              color: "#4CAF50"
+              preferred_units: metric
+              active_training_plan: default
+              created_at: "2026-01-01T00:00:00Z"
+      - name: Fitness Metadata Exercises
+        unique_id: fitness_metadata_exercises
+        icon: mdi:weight-lifter
+        state: "ready"
+        attributes:
+          exercises:
+            bench_press:
+              display_name: Bench Press
+              muscle_group: chest
+            squat:
+              display_name: Squat
+              muscle_group: legs
+            deadlift:
+              display_name: Deadlift
+              muscle_group: posterior_chain

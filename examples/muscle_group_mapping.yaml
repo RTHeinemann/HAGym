@@ -1,0 +1,16 @@
+fitness:
+  muscle_groups:
+    chest:
+      color: "#E91E63"
+    legs:
+      color: "#3F51B5"
+    posterior_chain:
+      color: "#795548"
+    shoulders:
+      color: "#00BCD4"
+    back:
+      color: "#4CAF50"
+    biceps:
+      color: "#FFC107"
+    triceps:
+      color: "#9C27B0"
