@@ -18,6 +18,21 @@
           "ready": "Bereit",
           "active": "Aktiv"
         }
+      },
+      "active_exercise_sensor": {
+        "name": "Aktive Übung"
+      },
+      "current_set_number": {
+        "name": "Aktueller Satz"
+      },
+      "last_set": {
+        "name": "Letzter Satz"
+      },
+      "current_set_volume": {
+        "name": "Aktuelles Satzvolumen"
+      },
+      "active_workout_summary": {
+        "name": "Aktive Trainingsübersicht"
       }
     },
     "button": {
@@ -26,6 +41,27 @@
       },
       "finish_workout": {
         "name": "Training beenden"
+      },
+      "save_set": {
+        "name": "Satz speichern"
+      }
+    },
+    "select": {
+      "active_exercise": {
+        "name": "Aktive Übung"
+      }
+    },
+    "number": {
+      "weight": {
+        "name": "Gewicht"
+      },
+      "reps": {
+        "name": "Wiederholungen"
+      }
+    },
+    "text": {
+      "notes": {
+        "name": "Notizen"
       }
     }
   },
@@ -40,7 +76,7 @@
     },
     "save_set": {
       "name": "Satz speichern",
-      "description": "Protokolliert einen abgeschlossenen Übungssatz.",
+      "description": "Protokolliert einen abgeschlossenen Übungssatz. Übung, Gewicht (>0) und Wiederholungen (>0) sind erforderlich.",
       "fields": {
         "exercise": {
           "name": "Übung",

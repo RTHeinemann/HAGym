@@ -20,3 +20,15 @@ ATTR_EXERCISE = "exercise"
 ATTR_WEIGHT = "weight"
 ATTR_REPS = "reps"
 ATTR_NOTES = "notes"
+
+# Available exercises for the select entity
+EXERCISES: list[str] = [
+    "Bench Press",
+    "Squat",
+    "Deadlift",
+    "Shoulder Press",
+    "Row",
+    "Lat Pulldown",
+    "Bicep Curl",
+    "Tricep Pushdown",
+]

@@ -1,0 +1,48 @@
+title: HA Fitness Native
+views:
+  - title: Workout
+    path: workout
+    icon: mdi:dumbbell
+    cards:
+      - type: entities
+        title: Workout Status
+        entities:
+          - entity: sensor.ha_fitness_status
+          - entity: sensor.ha_fitness_active_exercise
+          - entity: sensor.ha_fitness_current_set_number
+          - entity: sensor.ha_fitness_current_set_volume
+          - entity: sensor.ha_fitness_last_set
+
+      - type: entities
+        title: Active Workout Summary
+        entities:
+          - entity: sensor.ha_fitness_active_workout_summary
+
+      - type: entities
+        title: Set Inputs
+        entities:
+          - entity: select.ha_fitness_active_exercise
+          - entity: number.ha_fitness_weight
+          - entity: number.ha_fitness_reps
+          - entity: text.ha_fitness_notes
+
+      - type: horizontal-stack
+        cards:
+          - type: button
+            entity: button.ha_fitness_start_workout
+            name: Start Workout
+            icon: mdi:play
+            tap_action:
+              action: toggle
+          - type: button
+            entity: button.ha_fitness_save_set
+            name: Save Set
+            icon: mdi:content-save
+            tap_action:
+              action: toggle
+          - type: button
+            entity: button.ha_fitness_finish_workout
+            name: Finish Workout
+            icon: mdi:stop
+            tap_action:
+              action: toggle

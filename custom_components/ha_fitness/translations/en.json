@@ -18,6 +18,21 @@
           "ready": "Ready",
           "active": "Active"
         }
+      },
+      "active_exercise_sensor": {
+        "name": "Active Exercise"
+      },
+      "current_set_number": {
+        "name": "Current Set Number"
+      },
+      "last_set": {
+        "name": "Last Set"
+      },
+      "current_set_volume": {
+        "name": "Current Set Volume"
+      },
+      "active_workout_summary": {
+        "name": "Active Workout Summary"
       }
     },
     "button": {
@@ -26,6 +41,27 @@
       },
       "finish_workout": {
         "name": "Finish Workout"
+      },
+      "save_set": {
+        "name": "Save Set"
+      }
+    },
+    "select": {
+      "active_exercise": {
+        "name": "Active Exercise"
+      }
+    },
+    "number": {
+      "weight": {
+        "name": "Weight"
+      },
+      "reps": {
+        "name": "Reps"
+      }
+    },
+    "text": {
+      "notes": {
+        "name": "Notes"
       }
     }
   },
@@ -40,7 +76,7 @@
     },
     "save_set": {
       "name": "Save Set",
-      "description": "Logs a completed exercise set.",
+      "description": "Logs a completed exercise set. Exercise, weight (>0), and reps (>0) are required.",
       "fields": {
         "exercise": {
           "name": "Exercise",

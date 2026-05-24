@@ -34,8 +34,9 @@ Build a local-first, privacy-first fitness subsystem for Home Assistant with:
 2. Download **HA Fitness Tracker** from HACS and restart Home Assistant.
 3. Go to **Settings → Devices & Services → Add Integration** and search for **HA Fitness Tracker**.
 
-> ⚠️ The HACS integration is currently a scaffold.
-> The YAML packages below remain the more feature-complete prototype until native entity migration is complete.
+> ⚠️ The HACS integration now supports a minimal native workout flow (Phase 1.7).
+> The YAML packages below remain a more feature-complete prototype for analytics and history
+> until SQLite persistence and PR tracking are implemented natively.
 
 See [`docs/HACS_INSTALLATION.md`](docs/HACS_INSTALLATION.md) for full details.
 
@@ -52,7 +53,20 @@ See [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) for a complete setu
 
 ## Current Phase
 
-This repository provides **Phase 1.5 (YAML MVP+)** with:
+This repository provides **Phase 1.7 (Native Entity Migration Start)** with:
+
+### HACS Native Integration
+
+- `select.ha_fitness_active_exercise` – dropdown for 8 built-in exercises
+- `number.ha_fitness_weight` and `number.ha_fitness_reps` – set input controls
+- `text.ha_fitness_notes` – optional per-set notes
+- `button.ha_fitness_save_set` – saves the current set with validation
+- 5 sensors: status, active exercise, set number, last set, volume, summary
+- Improved `ha_fitness.save_set` service with strict validation
+- Persistent notification on save errors
+- Native dashboard at `dashboards/ha_fitness_native_dashboard.yaml`
+
+### YAML MVP+ Prototype (still more feature-complete for analytics)
 
 - modular package examples
 - dashboard and ApexCharts examples

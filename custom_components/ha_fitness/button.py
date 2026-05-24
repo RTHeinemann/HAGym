@@ -22,6 +22,7 @@ async def async_setup_entry(
         [
             HAFitnessStartWorkoutButton(coordinator, entry),
             HAFitnessFinishWorkoutButton(coordinator, entry),
+            HAFitnessSaveSetButton(coordinator, entry),
         ]
     )
 
@@ -72,3 +73,19 @@ class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
 
     async def async_press(self) -> None:
         self._coordinator.finish_workout()
+
+
+class HAFitnessSaveSetButton(_HAFitnessButtonBase):
+    """Button to save the current set using coordinator runtime state."""
+
+    _attr_translation_key = "save_set"
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_save_set"
+
+    async def async_press(self) -> None:
+        self._coordinator.save_current_set()
+

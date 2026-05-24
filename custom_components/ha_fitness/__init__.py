@@ -6,6 +6,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -24,7 +25,7 @@ from .coordinator import HAFitnessCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "button"]
+PLATFORMS = ["sensor", "button", "select", "number", "text"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -74,12 +75,30 @@ def _register_services(hass: HomeAssistant) -> None:
             coordinator.finish_workout()
 
     async def handle_save_set(call: ServiceCall) -> None:
+        exercise: str = call.data[ATTR_EXERCISE]
+        weight: float = call.data[ATTR_WEIGHT]
+        reps: int = call.data[ATTR_REPS]
+        notes: str | None = call.data.get(ATTR_NOTES)
+
+        errors: list[str] = []
+        if not exercise:
+            errors.append("Exercise must not be empty.")
+        if weight <= 0:
+            errors.append("Weight must be greater than 0.")
+        if reps <= 0:
+            errors.append("Reps must be greater than 0.")
+
+        if errors:
+            message = " ".join(errors)
+            _LOGGER.warning("HA Fitness save_set service validation failed: %s", message)
+            raise HomeAssistantError(message)
+
         for coordinator in _all_coordinators():
             coordinator.save_set(
-                exercise=call.data[ATTR_EXERCISE],
-                weight=call.data[ATTR_WEIGHT],
-                reps=call.data[ATTR_REPS],
-                notes=call.data.get(ATTR_NOTES),
+                exercise=exercise,
+                weight=weight,
+                reps=reps,
+                notes=notes,
             )
 
     hass.services.async_register(DOMAIN, SERVICE_START_WORKOUT, handle_start_workout)
