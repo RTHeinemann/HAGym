@@ -13,7 +13,7 @@ template:
         unit_of_measurement: kg
         state: "{{ states('input_number.fitness_input_weight') | float(0) }}"
       - name: Fitness Total Volume Benchmark
-        unique_id: fitness_volume_bench_press_total
+        unique_id: fitness_total_volume_benchmark
         unit_of_measurement: kg
         state: "{{ states('input_number.fitness_volume_last_set') | float(0) }}"
 
