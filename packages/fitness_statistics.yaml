@@ -254,6 +254,387 @@ template:
             {% endif %}
           {% endfor %}
           {{ ns.total | round(2) }}
+      - name: Fitness Days Since Bench Press
+        unique_id: fitness_days_since_bench_press
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_bench_press') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Squat
+        unique_id: fitness_days_since_squat
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_squat') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Deadlift
+        unique_id: fitness_days_since_deadlift
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_deadlift') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Shoulder Press
+        unique_id: fitness_days_since_shoulder_press
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_shoulder_press') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Row
+        unique_id: fitness_days_since_row
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_row') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Lat Pulldown
+        unique_id: fitness_days_since_lat_pulldown
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_lat_pulldown') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Bicep Curl
+        unique_id: fitness_days_since_bicep_curl
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_bicep_curl') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Days Since Tricep Pushdown
+        unique_id: fitness_days_since_tricep_pushdown
+        unit_of_measurement: d
+        state: >
+          {% set last_trained = states('input_datetime.fitness_last_trained_tricep_pushdown') %}
+          {% set dt = as_datetime(last_trained, default=none) %}
+          {{ ((now() - dt).total_seconds() / 86400) | round(2) if dt is not none else none }}
+      - name: Fitness Recovery Bench Press
+        unique_id: fitness_recovery_bench_press
+        state: >
+          {% set days = states('sensor.fitness_days_since_bench_press') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_bench_press') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_bench_press') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_bench_press') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Squat
+        unique_id: fitness_recovery_squat
+        state: >
+          {% set days = states('sensor.fitness_days_since_squat') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_squat') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_squat') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_squat') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Deadlift
+        unique_id: fitness_recovery_deadlift
+        state: >
+          {% set days = states('sensor.fitness_days_since_deadlift') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_deadlift') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_deadlift') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_deadlift') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Shoulder Press
+        unique_id: fitness_recovery_shoulder_press
+        state: >
+          {% set days = states('sensor.fitness_days_since_shoulder_press') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_shoulder_press') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_shoulder_press') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_shoulder_press') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Row
+        unique_id: fitness_recovery_row
+        state: >
+          {% set days = states('sensor.fitness_days_since_row') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_row') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_row') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_row') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Lat Pulldown
+        unique_id: fitness_recovery_lat_pulldown
+        state: >
+          {% set days = states('sensor.fitness_days_since_lat_pulldown') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_lat_pulldown') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_lat_pulldown') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_lat_pulldown') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Bicep Curl
+        unique_id: fitness_recovery_bicep_curl
+        state: >
+          {% set days = states('sensor.fitness_days_since_bicep_curl') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_bicep_curl') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_bicep_curl') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_bicep_curl') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Recovery Tricep Pushdown
+        unique_id: fitness_recovery_tricep_pushdown
+        state: >
+          {% set days = states('sensor.fitness_days_since_tricep_pushdown') %}
+          {% if days in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% elif (days | float(0)) < 1 %}
+            freshly_trained
+          {% elif (days | float(0)) < 3 %}
+            recovering
+          {% elif (days | float(0)) < 7 %}
+            ready
+          {% else %}
+            stale
+          {% endif %}
+        attributes:
+          days_since: "{{ states('sensor.fitness_days_since_tricep_pushdown') }}"
+          last_trained: "{{ states('input_datetime.fitness_last_trained_tricep_pushdown') }}"
+          recommended_action: >
+            {% set status = states('sensor.fitness_recovery_tricep_pushdown') %}
+            {% if status == 'freshly_trained' %}Avoid heavy repeat work unless planned.
+            {% elif status == 'recovering' %}Light or accessory work may be suitable.
+            {% elif status == 'ready' %}Good candidate for training.
+            {% elif status == 'stale' %}Exercise has not been trained recently.
+            {% else %}No recommendation available.
+            {% endif %}
+      - name: Fitness Muscle Volume Weekly Chest
+        unique_id: fitness_muscle_volume_weekly_chest
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_weekly_bench_press') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Weekly Legs
+        unique_id: fitness_muscle_volume_weekly_legs
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_weekly_squat') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Weekly Posterior Chain
+        unique_id: fitness_muscle_volume_weekly_posterior_chain
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_weekly_deadlift') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Weekly Shoulders
+        unique_id: fitness_muscle_volume_weekly_shoulders
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_weekly_shoulder_press') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Weekly Back
+        unique_id: fitness_muscle_volume_weekly_back
+        unit_of_measurement: kg
+        state: >
+          {{ (states('sensor.fitness_volume_weekly_row') | float(0)
+             + states('sensor.fitness_volume_weekly_lat_pulldown') | float(0)) | round(2) }}
+      - name: Fitness Muscle Volume Weekly Biceps
+        unique_id: fitness_muscle_volume_weekly_biceps
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_weekly_bicep_curl') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Weekly Triceps
+        unique_id: fitness_muscle_volume_weekly_triceps
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_weekly_tricep_pushdown') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Monthly Chest
+        unique_id: fitness_muscle_volume_monthly_chest
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_monthly_bench_press') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Monthly Legs
+        unique_id: fitness_muscle_volume_monthly_legs
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_monthly_squat') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Monthly Posterior Chain
+        unique_id: fitness_muscle_volume_monthly_posterior_chain
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_monthly_deadlift') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Monthly Shoulders
+        unique_id: fitness_muscle_volume_monthly_shoulders
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_monthly_shoulder_press') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Monthly Back
+        unique_id: fitness_muscle_volume_monthly_back
+        unit_of_measurement: kg
+        state: >
+          {{ (states('sensor.fitness_volume_monthly_row') | float(0)
+             + states('sensor.fitness_volume_monthly_lat_pulldown') | float(0)) | round(2) }}
+      - name: Fitness Muscle Volume Monthly Biceps
+        unique_id: fitness_muscle_volume_monthly_biceps
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_monthly_bicep_curl') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Monthly Triceps
+        unique_id: fitness_muscle_volume_monthly_triceps
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_monthly_tricep_pushdown') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Yearly Chest
+        unique_id: fitness_muscle_volume_yearly_chest
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_yearly_bench_press') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Yearly Legs
+        unique_id: fitness_muscle_volume_yearly_legs
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_yearly_squat') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Yearly Posterior Chain
+        unique_id: fitness_muscle_volume_yearly_posterior_chain
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_yearly_deadlift') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Yearly Shoulders
+        unique_id: fitness_muscle_volume_yearly_shoulders
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_yearly_shoulder_press') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Yearly Back
+        unique_id: fitness_muscle_volume_yearly_back
+        unit_of_measurement: kg
+        state: >
+          {{ (states('sensor.fitness_volume_yearly_row') | float(0)
+             + states('sensor.fitness_volume_yearly_lat_pulldown') | float(0)) | round(2) }}
+      - name: Fitness Muscle Volume Yearly Biceps
+        unique_id: fitness_muscle_volume_yearly_biceps
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_yearly_bicep_curl') | float(0) | round(2) }}"
+      - name: Fitness Muscle Volume Yearly Triceps
+        unique_id: fitness_muscle_volume_yearly_triceps
+        unit_of_measurement: kg
+        state: "{{ states('sensor.fitness_volume_yearly_tricep_pushdown') | float(0) | round(2) }}"
+      - name: Fitness Active Workout Summary
+        unique_id: fitness_active_workout_summary
+        state: >
+          {% set is_active = is_state('input_boolean.fitness_workout_active', 'on') %}
+          {% if not is_active %}
+            inactive
+          {% else %}
+            {{ states('input_select.fitness_active_exercise') }}
+          {% endif %}
+        attributes:
+          workout_active: "{{ is_state('input_boolean.fitness_workout_active', 'on') }}"
+          active_exercise: "{{ states('input_select.fitness_active_exercise') }}"
+          current_weight: "{{ states('input_number.fitness_input_weight') | float(0) }}"
+          current_reps: "{{ states('input_number.fitness_input_reps') | int(0) }}"
+          current_set_number_for_active_exercise: >
+            {% set active = states('input_select.fitness_active_exercise') %}
+            {% set invalid = ['unknown', 'unavailable', '', 'Select Exercise'] %}
+            {% if active in invalid %}
+              {{ none }}
+            {% else %}
+              {{ states('input_number.fitness_set_number_' ~ (active | lower | replace(' ', '_'))) | int(0) }}
+            {% endif %}
+          current_set_volume: >
+            {{ ((states('input_number.fitness_input_weight') | float(0))
+               * (states('input_number.fitness_input_reps') | int(0))) | round(2) }}
+          rest_timer_state: "{{ states('timer.fitness_rest_timer') }}"
+          notes: "{{ states('input_text.fitness_set_notes') }}"
 
 utility_meter:
   fitness_volume_weekly_bench_press:

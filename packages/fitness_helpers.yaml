@@ -139,6 +139,40 @@ input_text:
     name: Fitness Last Set Tricep Pushdown
     max: 255
 
+input_datetime:
+  fitness_last_trained_bench_press:
+    name: Fitness Last Trained Bench Press
+    has_date: true
+    has_time: true
+  fitness_last_trained_squat:
+    name: Fitness Last Trained Squat
+    has_date: true
+    has_time: true
+  fitness_last_trained_deadlift:
+    name: Fitness Last Trained Deadlift
+    has_date: true
+    has_time: true
+  fitness_last_trained_shoulder_press:
+    name: Fitness Last Trained Shoulder Press
+    has_date: true
+    has_time: true
+  fitness_last_trained_row:
+    name: Fitness Last Trained Row
+    has_date: true
+    has_time: true
+  fitness_last_trained_lat_pulldown:
+    name: Fitness Last Trained Lat Pulldown
+    has_date: true
+    has_time: true
+  fitness_last_trained_bicep_curl:
+    name: Fitness Last Trained Bicep Curl
+    has_date: true
+    has_time: true
+  fitness_last_trained_tricep_pushdown:
+    name: Fitness Last Trained Tricep Pushdown
+    has_date: true
+    has_time: true
+
 timer:
   fitness_rest_timer:
     name: Fitness Rest Timer

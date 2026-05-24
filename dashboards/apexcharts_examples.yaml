@@ -5,15 +5,108 @@ views:
     cards:
       - type: custom:apexcharts-card
         header:
-          title: Yearly Volume
+          title: Weekly Exercise Volume Comparison
           show: true
         series:
-          - entity: sensor.fitness_volume_yearly_bench_press
-            name: Bench Press Volume
+          - entity: sensor.fitness_volume_weekly_bench_press
+            name: Bench Press
+          - entity: sensor.fitness_volume_weekly_squat
+            name: Squat
+          - entity: sensor.fitness_volume_weekly_deadlift
+            name: Deadlift
+          - entity: sensor.fitness_volume_weekly_shoulder_press
+            name: Shoulder Press
+          - entity: sensor.fitness_volume_weekly_row
+            name: Row
+          - entity: sensor.fitness_volume_weekly_lat_pulldown
+            name: Lat Pulldown
+          - entity: sensor.fitness_volume_weekly_bicep_curl
+            name: Bicep Curl
+          - entity: sensor.fitness_volume_weekly_tricep_pushdown
+            name: Tricep Pushdown
+
       - type: custom:apexcharts-card
         header:
-          title: Monthly Volume
+          title: Monthly Exercise Volume Comparison
           show: true
         series:
           - entity: sensor.fitness_volume_monthly_bench_press
-            name: Bench Press Volume
+            name: Bench Press
+          - entity: sensor.fitness_volume_monthly_squat
+            name: Squat
+          - entity: sensor.fitness_volume_monthly_deadlift
+            name: Deadlift
+          - entity: sensor.fitness_volume_monthly_shoulder_press
+            name: Shoulder Press
+          - entity: sensor.fitness_volume_monthly_row
+            name: Row
+          - entity: sensor.fitness_volume_monthly_lat_pulldown
+            name: Lat Pulldown
+          - entity: sensor.fitness_volume_monthly_bicep_curl
+            name: Bicep Curl
+          - entity: sensor.fitness_volume_monthly_tricep_pushdown
+            name: Tricep Pushdown
+
+      - type: custom:apexcharts-card
+        header:
+          title: Yearly Exercise Volume Comparison
+          show: true
+        series:
+          - entity: sensor.fitness_volume_yearly_bench_press
+            name: Bench Press
+          - entity: sensor.fitness_volume_yearly_squat
+            name: Squat
+          - entity: sensor.fitness_volume_yearly_deadlift
+            name: Deadlift
+          - entity: sensor.fitness_volume_yearly_shoulder_press
+            name: Shoulder Press
+          - entity: sensor.fitness_volume_yearly_row
+            name: Row
+          - entity: sensor.fitness_volume_yearly_lat_pulldown
+            name: Lat Pulldown
+          - entity: sensor.fitness_volume_yearly_bicep_curl
+            name: Bicep Curl
+          - entity: sensor.fitness_volume_yearly_tricep_pushdown
+            name: Tricep Pushdown
+
+      - type: custom:apexcharts-card
+        header:
+          title: Weekly Muscle-Group Volume Comparison
+          show: true
+        series:
+          - entity: sensor.fitness_muscle_volume_weekly_chest
+            name: Chest
+          - entity: sensor.fitness_muscle_volume_weekly_legs
+            name: Legs
+          - entity: sensor.fitness_muscle_volume_weekly_posterior_chain
+            name: Posterior Chain
+          - entity: sensor.fitness_muscle_volume_weekly_shoulders
+            name: Shoulders
+          - entity: sensor.fitness_muscle_volume_weekly_back
+            name: Back
+          - entity: sensor.fitness_muscle_volume_weekly_biceps
+            name: Biceps
+          - entity: sensor.fitness_muscle_volume_weekly_triceps
+            name: Triceps
+
+      - type: custom:apexcharts-card
+        header:
+          title: PR Comparison by Exercise
+          show: true
+        series:
+          - entity: sensor.fitness_pr_bench_press
+            name: Bench Press PR
+          - entity: sensor.fitness_pr_squat
+            name: Squat PR
+          - entity: sensor.fitness_pr_deadlift
+            name: Deadlift PR
+          - entity: sensor.fitness_pr_shoulder_press
+            name: Shoulder Press PR
+          - entity: sensor.fitness_pr_row
+            name: Row PR
+          - entity: sensor.fitness_pr_lat_pulldown
+            name: Lat Pulldown PR
+          - entity: sensor.fitness_pr_bicep_curl
+            name: Bicep Curl PR
+          - entity: sensor.fitness_pr_tricep_pushdown
+            name: Tricep Pushdown PR
