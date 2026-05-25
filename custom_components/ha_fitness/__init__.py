@@ -72,7 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    _async_reassign_equipment_entities_to_equipment_devices(hass, entry, coordinator)
+    _reassign_equipment_entities_to_equipment_devices(hass, entry, coordinator)
 
     _register_services(hass)
 
@@ -386,7 +386,7 @@ def _optional_str(value: object) -> str | None:
     return normalized if normalized else None
 
 
-def _async_reassign_equipment_entities_to_equipment_devices(
+def _reassign_equipment_entities_to_equipment_devices(
     hass: HomeAssistant, entry: ConfigEntry, coordinator: HAFitnessCoordinator
 ) -> None:
     """Move legacy equipment-scoped entities to their equipment devices."""
@@ -394,9 +394,9 @@ def _async_reassign_equipment_entities_to_equipment_devices(
     device_registry = dr.async_get(hass)
 
     equipment_ids = [
-        str(row.get("id") or "")
+        equipment_id
         for row in coordinator.equipment
-        if isinstance(row.get("id"), str) and str(row.get("id")).strip()
+        if isinstance((equipment_id := row.get("id")), str) and equipment_id.strip()
     ]
     if not equipment_ids:
         return
@@ -412,6 +412,7 @@ def _async_reassign_equipment_entities_to_equipment_devices(
     if not device_id_by_equipment:
         return
 
+    # Match longer IDs first (e.g. "rowing_station" before "row") to avoid partial matches.
     sorted_equipment_ids = sorted(device_id_by_equipment, key=len, reverse=True)
     entry_prefix = f"{entry.entry_id}_"
 
