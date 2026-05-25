@@ -57,12 +57,16 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 ### HACS Native Integration
 
 - `select.ha_fitness_active_exercise` – dropdown for 8 built-in exercises
+- integration options UI for exercise catalog management (add/edit/disable/re-enable)
 - `number.ha_fitness_weight` and `number.ha_fitness_reps` – set input controls
 - `text.ha_fitness_notes` – optional per-set notes
 - `button.ha_fitness_save_set` – saves the current set with validation
 - persisted workouts/sets in `/config/ha_fitness/ha_fitness.db`
 - restored open workout/last set/statistics after Home Assistant restart
 - aggregate sensors: total volume, total sets, total workouts
+- generic catalog/statistics sensors for all exercises:
+  - `sensor.ha_fitness_exercise_catalog`
+  - `sensor.ha_fitness_exercise_statistics`
 - per-exercise PR sensors and volume-total sensors
 - recent sets sensor for dashboard history attributes
 - improved `ha_fitness.save_set` service with implicit workout fallback

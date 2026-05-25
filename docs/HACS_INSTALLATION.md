@@ -41,6 +41,8 @@ After setup, Home Assistant will create:
 | `sensor.ha_fitness_total_sets` | Persisted total set count |
 | `sensor.ha_fitness_total_workouts` | Persisted total workout count |
 | `sensor.ha_fitness_recent_sets` | Recent set list in attributes |
+| `sensor.ha_fitness_exercise_catalog` | Enabled exercise count + full catalog attributes |
+| `sensor.ha_fitness_exercise_statistics` | Exercises-with-sets count + grouped per-exercise stats |
 | `button.ha_fitness_start_workout` | Starts a workout session |
 | `button.ha_fitness_finish_workout` | Finishes a workout session |
 | `button.ha_fitness_save_set` | Saves the current set using active inputs |
@@ -82,6 +84,26 @@ Call these from **Developer Tools → Services**:
 | `ha_fitness.refresh_statistics` | Reloads cached totals/PR/recent sets from SQLite |
 | `ha_fitness.export_data` | Writes export JSON to `/config/ha_fitness/export.json` |
 
+## Configure Exercises in UI (Options Flow)
+
+You can manage exercises without manually calling services:
+
+1. Go to **Settings → Devices & Services → HA Fitness Tracker → Configure / Options**
+2. Use:
+   - **Manage exercises**
+   - **Add exercise**
+   - **Edit exercise**
+   - **Disable / enable exercise**
+
+Exercise ID rules:
+
+- Required and normalized to lowercase
+- Allowed characters: letters, numbers, `_`, `-`
+- In options UI, `-` is converted to `_`
+
+Disabling exercises does **not** delete historical set logs.
+Disabled exercises are removed from `select.ha_fitness_active_exercise`, but remain in catalog/statistics and can be re-enabled.
+
 ### Example: save_set
 
 ```yaml
@@ -104,6 +126,8 @@ A ready-made native dashboard is available at
 ## Current Limitations
 
 - Native history views are currently limited to aggregate sensors plus `sensor.ha_fitness_recent_sets`.
+- Fixed per-exercise PR/volume entities are still generated only for default built-in exercise IDs.
+- Rich rendering of `sensor.ha_fitness_exercise_statistics` attributes may require custom dashboard cards.
 - Advanced charts/cards are still provided mainly by YAML examples.
 
 See [MIGRATION_FROM_YAML_TO_INTEGRATION.md](MIGRATION_FROM_YAML_TO_INTEGRATION.md) for the migration roadmap.

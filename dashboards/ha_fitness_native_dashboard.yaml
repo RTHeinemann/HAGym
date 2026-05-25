@@ -120,3 +120,9 @@ views:
           - entity: sensor.ha_fitness_total_sets
           - entity: sensor.ha_fitness_total_workouts
           - entity: sensor.ha_fitness_recent_sets
+
+      - type: entities
+        title: Exercise Catalog / Statistics
+        entities:
+          - entity: sensor.ha_fitness_exercise_catalog
+          - entity: sensor.ha_fitness_exercise_statistics

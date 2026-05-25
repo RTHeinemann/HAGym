@@ -10,6 +10,96 @@
       }
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Fitness Optionen",
+        "description": "Wähle, was du konfigurieren möchtest.",
+        "menu_options": {
+          "configure_household_users": "Haushaltsbenutzer konfigurieren",
+          "manage_exercises": "Übungen verwalten",
+          "add_exercise": "Übung hinzufügen",
+          "edit_exercise_select": "Übung bearbeiten",
+          "toggle_exercise_select": "Übung deaktivieren / aktivieren"
+        }
+      },
+      "manage_exercises": {
+        "title": "Übungen verwalten",
+        "description": "Füge Katalogübungen hinzu, bearbeite sie oder de-/aktiviere sie.",
+        "menu_options": {
+          "add_exercise": "Übung hinzufügen",
+          "edit_exercise_select": "Übung bearbeiten",
+          "toggle_exercise_select": "Übung deaktivieren / aktivieren",
+          "init": "Zurück zum Optionsmenü"
+        }
+      },
+      "configure_household_users": {
+        "title": "Haushaltsbenutzer konfigurieren",
+        "description": "Wähle Benutzer aus, die in Haushaltsstatistiken einfließen sollen.",
+        "data": {
+          "included_user_ids": "Enthaltene Haushaltsbenutzer"
+        }
+      },
+      "add_exercise": {
+        "title": "Übung hinzufügen",
+        "description": "Lege eine neue exercise_id an. IDs werden kleingeschrieben und '-' wird zu '_' umgewandelt.",
+        "data": {
+          "exercise_id": "Übungs-ID",
+          "name_en": "Name (Englisch)",
+          "name_de": "Name (Deutsch)",
+          "muscle_group": "Muskelgruppe",
+          "equipment": "Equipment",
+          "sort_order": "Sortierreihenfolge",
+          "enabled": "Aktiv"
+        }
+      },
+      "edit_exercise_select": {
+        "title": "Übung zum Bearbeiten auswählen",
+        "description": "Wähle eine Übung aus dem Katalog (inklusive deaktivierter Einträge).",
+        "data": {
+          "exercise_id": "Übung"
+        }
+      },
+      "edit_exercise": {
+        "title": "Übung bearbeiten",
+        "description": "Bearbeite Übung: {exercise_id}",
+        "data": {
+          "name_en": "Name (Englisch)",
+          "name_de": "Name (Deutsch)",
+          "muscle_group": "Muskelgruppe",
+          "equipment": "Equipment",
+          "sort_order": "Sortierreihenfolge",
+          "enabled": "Aktiv"
+        }
+      },
+      "toggle_exercise_select": {
+        "title": "Übung zum Umschalten auswählen",
+        "description": "Wähle eine Übung zum Deaktivieren oder Reaktivieren.",
+        "data": {
+          "exercise_id": "Übung"
+        }
+      },
+      "toggle_exercise_confirm": {
+        "title": "Umschalten bestätigen",
+        "description": "{exercise_name} ({exercise_id}) ist aktuell {status}. Bestätige, um diese Übung zu {action}. Historische Satzdaten bleiben erhalten.",
+        "data": {
+          "confirm": "Bestätigen"
+        }
+      }
+    },
+    "error": {
+      "invalid_exercise_id": "Die Übungs-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten.",
+      "exercise_exists": "Die Übung existiert bereits.",
+      "name_required": "Der englische Name darf nicht leer sein.",
+      "invalid_sort_order": "Die Sortierreihenfolge muss eine ganze Zahl sein.",
+      "exercise_not_found": "Übung nicht gefunden.",
+      "coordinator_unavailable": "Integrationsdaten sind noch nicht bereit. Bitte erneut versuchen."
+    },
+    "abort": {
+      "exercise_not_found": "Übung nicht gefunden.",
+      "coordinator_unavailable": "Integrationsdaten sind noch nicht bereit. Bitte erneut versuchen."
+    }
+  },
   "entity": {
     "sensor": {
       "status": {
@@ -45,6 +135,12 @@
       },
       "recent_sets": {
         "name": "Letzte Sätze"
+      },
+      "exercise_catalog": {
+        "name": "Übungskatalog"
+      },
+      "exercise_statistics": {
+        "name": "Übungsstatistiken"
       },
       "pr_bench_press": {
         "name": "PR Bankdrücken"

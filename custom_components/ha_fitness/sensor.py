@@ -1,6 +1,7 @@
 """Sensor platform for HA Fitness Tracker."""
 from __future__ import annotations
 from collections.abc import Callable
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
@@ -40,6 +41,8 @@ async def async_setup_entry(
         HAFitnessHouseholdTotalSetsSensor(coordinator, entry),
         HAFitnessHouseholdTotalWorkoutsSensor(coordinator, entry),
         HAFitnessHouseholdRecentSetsSensor(coordinator, entry),
+        HAFitnessExerciseCatalogSensor(coordinator, entry),
+        HAFitnessExerciseStatisticsSensor(coordinator, entry),
     ]
 
     for exercise_id in EXERCISE_IDS:
@@ -428,6 +431,51 @@ class HAFitnessHouseholdRecentSetsSensor(_HAFitnessSensorBase):
         }
 
 
+class HAFitnessExerciseCatalogSensor(_HAFitnessSensorBase):
+    """Sensor exposing full exercise catalog for dashboard/debug use."""
+
+    _attr_translation_key = "exercise_catalog"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_exercise_catalog"
+
+    @property
+    def native_value(self) -> int:
+        return len(
+            [row for row in self._coordinator.exercises if int(row.get("enabled", 1)) == 1]
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        exercises = [_exercise_row_payload(self._coordinator, row) for row in self._coordinator.exercises]
+        enabled_exercises = [row for row in exercises if row["enabled"]]
+        disabled_exercises = [row for row in exercises if not row["enabled"]]
+        return {
+            "exercises": exercises,
+            "enabled_exercises": enabled_exercises,
+            "disabled_exercises": disabled_exercises,
+        }
+
+
+class HAFitnessExerciseStatisticsSensor(_HAFitnessSensorBase):
+    """Sensor exposing grouped per-exercise global/personal/household stats."""
+
+    _attr_translation_key = "exercise_statistics"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_exercise_statistics"
+
+    @property
+    def native_value(self) -> int:
+        return len(self._coordinator.exercise_statistics)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"by_exercise": self._coordinator.exercise_statistics}
+
+
 class _ExerciseMetricSensor(_HAFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
 
@@ -551,3 +599,21 @@ class HAFitnessHouseholdVolumeByExerciseSensor(_ExerciseMetricSensor):
 
 def _exercise_key(exercise: str) -> str:
     return exercise.lower().replace(" ", "_").replace("-", "_")
+
+
+def _exercise_row_payload(
+    coordinator: HAFitnessCoordinator, row: dict[str, Any]
+) -> dict[str, Any]:
+    """Build normalized exercise catalog payload row with localized display name."""
+    exercise_id = str(row.get("id") or "")
+    return {
+        "id": exercise_id,
+        "display_name": coordinator.exercise_display_name(exercise_id),
+        "name_en": row.get("name_en"),
+        "name_de": row.get("name_de"),
+        "muscle_group": row.get("muscle_group"),
+        "equipment": row.get("equipment"),
+        "enabled": int(row.get("enabled", 1)) == 1,
+        "sort_order": int(row.get("sort_order", 0)),
+        "created_at": row.get("created_at"),
+    }

@@ -83,6 +83,7 @@ class HAFitnessCoordinator:
         self._household_volume_by_exercise: dict[str, float] = {
             exercise_id: 0.0 for exercise_id in EXERCISE_IDS
         }
+        self._exercise_statistics: list[dict[str, Any]] = []
         self._listeners: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -174,6 +175,10 @@ class HAFitnessCoordinator:
     @property
     def included_user_ids(self) -> list[str] | None:
         return self._included_user_ids
+
+    @property
+    def exercise_statistics(self) -> list[dict[str, Any]]:
+        return self._exercise_statistics
 
     @property
     def personal_total_volume(self) -> float:
@@ -400,6 +405,29 @@ class HAFitnessCoordinator:
         await self.async_refresh_statistics(notify=False)
         self._notify_listeners()
 
+    def get_exercise(self, exercise_id: str) -> dict[str, Any] | None:
+        """Return one exercise row from the cached catalog."""
+        return self._exercise_by_id.get(exercise_id)
+
+    def exercise_options_for_options_flow(
+        self, include_disabled: bool = True
+    ) -> list[dict[str, str]]:
+        """Return SelectSelector options with localized labels for options flow."""
+        rows = self._exercises
+        if not include_disabled:
+            rows = [row for row in rows if int(row.get("enabled", 1)) == 1]
+
+        options: list[dict[str, str]] = []
+        for row in rows:
+            exercise_id = str(row.get("id") or "")
+            if not exercise_id:
+                continue
+            label = f"{self.exercise_display_name(exercise_id)} ({exercise_id})"
+            if int(row.get("enabled", 1)) != 1:
+                label += " [disabled]"
+            options.append({"value": exercise_id, "label": label})
+        return options
+
     def exercise_display_name(self, exercise_id: str | None) -> str:
         """Return localized exercise display name for one id."""
         if not exercise_id:
@@ -569,6 +597,15 @@ class HAFitnessCoordinator:
                     exercise_id
                 ] = await self._store.async_get_household_total_volume_by_exercise(
                     exercise_id, household_user_ids
+                )
+
+            self._exercise_statistics = await self._store.async_get_exercise_statistics(
+                personal_user_id, household_user_ids
+            )
+            for row in self._exercise_statistics:
+                exercise_id = str(row.get("exercise_id") or "")
+                row["display_name"] = (
+                    self.exercise_display_name(exercise_id) if exercise_id else "Unknown"
                 )
         except sqlite3.Error as err:
             _LOGGER.exception("HA Fitness: failed to refresh statistics")

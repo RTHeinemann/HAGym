@@ -10,6 +10,96 @@
       }
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Fitness Options",
+        "description": "Choose what you want to configure.",
+        "menu_options": {
+          "configure_household_users": "Configure household users",
+          "manage_exercises": "Manage exercises",
+          "add_exercise": "Add exercise",
+          "edit_exercise_select": "Edit exercise",
+          "toggle_exercise_select": "Disable / enable exercise"
+        }
+      },
+      "manage_exercises": {
+        "title": "Manage exercises",
+        "description": "Add, edit, disable, or re-enable catalog exercises.",
+        "menu_options": {
+          "add_exercise": "Add exercise",
+          "edit_exercise_select": "Edit exercise",
+          "toggle_exercise_select": "Disable / enable exercise",
+          "init": "Back to options menu"
+        }
+      },
+      "configure_household_users": {
+        "title": "Configure household users",
+        "description": "Select which users should be included in household statistics.",
+        "data": {
+          "included_user_ids": "Included household users"
+        }
+      },
+      "add_exercise": {
+        "title": "Add exercise",
+        "description": "Create a new exercise id. IDs are normalized to lowercase and '-' is converted to '_'.",
+        "data": {
+          "exercise_id": "Exercise ID",
+          "name_en": "Name (English)",
+          "name_de": "Name (German)",
+          "muscle_group": "Muscle group",
+          "equipment": "Equipment",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
+      },
+      "edit_exercise_select": {
+        "title": "Select exercise to edit",
+        "description": "Select an exercise from the catalog (including disabled entries).",
+        "data": {
+          "exercise_id": "Exercise"
+        }
+      },
+      "edit_exercise": {
+        "title": "Edit exercise",
+        "description": "Editing exercise: {exercise_id}",
+        "data": {
+          "name_en": "Name (English)",
+          "name_de": "Name (German)",
+          "muscle_group": "Muscle group",
+          "equipment": "Equipment",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
+      },
+      "toggle_exercise_select": {
+        "title": "Select exercise to toggle",
+        "description": "Select an exercise to disable or re-enable.",
+        "data": {
+          "exercise_id": "Exercise"
+        }
+      },
+      "toggle_exercise_confirm": {
+        "title": "Confirm exercise toggle",
+        "description": "{exercise_name} ({exercise_id}) is currently {status}. Confirm to {action} this exercise. Historical set logs are kept.",
+        "data": {
+          "confirm": "Confirm"
+        }
+      }
+    },
+    "error": {
+      "invalid_exercise_id": "Exercise ID must contain only lowercase letters, numbers, or underscore.",
+      "exercise_exists": "Exercise already exists.",
+      "name_required": "English name must not be empty.",
+      "invalid_sort_order": "Sort order must be a whole number.",
+      "exercise_not_found": "Exercise not found.",
+      "coordinator_unavailable": "Integration data is not ready yet. Please try again."
+    },
+    "abort": {
+      "exercise_not_found": "Exercise not found.",
+      "coordinator_unavailable": "Integration data is not ready yet. Please try again."
+    }
+  },
   "entity": {
     "sensor": {
       "status": {
@@ -45,6 +135,12 @@
       },
       "recent_sets": {
         "name": "Recent Sets"
+      },
+      "exercise_catalog": {
+        "name": "Exercise Catalog"
+      },
+      "exercise_statistics": {
+        "name": "Exercise Statistics"
       },
       "pr_bench_press": {
         "name": "PR Bench Press"

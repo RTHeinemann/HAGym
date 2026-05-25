@@ -40,9 +40,20 @@ Table: `exercises`
 - German (`de`) uses `name_de` when available, otherwise falls back to `name_en`.
 - Other locales currently use `name_en`.
 
-## Add or Manage Custom Exercises
+## Add or Manage Custom Exercises (UI)
 
-Use services:
+You can manage exercises directly in Home Assistant:
+
+1. Open **Settings → Devices & Services**
+2. Open **HA Fitness Tracker**
+3. Click **Configure / Options**
+4. Use:
+   - **Manage exercises**
+   - **Add exercise**
+   - **Edit exercise**
+   - **Disable / enable exercise**
+
+The integration still exposes services:
 
 - `ha_fitness.add_exercise`
 - `ha_fitness.update_exercise`
@@ -51,10 +62,38 @@ Use services:
 
 Recommendations:
 
-- Use lowercase underscore IDs (for example `incline_bench_press`).
+- Use lowercase IDs (for example `incline_bench_press`).
+- Allowed characters: `a-z`, `0-9`, `_`, `-`.
+- In options UI, `-` is normalized to `_`.
 - Keep IDs stable after creation.
-- Use `sort_order` to control select ordering.
+- Use `sort_order` to control active-exercise select ordering (default: `100`).
 - Use `enabled=false` instead of deleting rows to preserve references.
+
+When disabling an exercise:
+
+- Historical set data is kept in SQLite.
+- The exercise is removed from `select.ha_fitness_active_exercise`.
+- The exercise remains visible in options flow edit/toggle lists.
+- The exercise remains included in historical/statistical aggregation.
+
+## Generic Exercise Sensors
+
+The integration exposes two generic sensors to make dynamic/custom exercises visible in dashboards:
+
+- `sensor.ha_fitness_exercise_catalog`
+  - state: count of enabled exercises
+  - attributes: `exercises`, `enabled_exercises`, `disabled_exercises`
+- `sensor.ha_fitness_exercise_statistics`
+  - state: count of exercises with logged sets
+  - attribute: `by_exercise` containing:
+    - `exercise_id`
+    - `display_name`
+    - `total_volume_global`, `total_sets_global`, `pr_global`
+    - `total_volume_personal`, `total_sets_personal`, `pr_personal`
+    - `total_volume_household`, `total_sets_household`, `pr_household`
+
+Custom exercises appear here as soon as sets are logged for them.
+Existing fixed per-exercise PR/volume sensors still only exist for the default built-in exercise IDs.
 
 ## Backward Compatibility
 

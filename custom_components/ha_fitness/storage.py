@@ -124,6 +124,10 @@ class HAFitnessStore:
         """Return exercise catalog rows."""
         return await self._hass.async_add_executor_job(self._get_exercises, enabled_only)
 
+    async def async_get_exercise(self, exercise_id: str) -> dict[str, Any] | None:
+        """Return one exercise by id."""
+        return await self._hass.async_add_executor_job(self._get_exercise, exercise_id)
+
     async def async_add_exercise(
         self,
         exercise_id: str,
@@ -175,6 +179,14 @@ class HAFitnessStore:
     async def async_refresh_exercises(self) -> None:
         """Re-seed built-in catalog entries."""
         await self._hass.async_add_executor_job(self._refresh_exercises)
+
+    async def async_get_exercise_statistics(
+        self, user_id: str | None = None, household_user_ids: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Return grouped exercise stats for global/personal/household scopes."""
+        return await self._hass.async_add_executor_job(
+            self._get_exercise_statistics, user_id, household_user_ids
+        )
 
     async def async_get_household_total_volume(self, user_ids: list[str] | None = None) -> float:
         """Return household total volume."""
@@ -442,6 +454,21 @@ class HAFitnessStore:
             rows = conn.execute(sql, params).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
 
+    def _get_exercise(self, exercise_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, name_en, name_de, muscle_group, equipment, enabled, sort_order, created_at
+                FROM exercises
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (exercise_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return _row_to_dict(row)
+
     def _add_exercise(
         self,
         exercise_id: str,
@@ -639,6 +666,96 @@ class HAFitnessStore:
             row = conn.execute(sql, (*where_params, *in_params)).fetchone()
             return float(row["value"] if row is not None else 0.0)
 
+    def _get_exercise_statistics(
+        self, user_id: str | None, household_user_ids: list[str] | None
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            global_stats = self._grouped_exercise_aggregates(conn, None)
+            personal_stats = (
+                self._grouped_exercise_aggregates(conn, [user_id]) if user_id else {}
+            )
+            resolved_household_user_ids = self._resolve_household_user_ids(
+                conn, household_user_ids
+            )
+            household_stats = self._grouped_exercise_aggregates(
+                conn, resolved_household_user_ids
+            )
+
+            exercise_ids = sorted(
+                set(global_stats) | set(personal_stats) | set(household_stats)
+            )
+            if not exercise_ids:
+                return []
+
+            sql, params = _in_clause_sql(
+                "SELECT id, name_en, name_de FROM exercises",
+                "id",
+                exercise_ids,
+            )
+            exercise_rows = conn.execute(sql, params).fetchall()
+            exercise_map: dict[str, dict[str, Any]] = {
+                str(row["id"]): dict(row)
+                for row in exercise_rows
+                if row is not None and row["id"] is not None
+            }
+
+            stats: list[dict[str, Any]] = []
+            for exercise_id in exercise_ids:
+                global_row = global_stats.get(exercise_id, _empty_exercise_aggregate())
+                personal_row = personal_stats.get(exercise_id, _empty_exercise_aggregate())
+                household_row = household_stats.get(exercise_id, _empty_exercise_aggregate())
+                meta = exercise_map.get(exercise_id, {})
+                stats.append(
+                    {
+                        "exercise_id": exercise_id,
+                        "name_en": meta.get("name_en"),
+                        "name_de": meta.get("name_de"),
+                        "total_volume_global": float(global_row["total_volume"]),
+                        "total_sets_global": int(global_row["total_sets"]),
+                        "pr_global": float(global_row["pr"]),
+                        "total_volume_personal": float(personal_row["total_volume"]),
+                        "total_sets_personal": int(personal_row["total_sets"]),
+                        "pr_personal": float(personal_row["pr"]),
+                        "total_volume_household": float(household_row["total_volume"]),
+                        "total_sets_household": int(household_row["total_sets"]),
+                        "pr_household": float(household_row["pr"]),
+                    }
+                )
+            return stats
+
+    def _grouped_exercise_aggregates(
+        self, conn: sqlite3.Connection, user_ids: list[str] | None
+    ) -> dict[str, dict[str, float | int]]:
+        sql = """
+            SELECT
+                exercise_id,
+                COALESCE(SUM(volume), 0) AS total_volume,
+                COUNT(*) AS total_sets,
+                COALESCE(MAX(weight), 0) AS pr
+            FROM set_logs
+            WHERE exercise_id IS NOT NULL
+              AND TRIM(exercise_id) != ''
+        """
+        params: tuple[Any, ...] = ()
+        if user_ids is not None:
+            sql, params = _in_clause_sql(sql, "user_id", user_ids, initial_where=True)
+            if not user_ids:
+                return {}
+
+        sql += " GROUP BY exercise_id ORDER BY exercise_id ASC"
+        rows = conn.execute(sql, params).fetchall()
+        result: dict[str, dict[str, float | int]] = {}
+        for row in rows:
+            if row is None or row["exercise_id"] is None:
+                continue
+            exercise_id = str(row["exercise_id"])
+            result[exercise_id] = {
+                "total_volume": float(row["total_volume"]),
+                "total_sets": int(row["total_sets"]),
+                "pr": float(row["pr"]),
+            }
+        return result
+
     def _resolve_household_user_ids(
         self, conn: sqlite3.Connection, user_ids: list[str] | None
     ) -> list[str]:
@@ -740,6 +857,11 @@ def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if row is None:
         return None
     return dict(row)
+
+
+def _empty_exercise_aggregate() -> dict[str, float | int]:
+    """Return zero-valued aggregate metrics for exercises without logged sets."""
+    return {"total_volume": 0.0, "total_sets": 0, "pr": 0.0}
 
 
 def _isoformat(value: datetime) -> str:
