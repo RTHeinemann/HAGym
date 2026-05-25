@@ -58,6 +58,8 @@ class HAFitnessCoordinator:
         self._equipment_display_to_id: dict[str, str] = {}
         self._equipment_options: list[str] = []
         self._equipment_statistics: list[dict[str, Any]] = []
+        self._equipment_statistics_by_id: dict[str, dict[str, Any]] = {}
+        self._equipment_runtime_state: dict[str, dict[str, Any]] = {}
         self._locale: str = str(hass.config.language or "en")
 
         self._pr_by_exercise: dict[str, float] = {exercise_id: 0.0 for exercise_id in EXERCISE_IDS}
@@ -212,6 +214,22 @@ class HAFitnessCoordinator:
         return self._equipment_statistics
 
     @property
+    def enabled_equipment_ids(self) -> list[str]:
+        rows = [
+            row
+            for row in self._equipment
+            if row.get("id") is not None and int(row.get("enabled", 1)) == 1
+        ]
+        rows.sort(
+            key=lambda row: (
+                int(row.get("sort_order", 100)),
+                str(row.get("name") or row.get("id") or ""),
+                str(row.get("id") or ""),
+            )
+        )
+        return [str(row["id"]) for row in rows]
+
+    @property
     def personal_total_volume(self) -> float:
         return self._personal_total_volume
 
@@ -291,6 +309,9 @@ class HAFitnessCoordinator:
             _LOGGER.warning("HA Fitness: unknown exercise_id '%s' ignored", exercise_id)
             return
         self._active_exercise_id = exercise_id
+        if self._active_equipment_id is not None:
+            state = self._ensure_equipment_runtime_state(self._active_equipment_id)
+            state["active_exercise_id"] = exercise_id
         _LOGGER.debug("HA Fitness: active exercise set to %s", exercise_id)
         self._notify_listeners()
 
@@ -301,16 +322,25 @@ class HAFitnessCoordinator:
             _LOGGER.warning("HA Fitness: unknown exercise option '%s' ignored", option)
             return
         self._active_exercise_id = exercise_id
+        if self._active_equipment_id is not None:
+            state = self._ensure_equipment_runtime_state(self._active_equipment_id)
+            state["active_exercise_id"] = exercise_id
         _LOGGER.debug("HA Fitness: active exercise option set to %s -> %s", option, exercise_id)
         self._notify_listeners()
 
     def set_active_equipment(self, equipment_id: str | None) -> None:
         """Update currently selected equipment id (None means no filter)."""
-        if equipment_id is not None and equipment_id not in self._equipment_by_id:
-            _LOGGER.warning("HA Fitness: unknown equipment_id '%s' ignored", equipment_id)
-            return
+        if equipment_id is not None:
+            row = self._equipment_by_id.get(equipment_id)
+            if row is None:
+                _LOGGER.warning("HA Fitness: unknown equipment_id '%s' ignored", equipment_id)
+                return
+            if int(row.get("enabled", 1)) != 1:
+                _LOGGER.warning("HA Fitness: disabled equipment_id '%s' ignored", equipment_id)
+                return
         self._active_equipment_id = equipment_id
         self._rebuild_exercise_options()
+        self._sync_global_runtime_from_active_equipment()
         self._notify_listeners()
 
     def set_active_equipment_option(self, option: str) -> None:
@@ -327,20 +357,174 @@ class HAFitnessCoordinator:
     def set_weight(self, weight: float) -> None:
         """Update the current weight value."""
         self._weight = weight
+        if self._active_equipment_id is not None:
+            state = self._ensure_equipment_runtime_state(self._active_equipment_id)
+            state["weight"] = float(weight)
         _LOGGER.debug("HA Fitness: weight set to %s", weight)
         self._notify_listeners()
 
     def set_reps(self, reps: int) -> None:
         """Update the current reps value."""
         self._reps = reps
+        if self._active_equipment_id is not None:
+            state = self._ensure_equipment_runtime_state(self._active_equipment_id)
+            state["reps"] = int(reps)
         _LOGGER.debug("HA Fitness: reps set to %s", reps)
         self._notify_listeners()
 
     def set_notes(self, notes: str) -> None:
         """Update the current notes value."""
         self._notes = notes
+        if self._active_equipment_id is not None:
+            state = self._ensure_equipment_runtime_state(self._active_equipment_id)
+            state["notes"] = notes
         _LOGGER.debug("HA Fitness: notes updated")
         self._notify_listeners()
+
+    def equipment_display_name(self, equipment_id: str) -> str:
+        """Return configured equipment display name or fallback to equipment_id."""
+        row = self._equipment_by_id.get(equipment_id)
+        if row is None:
+            return equipment_id
+        return str(row.get("name") or equipment_id)
+
+    def equipment_location(self, equipment_id: str) -> str | None:
+        """Return equipment location if configured."""
+        row = self._equipment_by_id.get(equipment_id)
+        if row is None:
+            return None
+        location = row.get("location")
+        if not isinstance(location, str):
+            return None
+        stripped = location.strip()
+        return stripped if stripped else None
+
+    def equipment_enabled(self, equipment_id: str) -> bool:
+        """Return enabled state for equipment id."""
+        row = self._equipment_by_id.get(equipment_id)
+        if row is None:
+            return False
+        return int(row.get("enabled", 1)) == 1
+
+    def get_equipment_exercise_options(self, equipment_id: str) -> list[str]:
+        """Return localized exercise options assigned to one equipment id."""
+        options: list[str] = []
+        for row in self.get_exercises_for_equipment(equipment_id):
+            exercise_id = str(row.get("id") or "")
+            if not exercise_id:
+                continue
+            options.append(self.exercise_display_name(exercise_id))
+        return options
+
+    def get_equipment_active_exercise_id(self, equipment_id: str) -> str | None:
+        """Return active exercise id for one equipment runtime state."""
+        return self._ensure_equipment_runtime_state(equipment_id).get("active_exercise_id")
+
+    def get_equipment_active_exercise_display(self, equipment_id: str) -> str | None:
+        """Return localized active exercise label for one equipment."""
+        exercise_id = self.get_equipment_active_exercise_id(equipment_id)
+        if exercise_id is None:
+            return None
+        return self.exercise_display_name(str(exercise_id))
+
+    def set_equipment_active_exercise(self, equipment_id: str, exercise_id: str) -> None:
+        """Set active exercise id for one equipment."""
+        valid_ids = {
+            str(row.get("id") or "")
+            for row in self.get_exercises_for_equipment(equipment_id)
+            if row.get("id")
+        }
+        if exercise_id not in valid_ids:
+            _LOGGER.warning(
+                "HA Fitness: invalid equipment exercise assignment '%s' for equipment '%s'",
+                exercise_id,
+                equipment_id,
+            )
+            return
+        state = self._ensure_equipment_runtime_state(equipment_id)
+        state["active_exercise_id"] = exercise_id
+        if equipment_id == self._active_equipment_id:
+            self._active_exercise_id = exercise_id
+        self._notify_listeners()
+
+    def set_equipment_active_exercise_option(self, equipment_id: str, option: str) -> None:
+        """Set active exercise by localized option label for one equipment."""
+        for row in self.get_exercises_for_equipment(equipment_id):
+            exercise_id = str(row.get("id") or "")
+            if not exercise_id:
+                continue
+            if self.exercise_display_name(exercise_id) == option:
+                self.set_equipment_active_exercise(equipment_id, exercise_id)
+                return
+        _LOGGER.warning(
+            "HA Fitness: unknown equipment exercise option '%s' for equipment '%s'",
+            option,
+            equipment_id,
+        )
+
+    def get_equipment_weight(self, equipment_id: str) -> float:
+        """Return weight input for one equipment."""
+        return float(self._ensure_equipment_runtime_state(equipment_id).get("weight", 0.0))
+
+    def set_equipment_weight(self, equipment_id: str, weight: float) -> None:
+        """Set weight input for one equipment."""
+        state = self._ensure_equipment_runtime_state(equipment_id)
+        state["weight"] = float(weight)
+        if equipment_id == self._active_equipment_id:
+            self._weight = float(weight)
+        self._notify_listeners()
+
+    def get_equipment_reps(self, equipment_id: str) -> int:
+        """Return reps input for one equipment."""
+        return int(self._ensure_equipment_runtime_state(equipment_id).get("reps", 0))
+
+    def set_equipment_reps(self, equipment_id: str, reps: int) -> None:
+        """Set reps input for one equipment."""
+        state = self._ensure_equipment_runtime_state(equipment_id)
+        state["reps"] = int(reps)
+        if equipment_id == self._active_equipment_id:
+            self._reps = int(reps)
+        self._notify_listeners()
+
+    def get_equipment_notes(self, equipment_id: str) -> str:
+        """Return notes input for one equipment."""
+        return str(self._ensure_equipment_runtime_state(equipment_id).get("notes", ""))
+
+    def set_equipment_notes(self, equipment_id: str, notes: str) -> None:
+        """Set notes input for one equipment."""
+        state = self._ensure_equipment_runtime_state(equipment_id)
+        state["notes"] = notes
+        if equipment_id == self._active_equipment_id:
+            self._notes = notes
+        self._notify_listeners()
+
+    def get_equipment_last_set_summary(self, equipment_id: str) -> str | None:
+        """Return last set summary for one equipment runtime state."""
+        state = self._ensure_equipment_runtime_state(equipment_id)
+        value = state.get("last_set_summary")
+        if isinstance(value, str):
+            return value
+        return None
+
+    def get_equipment_total_volume(self, equipment_id: str) -> float:
+        """Return global total volume for one equipment."""
+        row = self._equipment_statistics_by_id.get(equipment_id, {})
+        return float(row.get("total_volume", 0.0))
+
+    def get_equipment_total_sets(self, equipment_id: str) -> int:
+        """Return global total sets for one equipment."""
+        row = self._equipment_statistics_by_id.get(equipment_id, {})
+        return int(row.get("total_sets", 0))
+
+    def get_equipment_personal_volume(self, equipment_id: str) -> float:
+        """Return personal total volume for one equipment."""
+        row = self._equipment_statistics_by_id.get(equipment_id, {})
+        return float(row.get("personal_volume", 0.0))
+
+    def get_equipment_household_volume(self, equipment_id: str) -> float:
+        """Return household total volume for one equipment."""
+        row = self._equipment_statistics_by_id.get(equipment_id, {})
+        return float(row.get("household_volume", 0.0))
 
     async def set_selected_user(self, user_id: str | None) -> None:
         """Set selected user for personal dashboard statistics."""
@@ -396,6 +580,7 @@ class HAFitnessCoordinator:
             options.append(display)
             self._equipment_display_to_id[display] = equipment_id
         self._equipment_options = options
+        self._rebuild_equipment_runtime_state()
 
         if self._active_equipment_id not in self._equipment_by_id:
             self._active_equipment_id = None
@@ -672,6 +857,7 @@ class HAFitnessCoordinator:
             options.append(display)
             self._exercise_display_to_id[display] = exercise_id
         self._exercise_options = options
+        self._rebuild_equipment_runtime_state()
 
         if self._active_exercise_id not in self._exercise_by_id:
             self._active_exercise_id = None
@@ -681,6 +867,15 @@ class HAFitnessCoordinator:
             self._active_exercise_id = str(enabled_rows[0]["id"]) if enabled_rows else None
         if self._active_exercise_id is None and enabled_rows:
             self._active_exercise_id = str(enabled_rows[0]["id"])
+
+    def _sync_global_runtime_from_active_equipment(self) -> None:
+        if self._active_equipment_id is None:
+            return
+        state = self._ensure_equipment_runtime_state(self._active_equipment_id)
+        self._active_exercise_id = state.get("active_exercise_id")
+        self._weight = float(state.get("weight", 0.0))
+        self._reps = int(state.get("reps", 0))
+        self._notes = str(state.get("notes", ""))
 
     # ------------------------------------------------------------------
     # Startup and statistics
@@ -849,7 +1044,12 @@ class HAFitnessCoordinator:
                 household_row = household_map.get(equipment_id, {})
                 row["personal_volume"] = float(personal_row.get("total_volume", 0.0))
                 row["household_volume"] = float(household_row.get("total_volume", 0.0))
+                row["personal_sets"] = int(personal_row.get("total_sets", 0))
+                row["household_sets"] = int(household_row.get("total_sets", 0))
             self._equipment_statistics = equipment_global
+            self._equipment_statistics_by_id = {
+                str(row.get("equipment_id") or ""): row for row in equipment_global if row.get("equipment_id")
+            }
             for row in self._exercise_statistics:
                 exercise_id = str(row.get("exercise_id") or "")
                 row["display_name"] = (
@@ -1038,6 +1238,73 @@ class HAFitnessCoordinator:
         self._current_set_number += 1
         self._notify_listeners()
 
+    async def save_current_set_for_equipment(
+        self, equipment_id: str, context_user_id: str | None = None
+    ) -> None:
+        """Save a set using one equipment runtime state."""
+        if equipment_id not in self._equipment_by_id:
+            raise HomeAssistantError(f"Unknown equipment_id: {equipment_id}")
+        if not self.equipment_enabled(equipment_id):
+            raise HomeAssistantError(f"Equipment is disabled: {equipment_id}")
+
+        user_id = await self.resolve_user_id(context_user_id)
+
+        if (
+            self._current_workout_user_id != user_id
+            or self._current_workout_id is None
+            or self._workout_state != STATE_ACTIVE
+        ):
+            open_workout = await self._store.async_get_current_open_workout(user_id)
+            if open_workout is not None:
+                self._current_workout_id = int(open_workout["id"])
+                self._current_workout_started_at = str(open_workout["started_at"])
+                self._current_workout_user_id = user_id
+                self._workout_state = STATE_ACTIVE
+                self._current_set_number = await self._store.async_get_set_count_for_workout(
+                    self._current_workout_id
+                )
+
+        state = self._ensure_equipment_runtime_state(equipment_id)
+        exercise_id = state.get("active_exercise_id")
+        weight = float(state.get("weight", 0.0))
+        reps = int(state.get("reps", 0))
+        notes = str(state.get("notes", "") or "")
+
+        errors = self._validate_set_inputs(
+            exercise_id=str(exercise_id) if exercise_id else None,
+            weight=weight,
+            reps=reps,
+            require_active_workout=True,
+            require_current_workout_id=True,
+        )
+        if errors:
+            message = " ".join(errors)
+            _LOGGER.warning("HA Fitness save_current_set_for_equipment validation failed: %s", message)
+            self.hass.async_create_task(
+                self.hass.components.persistent_notification.async_create(
+                    message=f"Cannot save set: {message}",
+                    title="HA Fitness – Save Set",
+                    notification_id="ha_fitness_save_set_error",
+                )
+            )
+            raise HomeAssistantError(message)
+
+        resolved_exercise_id = str(exercise_id)
+        await self._persist_set(
+            user_id=user_id,
+            workout_id=self._current_workout_id,
+            set_number=self._current_set_number + 1,
+            exercise_id=resolved_exercise_id,
+            exercise_display=self.exercise_display_name(resolved_exercise_id),
+            weight=weight,
+            reps=reps,
+            notes=notes or None,
+            selected_equipment_id=equipment_id,
+        )
+        state["last_set_summary"] = self._last_set_summary
+        self._current_set_number += 1
+        self._notify_listeners()
+
     async def save_set(
         self,
         exercise: str,
@@ -1167,17 +1434,22 @@ class HAFitnessCoordinator:
         reps: int,
         notes: str | None,
         refresh_stats: bool = True,
+        selected_equipment_id: str | None = None,
     ) -> None:
         volume = weight * reps
         created_at = _now_utc()
-        selected_equipment_id = self._active_equipment_id or self.get_equipment_for_exercise(exercise_id)
+        resolved_equipment_id = (
+            selected_equipment_id
+            if selected_equipment_id is not None
+            else self._active_equipment_id or self.get_equipment_for_exercise(exercise_id)
+        )
         try:
             set_id = await self._store.async_save_set(
                 user_id=user_id,
                 workout_id=workout_id,
                 exercise=exercise_display,
                 exercise_id=exercise_id,
-                equipment_id=selected_equipment_id,
+                equipment_id=resolved_equipment_id,
                 weight=weight,
                 reps=reps,
                 volume=volume,
@@ -1201,7 +1473,7 @@ class HAFitnessCoordinator:
             "set_number": set_number,
             "exercise": exercise_display,
             "exercise_id": exercise_id,
-            "equipment_id": selected_equipment_id,
+            "equipment_id": resolved_equipment_id,
             "weight": weight,
             "reps": reps,
             "volume": volume,
@@ -1212,6 +1484,40 @@ class HAFitnessCoordinator:
 
         if refresh_stats:
             await self.async_refresh_statistics(notify=False)
+
+    def _ensure_equipment_runtime_state(self, equipment_id: str) -> dict[str, Any]:
+        state = self._equipment_runtime_state.get(equipment_id)
+        if state is None:
+            state = {
+                "active_exercise_id": None,
+                "weight": 0.0,
+                "reps": 0,
+                "notes": "",
+                "last_set_summary": None,
+            }
+            self._equipment_runtime_state[equipment_id] = state
+        return state
+
+    def _rebuild_equipment_runtime_state(self) -> None:
+        previous = self._equipment_runtime_state
+        rebuilt: dict[str, dict[str, Any]] = {}
+        for equipment_id in self.enabled_equipment_ids:
+            prior = previous.get(equipment_id, {})
+            exercises = self.get_exercises_for_equipment(equipment_id)
+            valid_exercise_ids = [str(row.get("id") or "") for row in exercises if row.get("id")]
+            active_exercise_id = str(prior.get("active_exercise_id") or "")
+            if not active_exercise_id or active_exercise_id not in valid_exercise_ids:
+                active_exercise_id = valid_exercise_ids[0] if valid_exercise_ids else ""
+            rebuilt[equipment_id] = {
+                "active_exercise_id": active_exercise_id or None,
+                "weight": float(prior.get("weight", 0.0)),
+                "reps": int(prior.get("reps", 0)),
+                "notes": str(prior.get("notes", "")),
+                "last_set_summary": prior.get("last_set_summary"),
+            }
+        self._equipment_runtime_state = rebuilt
+        if self._active_equipment_id is not None:
+            self._sync_global_runtime_from_active_equipment()
 
     def _format_set_summary(
         self,

@@ -1,6 +1,7 @@
 """Config flow for HA Fitness Tracker."""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -33,10 +34,12 @@ from .const import (
     DOMAIN,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 _EXERCISE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _EQUIPMENT_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _DEFAULT_SORT_ORDER = 100
-_MUSCLE_GROUP_OPTIONS = [
+_MUSCLE_GROUP_VALUES = [
     "chest",
     "back",
     "legs",
@@ -48,7 +51,7 @@ _MUSCLE_GROUP_OPTIONS = [
     "full_body",
     "other",
 ]
-_EQUIPMENT_OPTIONS = [
+_EQUIPMENT_VALUES = [
     "barbell",
     "dumbbell",
     "machine",
@@ -106,21 +109,25 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
         """Show options root menu."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=[
-                "configure_household_users",
-                "manage_exercises",
-                "manage_equipment",
-                "add_exercise",
-                "edit_exercise_select",
-                "toggle_exercise_select",
-                "add_equipment",
-                "edit_equipment_select",
-                "toggle_equipment_select",
-                "assign_exercises_select_equipment",
-            ],
-        )
+        try:
+            return self.async_show_menu(
+                step_id="init",
+                menu_options=[
+                    "configure_household_users",
+                    "manage_exercises",
+                    "manage_equipment",
+                    "add_exercise",
+                    "edit_exercise_select",
+                    "toggle_exercise_select",
+                    "add_equipment",
+                    "edit_equipment_select",
+                    "toggle_equipment_select",
+                    "assign_exercises_select_equipment",
+                ],
+            )
+        except Exception:
+            _LOGGER.exception("HA Fitness options flow init failed")
+            return self.async_abort(reason="options_flow_error")
 
     async def async_step_manage_exercises(
         self, user_input: dict | None = None
@@ -270,7 +277,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else "",
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_MUSCLE_GROUP_OPTIONS,
+                            options=_selector_options(_MUSCLE_GROUP_VALUES),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -280,7 +287,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         default=str(user_input.get(ATTR_EQUIPMENT, "")) if user_input else "",
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_EQUIPMENT_OPTIONS,
+                            options=_selector_options(_EQUIPMENT_VALUES),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -290,7 +297,9 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         default=str(user_input.get(ATTR_EQUIPMENT_ID, "")) if user_input else "",
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=coordinator.get_equipment_options(include_disabled=False)
+                            options=_selector_options_from_rows(
+                                coordinator.get_equipment_options(include_disabled=False)
+                            )
                             if coordinator
                             else [],
                             mode="dropdown",
@@ -327,10 +336,14 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         """Select one exercise to edit."""
         coordinator = self._coordinator
         options = (
-            coordinator.exercise_options_for_options_flow(include_disabled=True)
+            _selector_options_from_rows(
+                coordinator.exercise_options_for_options_flow(include_disabled=True)
+            )
             if coordinator is not None
             else []
         )
+        if not options:
+            return self.async_abort(reason="exercise_catalog_empty")
         if user_input is not None:
             self._selected_exercise_id = str(user_input[ATTR_EXERCISE_ID])
             return await self.async_step_edit_exercise()
@@ -428,7 +441,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else str(exercise.get(ATTR_MUSCLE_GROUP, "")),
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_MUSCLE_GROUP_OPTIONS,
+                            options=_selector_options(_MUSCLE_GROUP_VALUES),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -442,7 +455,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else str(exercise.get(ATTR_EQUIPMENT, "")),
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_EQUIPMENT_OPTIONS,
+                            options=_selector_options(_EQUIPMENT_VALUES),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -456,7 +469,9 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else str(exercise.get(ATTR_EQUIPMENT_ID, "")),
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=coordinator.get_equipment_options(include_disabled=False),
+                            options=_selector_options_from_rows(
+                                coordinator.get_equipment_options(include_disabled=False)
+                            ),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -494,10 +509,14 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         """Select one exercise for disable/enable toggle."""
         coordinator = self._coordinator
         options = (
-            coordinator.exercise_options_for_options_flow(include_disabled=True)
+            _selector_options_from_rows(
+                coordinator.exercise_options_for_options_flow(include_disabled=True)
+            )
             if coordinator is not None
             else []
         )
+        if not options:
+            return self.async_abort(reason="exercise_catalog_empty")
         if user_input is not None:
             self._selected_exercise_id = str(user_input[ATTR_EXERCISE_ID])
             return await self.async_step_toggle_exercise_confirm()
@@ -635,7 +654,13 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Select one equipment for edit."""
         coordinator = self._coordinator
-        options = coordinator.get_equipment_options(include_disabled=True) if coordinator else []
+        options = (
+            _selector_options_from_rows(coordinator.get_equipment_options(include_disabled=True))
+            if coordinator
+            else []
+        )
+        if not options:
+            return self.async_abort(reason="equipment_catalog_empty")
         if user_input is not None:
             self._selected_equipment_id = str(user_input[ATTR_EQUIPMENT_ID])
             return await self.async_step_edit_equipment()
@@ -752,7 +777,13 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Select one equipment for enable/disable toggle."""
         coordinator = self._coordinator
-        options = coordinator.get_equipment_options(include_disabled=True) if coordinator else []
+        options = (
+            _selector_options_from_rows(coordinator.get_equipment_options(include_disabled=True))
+            if coordinator
+            else []
+        )
+        if not options:
+            return self.async_abort(reason="equipment_catalog_empty")
         if user_input is not None:
             self._selected_equipment_id = str(user_input[ATTR_EQUIPMENT_ID])
             return await self.async_step_toggle_equipment_confirm()
@@ -811,7 +842,13 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Select equipment for exercise assignment."""
         coordinator = self._coordinator
-        options = coordinator.get_equipment_options(include_disabled=False) if coordinator else []
+        options = (
+            _selector_options_from_rows(coordinator.get_equipment_options(include_disabled=False))
+            if coordinator
+            else []
+        )
+        if not options:
+            return self.async_abort(reason="equipment_catalog_empty")
         if user_input is not None:
             self._selected_equipment_id = str(user_input[ATTR_EQUIPMENT_ID])
             return await self.async_step_assign_exercises_select_exercises()
@@ -845,7 +882,9 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         if coordinator.get_equipment(equipment_id) is None:
             return self.async_abort(reason="equipment_not_found")
 
-        options = coordinator.exercise_options_for_options_flow(include_disabled=True)
+        options = _selector_options_from_rows(
+            coordinator.exercise_options_for_options_flow(include_disabled=True)
+        )
         defaults = [
             str(row.get("id"))
             for row in coordinator.get_exercises_for_equipment(equipment_id)
@@ -853,7 +892,9 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         ]
         if user_input is not None:
             selected = [str(item) for item in user_input.get(ATTR_EXERCISE_ID, [])]
-            all_rows = coordinator.exercise_options_for_options_flow(include_disabled=True)
+            all_rows = _selector_options_from_rows(
+                coordinator.exercise_options_for_options_flow(include_disabled=True)
+            )
             all_ids = [str(row["value"]) for row in all_rows]
             for exercise_id in all_ids:
                 if exercise_id in selected:
@@ -931,3 +972,28 @@ def _is_valid_sort_order_input(value: Any) -> bool:
     except (TypeError, ValueError):
         return False
     return parsed.is_integer()
+
+
+def _selector_options(values: list[str]) -> list[dict[str, str]]:
+    """Convert plain values into explicit selector option dictionaries."""
+    options: list[dict[str, str]] = []
+    for value in values:
+        normalized = str(value).strip()
+        if not normalized:
+            continue
+        options.append({"value": normalized, "label": normalized})
+    return options
+
+
+def _selector_options_from_rows(rows: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    """Normalize selector options to Home Assistant SelectSelector option dicts."""
+    if not rows:
+        return []
+    options: list[dict[str, str]] = []
+    for row in rows:
+        value = str(row.get("value") or "").strip()
+        if not value:
+            continue
+        label = str(row.get("label") or value).strip() or value
+        options.append({"value": value, "label": label})
+    return options

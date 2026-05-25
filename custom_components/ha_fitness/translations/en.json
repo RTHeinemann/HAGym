@@ -182,7 +182,10 @@
     "abort": {
       "exercise_not_found": "Exercise not found.",
       "coordinator_unavailable": "Integration data is not ready yet. Please try again.",
-      "equipment_not_found": "Equipment not found."
+      "equipment_not_found": "Equipment not found.",
+      "exercise_catalog_empty": "No exercises available in the catalog yet.",
+      "equipment_catalog_empty": "No equipment available in the catalog yet.",
+      "options_flow_error": "The options flow failed to load. Please check integration logs."
     }
   },
   "entity": {

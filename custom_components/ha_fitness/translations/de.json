@@ -182,7 +182,10 @@
     "abort": {
       "exercise_not_found": "Übung nicht gefunden.",
       "coordinator_unavailable": "Integrationsdaten sind noch nicht bereit. Bitte erneut versuchen.",
-      "equipment_not_found": "Equipment nicht gefunden."
+      "equipment_not_found": "Equipment nicht gefunden.",
+      "exercise_catalog_empty": "Im Katalog sind noch keine Übungen verfügbar.",
+      "equipment_catalog_empty": "Im Katalog ist noch kein Equipment verfügbar.",
+      "options_flow_error": "Der Optionsfluss konnte nicht geladen werden. Bitte Integrationsprotokolle prüfen."
     }
   },
   "entity": {
