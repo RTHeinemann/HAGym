@@ -17,8 +17,12 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     ATTR_ENABLED,
+    ATTR_DESCRIPTION,
     ATTR_EQUIPMENT,
+    ATTR_EQUIPMENT_ID,
     ATTR_EXERCISE_ID,
+    ATTR_ICON,
+    ATTR_LOCATION,
     ATTR_MUSCLE_GROUP,
     ATTR_NAME_DE,
     ATTR_NAME_EN,
@@ -30,6 +34,7 @@ from .const import (
 )
 
 _EXERCISE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
+_EQUIPMENT_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _DEFAULT_SORT_ORDER = 100
 _MUSCLE_GROUP_OPTIONS = [
     "chest",
@@ -93,6 +98,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self.config_entry = config_entry
         self._selected_exercise_id: str | None = None
+        self._selected_equipment_id: str | None = None
 
     @property
     def _coordinator(self):
@@ -105,9 +111,14 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             menu_options=[
                 "configure_household_users",
                 "manage_exercises",
+                "manage_equipment",
                 "add_exercise",
                 "edit_exercise_select",
                 "toggle_exercise_select",
+                "add_equipment",
+                "edit_equipment_select",
+                "toggle_equipment_select",
+                "assign_exercises_select_equipment",
             ],
         )
 
@@ -121,6 +132,24 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 "add_exercise",
                 "edit_exercise_select",
                 "toggle_exercise_select",
+                "assign_exercises_select_equipment",
+                "manage_equipment",
+                "init",
+            ],
+        )
+
+    async def async_step_manage_equipment(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Show equipment management submenu."""
+        return self.async_show_menu(
+            step_id="manage_equipment",
+            menu_options=[
+                "add_equipment",
+                "edit_equipment_select",
+                "toggle_equipment_select",
+                "assign_exercises_select_equipment",
+                "manage_exercises",
                 "init",
             ],
         )
@@ -185,6 +214,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             name_de = _optional_str(user_input.get(ATTR_NAME_DE))
             muscle_group = _optional_str(user_input.get(ATTR_MUSCLE_GROUP))
             equipment = _optional_str(user_input.get(ATTR_EQUIPMENT))
+            equipment_id = _optional_str(user_input.get(ATTR_EQUIPMENT_ID))
             enabled = bool(user_input.get(ATTR_ENABLED, True))
             sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
             sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
@@ -209,6 +239,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     name_de=name_de,
                     muscle_group=muscle_group,
                     equipment=equipment,
+                    equipment_id=equipment_id,
                     enabled=enabled,
                     sort_order=sort_order,
                 )
@@ -250,6 +281,18 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     ): SelectSelector(
                         SelectSelectorConfig(
                             options=_EQUIPMENT_OPTIONS,
+                            mode="dropdown",
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Optional(
+                        ATTR_EQUIPMENT_ID,
+                        default=str(user_input.get(ATTR_EQUIPMENT_ID, "")) if user_input else "",
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=coordinator.get_equipment_options(include_disabled=False)
+                            if coordinator
+                            else [],
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -331,6 +374,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             name_de = _optional_str(user_input.get(ATTR_NAME_DE))
             muscle_group = _optional_str(user_input.get(ATTR_MUSCLE_GROUP))
             equipment = _optional_str(user_input.get(ATTR_EQUIPMENT))
+            equipment_id = _optional_str(user_input.get(ATTR_EQUIPMENT_ID))
             enabled = bool(user_input.get(ATTR_ENABLED, True))
             sort_order_raw = user_input.get(ATTR_SORT_ORDER, exercise.get("sort_order", 0))
             sort_order = _coerce_int(sort_order_raw, int(exercise.get("sort_order", 0)))
@@ -347,6 +391,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     name_de=name_de,
                     muscle_group=muscle_group,
                     equipment=equipment,
+                    equipment_id=equipment_id,
                     enabled=enabled,
                     sort_order=sort_order,
                 )
@@ -398,6 +443,20 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     ): SelectSelector(
                         SelectSelectorConfig(
                             options=_EQUIPMENT_OPTIONS,
+                            mode="dropdown",
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Optional(
+                        ATTR_EQUIPMENT_ID,
+                        default=str(
+                            user_input.get(ATTR_EQUIPMENT_ID, exercise.get(ATTR_EQUIPMENT_ID, ""))
+                        )
+                        if user_input
+                        else str(exercise.get(ATTR_EQUIPMENT_ID, "")),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=coordinator.get_equipment_options(include_disabled=False),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -496,6 +555,330 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             },
         )
 
+    async def async_step_add_equipment(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Add one equipment entry."""
+        errors: dict[str, str] = {}
+        coordinator = self._coordinator
+
+        if user_input is not None:
+            equipment_id = _normalize_equipment_id(str(user_input.get(ATTR_EQUIPMENT_ID, "")))
+            name = str(user_input.get("name", "")).strip()
+            description = _optional_str(user_input.get(ATTR_DESCRIPTION))
+            icon = _optional_str(user_input.get(ATTR_ICON))
+            location = _optional_str(user_input.get(ATTR_LOCATION))
+            enabled = bool(user_input.get(ATTR_ENABLED, True))
+            sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+            sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
+
+            if not equipment_id:
+                errors[ATTR_EQUIPMENT_ID] = "invalid_equipment_id"
+            elif coordinator is not None and coordinator.get_equipment(equipment_id):
+                errors[ATTR_EQUIPMENT_ID] = "equipment_exists"
+            if not name:
+                errors["name"] = "name_required"
+            if not _is_valid_sort_order_input(sort_order_raw):
+                errors[ATTR_SORT_ORDER] = "invalid_sort_order"
+            if coordinator is None:
+                errors["base"] = "coordinator_unavailable"
+
+            if not errors and coordinator is not None and equipment_id is not None:
+                await coordinator.async_add_equipment(
+                    equipment_id=equipment_id,
+                    name=name,
+                    description=description,
+                    icon=icon,
+                    location=location,
+                    enabled=enabled,
+                    sort_order=sort_order,
+                )
+                return await self.async_step_manage_equipment()
+
+        return self.async_show_form(
+            step_id="add_equipment",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        ATTR_EQUIPMENT_ID,
+                        default=str(user_input.get(ATTR_EQUIPMENT_ID, "")) if user_input else "",
+                    ): str,
+                    vol.Required("name", default=str(user_input.get("name", "")) if user_input else ""): str,
+                    vol.Optional(
+                        ATTR_DESCRIPTION,
+                        default=str(user_input.get(ATTR_DESCRIPTION, "")) if user_input else "",
+                    ): str,
+                    vol.Optional(ATTR_ICON, default=str(user_input.get(ATTR_ICON, "")) if user_input else ""): str,
+                    vol.Optional(
+                        ATTR_LOCATION,
+                        default=str(user_input.get(ATTR_LOCATION, "")) if user_input else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_SORT_ORDER,
+                        default=user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+                        if user_input
+                        else _DEFAULT_SORT_ORDER,
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=0, max=9999, step=1, mode="box")
+                    ),
+                    vol.Optional(
+                        ATTR_ENABLED,
+                        default=bool(user_input.get(ATTR_ENABLED, True)) if user_input else True,
+                    ): bool,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_edit_equipment_select(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select one equipment for edit."""
+        coordinator = self._coordinator
+        options = coordinator.get_equipment_options(include_disabled=True) if coordinator else []
+        if user_input is not None:
+            self._selected_equipment_id = str(user_input[ATTR_EQUIPMENT_ID])
+            return await self.async_step_edit_equipment()
+
+        return self.async_show_form(
+            step_id="edit_equipment_select",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(ATTR_EQUIPMENT_ID): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=False,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_edit_equipment(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Edit selected equipment."""
+        errors: dict[str, str] = {}
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        equipment_id = self._selected_equipment_id
+        if not equipment_id:
+            return await self.async_step_edit_equipment_select()
+        equipment = coordinator.get_equipment(equipment_id)
+        if equipment is None:
+            return self.async_abort(reason="equipment_not_found")
+
+        if user_input is not None:
+            name = str(user_input.get("name", "")).strip()
+            description = _optional_str(user_input.get(ATTR_DESCRIPTION))
+            icon = _optional_str(user_input.get(ATTR_ICON))
+            location = _optional_str(user_input.get(ATTR_LOCATION))
+            enabled = bool(user_input.get(ATTR_ENABLED, True))
+            sort_order_raw = user_input.get(ATTR_SORT_ORDER, equipment.get(ATTR_SORT_ORDER, 100))
+            sort_order = _coerce_int(sort_order_raw, int(equipment.get(ATTR_SORT_ORDER, 100)))
+            if not name:
+                errors["name"] = "name_required"
+            if not _is_valid_sort_order_input(sort_order_raw):
+                errors[ATTR_SORT_ORDER] = "invalid_sort_order"
+            if not errors:
+                await coordinator.async_update_equipment(
+                    equipment_id=equipment_id,
+                    name=name,
+                    description=description,
+                    icon=icon,
+                    location=location,
+                    enabled=enabled,
+                    sort_order=sort_order,
+                )
+                return await self.async_step_manage_equipment()
+
+        return self.async_show_form(
+            step_id="edit_equipment",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "name",
+                        default=str(user_input.get("name", equipment.get("name", "")))
+                        if user_input
+                        else str(equipment.get("name", "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_DESCRIPTION,
+                        default=str(
+                            user_input.get(ATTR_DESCRIPTION, equipment.get(ATTR_DESCRIPTION, ""))
+                        )
+                        if user_input
+                        else str(equipment.get(ATTR_DESCRIPTION, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_ICON,
+                        default=str(user_input.get(ATTR_ICON, equipment.get(ATTR_ICON, "")))
+                        if user_input
+                        else str(equipment.get(ATTR_ICON, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_LOCATION,
+                        default=str(user_input.get(ATTR_LOCATION, equipment.get(ATTR_LOCATION, "")))
+                        if user_input
+                        else str(equipment.get(ATTR_LOCATION, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_SORT_ORDER,
+                        default=user_input.get(
+                            ATTR_SORT_ORDER, int(equipment.get(ATTR_SORT_ORDER, 100))
+                        )
+                        if user_input
+                        else int(equipment.get(ATTR_SORT_ORDER, 100)),
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=0, max=9999, step=1, mode="box")
+                    ),
+                    vol.Optional(
+                        ATTR_ENABLED,
+                        default=bool(user_input.get(ATTR_ENABLED, True))
+                        if user_input
+                        else bool(equipment.get(ATTR_ENABLED, 1)),
+                    ): bool,
+                }
+            ),
+            errors=errors,
+            description_placeholders={"equipment_id": equipment_id},
+        )
+
+    async def async_step_toggle_equipment_select(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select one equipment for enable/disable toggle."""
+        coordinator = self._coordinator
+        options = coordinator.get_equipment_options(include_disabled=True) if coordinator else []
+        if user_input is not None:
+            self._selected_equipment_id = str(user_input[ATTR_EQUIPMENT_ID])
+            return await self.async_step_toggle_equipment_confirm()
+
+        return self.async_show_form(
+            step_id="toggle_equipment_select",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(ATTR_EQUIPMENT_ID): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=False,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_toggle_equipment_confirm(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Toggle selected equipment enabled state."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        equipment_id = self._selected_equipment_id
+        if not equipment_id:
+            return await self.async_step_toggle_equipment_select()
+        equipment = coordinator.get_equipment(equipment_id)
+        if equipment is None:
+            return self.async_abort(reason="equipment_not_found")
+
+        is_enabled = int(equipment.get("enabled", 1)) == 1
+        if user_input is not None and bool(user_input.get("confirm", True)):
+            if is_enabled:
+                await coordinator.async_disable_equipment(equipment_id)
+            else:
+                await coordinator.async_update_equipment(equipment_id=equipment_id, enabled=True)
+            return await self.async_step_manage_equipment()
+
+        return self.async_show_form(
+            step_id="toggle_equipment_confirm",
+            data_schema=vol.Schema({vol.Required("confirm", default=True): bool}),
+            description_placeholders={
+                "equipment_id": equipment_id,
+                "equipment_name": str(equipment.get("name") or equipment_id),
+                "status": "enabled" if is_enabled else "disabled",
+                "action": "disable" if is_enabled else "enable",
+            },
+        )
+
+    async def async_step_assign_exercises_select_equipment(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select equipment for exercise assignment."""
+        coordinator = self._coordinator
+        options = coordinator.get_equipment_options(include_disabled=False) if coordinator else []
+        if user_input is not None:
+            self._selected_equipment_id = str(user_input[ATTR_EQUIPMENT_ID])
+            return await self.async_step_assign_exercises_select_exercises()
+
+        return self.async_show_form(
+            step_id="assign_exercises_select_equipment",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(ATTR_EQUIPMENT_ID): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=False,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_assign_exercises_select_exercises(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Multi-select exercises and assign to selected equipment."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        equipment_id = self._selected_equipment_id
+        if not equipment_id:
+            return await self.async_step_assign_exercises_select_equipment()
+        if coordinator.get_equipment(equipment_id) is None:
+            return self.async_abort(reason="equipment_not_found")
+
+        options = coordinator.exercise_options_for_options_flow(include_disabled=True)
+        defaults = [
+            str(row.get("id"))
+            for row in coordinator.get_exercises_for_equipment(equipment_id)
+            if row.get("id")
+        ]
+        if user_input is not None:
+            selected = [str(item) for item in user_input.get(ATTR_EXERCISE_ID, [])]
+            all_rows = coordinator.exercise_options_for_options_flow(include_disabled=True)
+            all_ids = [str(row["value"]) for row in all_rows]
+            for exercise_id in all_ids:
+                if exercise_id in selected:
+                    await coordinator.async_assign_exercise_to_equipment(exercise_id, equipment_id)
+                elif coordinator.get_equipment_for_exercise(exercise_id) == equipment_id:
+                    await coordinator.async_assign_exercise_to_equipment(exercise_id, None)
+            return await self.async_step_manage_equipment()
+
+        return self.async_show_form(
+            step_id="assign_exercises_select_exercises",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(ATTR_EXERCISE_ID, default=defaults): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=True,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+            description_placeholders={"equipment_id": equipment_id},
+        )
+
 
 def _optional_str(value: Any) -> str | None:
     """Return stripped string value or None for non-strings/empty strings."""
@@ -511,6 +894,16 @@ def _normalize_exercise_id(raw_exercise_id: str) -> str | None:
     if not normalized:
         return None
     if not _EXERCISE_ID_PATTERN.match(normalized):
+        return None
+    return normalized
+
+
+def _normalize_equipment_id(raw_equipment_id: str) -> str | None:
+    """Normalize raw equipment id and validate allowed characters."""
+    normalized = raw_equipment_id.strip().lower().replace("-", "_")
+    if not normalized:
+        return None
+    if not _EQUIPMENT_ID_PATTERN.match(normalized):
         return None
     return normalized
 

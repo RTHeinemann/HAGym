@@ -4,6 +4,13 @@ views:
     path: workout
     icon: mdi:dumbbell
     cards:
+      - type: markdown
+        content: |
+          ## Phase 2.4 Equipment Flow (Native Integration)
+          1. Select `select.ha_fitness_active_equipment`
+          2. Choose from filtered `select.ha_fitness_active_exercise`
+          3. Save sets with equipment-aware statistics
+
       - type: entities
         title: Current Workout
         entities:

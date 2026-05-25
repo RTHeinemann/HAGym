@@ -4,9 +4,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import sqlite3
 
-from .const import DEFAULT_EXERCISES, LEGACY_USER_ID, LEGACY_USER_NAME
+from .const import (
+    DEFAULT_EQUIPMENT,
+    DEFAULT_EXERCISE_EQUIPMENT_MAP,
+    DEFAULT_EXERCISES,
+    LEGACY_USER_ID,
+    LEGACY_USER_NAME,
+)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -33,6 +39,10 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 3:
         _apply_v3(conn)
+        current_version = 3
+
+    if current_version < 4:
+        _apply_v4(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -221,11 +231,105 @@ def _apply_v3(conn: sqlite3.Connection) -> None:
     )
 
 
+def _apply_v4(conn: sqlite3.Connection) -> None:
+    """Add equipment catalog and equipment relations for exercises/set logs."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS equipment (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            icon TEXT,
+            location TEXT,
+            enabled INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 100,
+            created_at TEXT NOT NULL
+        );
+        """
+    )
+
+    if not _column_exists(conn, "exercises", "equipment_id"):
+        conn.execute("ALTER TABLE exercises ADD COLUMN equipment_id TEXT")
+
+    if not _column_exists(conn, "set_logs", "equipment_id"):
+        conn.execute("ALTER TABLE set_logs ADD COLUMN equipment_id TEXT")
+
+    now = datetime.now(timezone.utc).isoformat()
+    for item in DEFAULT_EQUIPMENT:
+        conn.execute(
+            """
+            INSERT INTO equipment(id, name, description, icon, location, enabled, sort_order, created_at)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                description = COALESCE(equipment.description, excluded.description),
+                icon = COALESCE(equipment.icon, excluded.icon),
+                location = COALESCE(equipment.location, excluded.location),
+                enabled = COALESCE(equipment.enabled, excluded.enabled),
+                sort_order = excluded.sort_order
+            """,
+            (
+                str(item["id"]),
+                str(item["name"]),
+                item["description"],
+                item["icon"],
+                item["location"],
+                1 if bool(item.get("enabled", True)) else 0,
+                int(item.get("sort_order", 100)),
+                now,
+            ),
+        )
+
+    for exercise_id, equipment_id in DEFAULT_EXERCISE_EQUIPMENT_MAP.items():
+        conn.execute(
+            """
+            UPDATE exercises
+            SET equipment_id = ?
+            WHERE id = ?
+              AND (equipment_id IS NULL OR TRIM(equipment_id) = '')
+            """,
+            (equipment_id, exercise_id),
+        )
+
+    conn.execute(
+        """
+        UPDATE set_logs
+        SET equipment_id = (
+            SELECT e.equipment_id
+            FROM exercises e
+            WHERE e.id = set_logs.exercise_id
+            LIMIT 1
+        )
+        WHERE (equipment_id IS NULL OR TRIM(equipment_id) = '')
+          AND exercise_id IS NOT NULL
+        """
+    )
+
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_equipment_enabled_sort_order
+            ON equipment(enabled, sort_order, name);
+        CREATE INDEX IF NOT EXISTS idx_exercises_equipment_id
+            ON exercises(equipment_id);
+        CREATE INDEX IF NOT EXISTS idx_set_logs_equipment_id_created_at
+            ON set_logs(equipment_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_set_logs_user_id_equipment_id_created_at
+            ON set_logs(user_id, equipment_id, created_at);
+        """
+    )
+
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (4, now),
+    )
+
+
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     pragma_sql_by_table = {
         "workouts": "PRAGMA table_info(workouts)",
         "set_logs": "PRAGMA table_info(set_logs)",
         "exercises": "PRAGMA table_info(exercises)",
+        "equipment": "PRAGMA table_info(equipment)",
     }
     pragma_sql = pragma_sql_by_table.get(table)
     if pragma_sql is None:

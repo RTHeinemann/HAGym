@@ -15,6 +15,7 @@ from .const import (
     ATTR_EXERCISE_ID,
     ATTR_ENABLED,
     ATTR_EQUIPMENT,
+    ATTR_EQUIPMENT_ID,
     ATTR_MUSCLE_GROUP,
     ATTR_NAME_DE,
     ATTR_NAME_EN,
@@ -37,6 +38,7 @@ from .const import (
     SERVICE_SAVE_CURRENT_SET,
     SERVICE_SAVE_SET,
     SERVICE_SELECT_USER,
+    SERVICE_SELECT_EQUIPMENT,
     SERVICE_START_WORKOUT,
     SERVICE_UPDATE_EXERCISE,
 )
@@ -101,6 +103,7 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_EXPORT_DATA,
         SERVICE_SELECT_USER,
         SERVICE_REFRESH_USERS,
+        SERVICE_SELECT_EQUIPMENT,
         SERVICE_ADD_EXERCISE,
         SERVICE_UPDATE_EXERCISE,
         SERVICE_DISABLE_EXERCISE,
@@ -170,12 +173,23 @@ def _register_services(hass: HomeAssistant) -> None:
             await coordinator.async_refresh_users()
             await coordinator.async_refresh_statistics()
 
+    async def handle_select_equipment(call: ServiceCall) -> None:
+        raw_equipment_id = call.data.get(ATTR_EQUIPMENT_ID)
+        equipment_id = (
+            raw_equipment_id.strip().lower()
+            if isinstance(raw_equipment_id, str) and raw_equipment_id.strip()
+            else None
+        )
+        for coordinator in _all_coordinators():
+            coordinator.set_active_equipment(equipment_id)
+
     async def handle_add_exercise(call: ServiceCall) -> None:
         exercise_id: str = call.data[ATTR_EXERCISE_ID].strip().lower()
         name_en: str = call.data[ATTR_NAME_EN].strip()
         name_de: str | None = _optional_str(call.data.get(ATTR_NAME_DE))
         muscle_group: str | None = _optional_str(call.data.get(ATTR_MUSCLE_GROUP))
         equipment: str | None = _optional_str(call.data.get(ATTR_EQUIPMENT))
+        equipment_id: str | None = _optional_str(call.data.get(ATTR_EQUIPMENT_ID))
         enabled: bool = bool(call.data.get(ATTR_ENABLED, True))
         sort_order: int = int(call.data.get(ATTR_SORT_ORDER, 0))
 
@@ -191,6 +205,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 name_de=name_de,
                 muscle_group=muscle_group,
                 equipment=equipment,
+                equipment_id=equipment_id,
                 enabled=enabled,
                 sort_order=sort_order,
             )
@@ -208,6 +223,8 @@ def _register_services(hass: HomeAssistant) -> None:
         muscle_group = raw_muscle_group.strip() if isinstance(raw_muscle_group, str) else None
         raw_equipment = call.data.get(ATTR_EQUIPMENT)
         equipment = raw_equipment.strip() if isinstance(raw_equipment, str) else None
+        raw_equipment_id = call.data.get(ATTR_EQUIPMENT_ID)
+        equipment_id = raw_equipment_id.strip() if isinstance(raw_equipment_id, str) else None
         enabled = call.data.get(ATTR_ENABLED)
         sort_order = call.data.get(ATTR_SORT_ORDER)
 
@@ -216,6 +233,7 @@ def _register_services(hass: HomeAssistant) -> None:
             and name_de is None
             and muscle_group is None
             and equipment is None
+            and equipment_id is None
             and enabled is None
             and sort_order is None
         ):
@@ -228,6 +246,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 name_de=name_de,
                 muscle_group=muscle_group,
                 equipment=equipment,
+                equipment_id=equipment_id,
                 enabled=bool(enabled) if enabled is not None else None,
                 sort_order=int(sort_order) if sort_order is not None else None,
             )
@@ -283,6 +302,12 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_REFRESH_USERS, handle_refresh_users)
     hass.services.async_register(
         DOMAIN,
+        SERVICE_SELECT_EQUIPMENT,
+        handle_select_equipment,
+        schema=vol.Schema({vol.Optional(ATTR_EQUIPMENT_ID): cv.string}),
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_ADD_EXERCISE,
         handle_add_exercise,
         schema=vol.Schema(
@@ -292,6 +317,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional(ATTR_NAME_DE): cv.string,
                 vol.Optional(ATTR_MUSCLE_GROUP): cv.string,
                 vol.Optional(ATTR_EQUIPMENT): cv.string,
+                vol.Optional(ATTR_EQUIPMENT_ID): cv.string,
                 vol.Optional(ATTR_ENABLED): cv.boolean,
                 vol.Optional(ATTR_SORT_ORDER): vol.Coerce(int),
             }
@@ -308,6 +334,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional(ATTR_NAME_DE): cv.string,
                 vol.Optional(ATTR_MUSCLE_GROUP): cv.string,
                 vol.Optional(ATTR_EQUIPMENT): cv.string,
+                vol.Optional(ATTR_EQUIPMENT_ID): cv.string,
                 vol.Optional(ATTR_ENABLED): cv.boolean,
                 vol.Optional(ATTR_SORT_ORDER): vol.Coerce(int),
             }
@@ -337,6 +364,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_EXPORT_DATA,
         SERVICE_SELECT_USER,
         SERVICE_REFRESH_USERS,
+        SERVICE_SELECT_EQUIPMENT,
         SERVICE_ADD_EXERCISE,
         SERVICE_UPDATE_EXERCISE,
         SERVICE_DISABLE_EXERCISE,

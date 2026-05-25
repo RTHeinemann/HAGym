@@ -8,7 +8,7 @@ finish_workout:
 
 save_set:
   name: Save Set
-  description: Logs a completed exercise set for the calling Home Assistant user context. Exercise can be an exercise_id or a display name. If no workout is active for that user, an implicit workout is created and finished automatically.
+  description: Logs a completed exercise set for the calling Home Assistant user context. Exercise can be an exercise_id or a display name. Equipment is stored from active equipment selection or mapped from the exercise. If no workout is active for that user, an implicit workout is created and finished automatically.
   fields:
     exercise:
       name: Exercise
@@ -65,6 +65,17 @@ refresh_users:
   name: Refresh Users
   description: Refreshes known users from the HA Fitness users table and refreshes statistics.
 
+select_equipment:
+  name: Select Equipment
+  description: Sets the active equipment filter for dashboard-driven exercise selection.
+  fields:
+    equipment_id:
+      name: Equipment ID
+      description: Optional equipment id (for example cable_tower). Leave empty to show all exercises.
+      required: false
+      selector:
+        text:
+
 add_exercise:
   name: Add Exercise
   description: Adds or reactivates an exercise in the SQLite catalog and refreshes runtime exercise options/statistics.
@@ -96,6 +107,12 @@ add_exercise:
     equipment:
       name: Equipment
       description: Optional equipment label (e.g. barbell, dumbbell, machine).
+      required: false
+      selector:
+        text:
+    equipment_id:
+      name: Equipment ID
+      description: Optional equipment catalog id mapping (e.g. cable_tower).
       required: false
       selector:
         text:
@@ -148,6 +165,12 @@ update_exercise:
     equipment:
       name: Equipment
       description: Optional new equipment label.
+      required: false
+      selector:
+        text:
+    equipment_id:
+      name: Equipment ID
+      description: Optional new equipment catalog id mapping.
       required: false
       selector:
         text:

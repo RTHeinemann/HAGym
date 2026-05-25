@@ -17,6 +17,7 @@ Table: `exercises`
 - `name_de` (TEXT, optional)
 - `muscle_group` (TEXT, optional)
 - `equipment` (TEXT, optional)
+- `equipment_id` (TEXT, optional, references equipment catalog id)
 - `enabled` (INTEGER, default `1`)
 - `sort_order` (INTEGER, default `0`)
 - `created_at` (TEXT, required)
@@ -52,6 +53,7 @@ You can manage exercises directly in Home Assistant:
    - **Add exercise**
    - **Edit exercise**
    - **Disable / enable exercise**
+   - **Assign exercises** (equipment mapping)
 
 The integration still exposes services:
 

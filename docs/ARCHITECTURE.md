@@ -42,3 +42,21 @@ fitness:
 - Do not write directly to HA recorder DB.
 - Prefer helper + template + utility_meter composition.
 - Keep migration path to SQLite and custom integration explicit.
+
+## Native Integration Data Flow (Phase 2.4)
+
+The SQLite-backed native integration now follows:
+
+`Equipment -> Exercises -> Sets -> User/Household statistics`
+
+Key tables:
+
+- `equipment`
+- `exercises` (`equipment_id`)
+- `set_logs` (`exercise_id`, `equipment_id`)
+
+Runtime behavior:
+
+- Active equipment (`select.ha_fitness_active_equipment`) filters exercise options.
+- Saving sets persists user context + exercise + equipment attribution.
+- Statistics expose global/personal/household aggregates per exercise and per equipment.

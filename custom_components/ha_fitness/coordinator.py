@@ -52,6 +52,12 @@ class HAFitnessCoordinator:
         self._exercise_by_id: dict[str, dict[str, Any]] = {}
         self._exercise_display_to_id: dict[str, str] = {}
         self._exercise_options: list[str] = []
+        self._active_equipment_id: str | None = None
+        self._equipment: list[dict[str, Any]] = []
+        self._equipment_by_id: dict[str, dict[str, Any]] = {}
+        self._equipment_display_to_id: dict[str, str] = {}
+        self._equipment_options: list[str] = []
+        self._equipment_statistics: list[dict[str, Any]] = []
         self._locale: str = str(hass.config.language or "en")
 
         self._pr_by_exercise: dict[str, float] = {exercise_id: 0.0 for exercise_id in EXERCISE_IDS}
@@ -173,12 +179,37 @@ class HAFitnessCoordinator:
         return self._exercise_options
 
     @property
+    def active_equipment(self) -> str | None:
+        return self._active_equipment_id
+
+    @property
+    def active_equipment_display(self) -> str | None:
+        if self._active_equipment_id is None:
+            return "All Equipment"
+        row = self._equipment_by_id.get(self._active_equipment_id)
+        if row is None:
+            return None
+        return str(row.get("name") or self._active_equipment_id)
+
+    @property
+    def equipment_options(self) -> list[str]:
+        return self._equipment_options
+
+    @property
+    def equipment(self) -> list[dict[str, Any]]:
+        return self._equipment
+
+    @property
     def included_user_ids(self) -> list[str] | None:
         return self._included_user_ids
 
     @property
     def exercise_statistics(self) -> list[dict[str, Any]]:
         return self._exercise_statistics
+
+    @property
+    def equipment_statistics(self) -> list[dict[str, Any]]:
+        return self._equipment_statistics
 
     @property
     def personal_total_volume(self) -> float:
@@ -273,6 +304,26 @@ class HAFitnessCoordinator:
         _LOGGER.debug("HA Fitness: active exercise option set to %s -> %s", option, exercise_id)
         self._notify_listeners()
 
+    def set_active_equipment(self, equipment_id: str | None) -> None:
+        """Update currently selected equipment id (None means no filter)."""
+        if equipment_id is not None and equipment_id not in self._equipment_by_id:
+            _LOGGER.warning("HA Fitness: unknown equipment_id '%s' ignored", equipment_id)
+            return
+        self._active_equipment_id = equipment_id
+        self._rebuild_exercise_options()
+        self._notify_listeners()
+
+    def set_active_equipment_option(self, option: str) -> None:
+        """Set active equipment from select option label."""
+        if option == "All Equipment":
+            self.set_active_equipment(None)
+            return
+        equipment_id = self._equipment_display_to_id.get(option)
+        if equipment_id is None:
+            _LOGGER.warning("HA Fitness: unknown equipment option '%s' ignored", option)
+            return
+        self.set_active_equipment(equipment_id)
+
     def set_weight(self, weight: float) -> None:
         """Update the current weight value."""
         self._weight = weight
@@ -313,28 +364,42 @@ class HAFitnessCoordinator:
         self._exercise_by_id = {
             str(row["id"]): row for row in rows if row.get("id") is not None
         }
-        self._exercise_display_to_id = {}
+        self._rebuild_exercise_options()
+        if notify:
+            self._notify_listeners()
+
+    async def async_refresh_equipment(self, notify: bool = True) -> None:
+        """Refresh equipment catalog and options from storage."""
+        try:
+            rows = await self._store.async_get_all_equipment()
+        except sqlite3.Error as err:
+            _LOGGER.exception("HA Fitness: failed to refresh equipment")
+            raise HomeAssistantError("Failed to refresh equipment") from err
+
+        self._equipment = rows
+        self._equipment_by_id = {
+            str(row["id"]): row for row in rows if row.get("id") is not None
+        }
         enabled_rows = [row for row in rows if int(row.get("enabled", 1)) == 1]
         enabled_rows.sort(
             key=lambda row: (
-                int(row.get("sort_order", 0)),
-                str(row.get("name_en") or row.get("id") or ""),
+                int(row.get("sort_order", 100)),
+                str(row.get("name") or row.get("id") or ""),
                 str(row.get("id") or ""),
             )
         )
-
-        options: list[str] = []
+        self._equipment_display_to_id = {}
+        options = ["All Equipment"]
         for row in enabled_rows:
-            exercise_id = str(row["id"])
-            display = self.exercise_display_name(exercise_id)
+            equipment_id = str(row["id"])
+            display = str(row.get("name") or equipment_id)
             options.append(display)
-            self._exercise_display_to_id[display] = exercise_id
-        self._exercise_options = options
+            self._equipment_display_to_id[display] = equipment_id
+        self._equipment_options = options
 
-        if self._active_exercise_id not in self._exercise_by_id:
-            self._active_exercise_id = None
-        if self._active_exercise_id is None and enabled_rows:
-            self._active_exercise_id = str(enabled_rows[0]["id"])
+        if self._active_equipment_id not in self._equipment_by_id:
+            self._active_equipment_id = None
+        self._rebuild_exercise_options()
 
         if notify:
             self._notify_listeners()
@@ -346,6 +411,7 @@ class HAFitnessCoordinator:
         name_de: str | None = None,
         muscle_group: str | None = None,
         equipment: str | None = None,
+        equipment_id: str | None = None,
         enabled: bool = True,
         sort_order: int = 0,
     ) -> None:
@@ -356,6 +422,7 @@ class HAFitnessCoordinator:
             name_de=name_de,
             muscle_group=muscle_group,
             equipment=equipment,
+            equipment_id=equipment_id,
             enabled=enabled,
             sort_order=sort_order,
         )
@@ -370,6 +437,7 @@ class HAFitnessCoordinator:
         name_de: str | None = None,
         muscle_group: str | None = None,
         equipment: str | None = None,
+        equipment_id: str | None = None,
         enabled: bool | None = None,
         sort_order: int | None = None,
     ) -> bool:
@@ -380,6 +448,7 @@ class HAFitnessCoordinator:
             name_de=name_de,
             muscle_group=muscle_group,
             equipment=equipment,
+            equipment_id=equipment_id,
             enabled=enabled,
             sort_order=sort_order,
         )
@@ -405,6 +474,79 @@ class HAFitnessCoordinator:
         await self.async_refresh_statistics(notify=False)
         self._notify_listeners()
 
+    async def async_add_equipment(
+        self,
+        equipment_id: str,
+        name: str,
+        description: str | None = None,
+        icon: str | None = None,
+        location: str | None = None,
+        enabled: bool = True,
+        sort_order: int = 100,
+    ) -> None:
+        """Add equipment and refresh runtime caches."""
+        await self._store.async_add_equipment(
+            equipment_id=equipment_id,
+            name=name,
+            description=description,
+            icon=icon,
+            location=location,
+            enabled=enabled,
+            sort_order=sort_order,
+        )
+        await self.async_refresh_equipment(notify=False)
+        await self.async_refresh_exercises(notify=False)
+        await self.async_refresh_statistics(notify=False)
+        self._notify_listeners()
+
+    async def async_update_equipment(
+        self,
+        equipment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        icon: str | None = None,
+        location: str | None = None,
+        enabled: bool | None = None,
+        sort_order: int | None = None,
+    ) -> bool:
+        """Update equipment and refresh runtime caches if changed."""
+        updated = await self._store.async_update_equipment(
+            equipment_id=equipment_id,
+            name=name,
+            description=description,
+            icon=icon,
+            location=location,
+            enabled=enabled,
+            sort_order=sort_order,
+        )
+        if updated:
+            await self.async_refresh_equipment(notify=False)
+            await self.async_refresh_exercises(notify=False)
+            await self.async_refresh_statistics(notify=False)
+            self._notify_listeners()
+        return updated
+
+    async def async_disable_equipment(self, equipment_id: str) -> bool:
+        """Disable equipment and refresh runtime caches if changed."""
+        updated = await self._store.async_disable_equipment(equipment_id)
+        if updated:
+            await self.async_refresh_equipment(notify=False)
+            await self.async_refresh_exercises(notify=False)
+            await self.async_refresh_statistics(notify=False)
+            self._notify_listeners()
+        return updated
+
+    async def async_assign_exercise_to_equipment(
+        self, exercise_id: str, equipment_id: str | None
+    ) -> bool:
+        """Assign one exercise to equipment and refresh caches."""
+        updated = await self._store.async_assign_exercise_to_equipment(exercise_id, equipment_id)
+        if updated:
+            await self.async_refresh_exercises(notify=False)
+            await self.async_refresh_statistics(notify=False)
+            self._notify_listeners()
+        return updated
+
     def get_exercise(self, exercise_id: str) -> dict[str, Any] | None:
         """Return one exercise row from the cached catalog."""
         return self._exercise_by_id.get(exercise_id)
@@ -427,6 +569,54 @@ class HAFitnessCoordinator:
                 label += " [disabled]"
             options.append({"value": exercise_id, "label": label})
         return options
+
+    def get_equipment(self, equipment_id: str) -> dict[str, Any] | None:
+        """Return one equipment row from cached catalog."""
+        return self._equipment_by_id.get(equipment_id)
+
+    def get_equipment_options(self, include_disabled: bool = False) -> list[dict[str, str]]:
+        """Return SelectSelector options for equipment."""
+        rows = self._equipment
+        if not include_disabled:
+            rows = [row for row in rows if int(row.get("enabled", 1)) == 1]
+        rows = sorted(
+            rows,
+            key=lambda row: (
+                int(row.get("sort_order", 100)),
+                str(row.get("name") or row.get("id") or ""),
+                str(row.get("id") or ""),
+            ),
+        )
+        options: list[dict[str, str]] = []
+        for row in rows:
+            equipment_id = str(row.get("id") or "")
+            if not equipment_id:
+                continue
+            label = f"{str(row.get('name') or equipment_id)} ({equipment_id})"
+            if int(row.get("enabled", 1)) != 1:
+                label += " [disabled]"
+            options.append({"value": equipment_id, "label": label})
+        return options
+
+    def get_equipment_for_exercise(self, exercise_id: str | None) -> str | None:
+        """Return mapped equipment id for one exercise."""
+        if not exercise_id:
+            return None
+        row = self._exercise_by_id.get(exercise_id)
+        if row is None:
+            return None
+        equipment_id = row.get("equipment_id")
+        if equipment_id is None:
+            return None
+        normalized = str(equipment_id).strip()
+        return normalized if normalized else None
+
+    def get_exercises_for_equipment(self, equipment_id: str | None) -> list[dict[str, Any]]:
+        """Return cached enabled exercises filtered by equipment id."""
+        rows = [row for row in self._exercises if int(row.get("enabled", 1)) == 1]
+        if equipment_id is None:
+            return rows
+        return [row for row in rows if str(row.get("equipment_id") or "") == equipment_id]
 
     def exercise_display_name(self, exercise_id: str | None) -> str:
         """Return localized exercise display name for one id."""
@@ -457,6 +647,41 @@ class HAFitnessCoordinator:
                 return exercise_id
         return None
 
+    def _rebuild_exercise_options(self) -> None:
+        """Build exercise select options using active equipment filter."""
+        self._exercise_display_to_id = {}
+        enabled_rows = [row for row in self._exercises if int(row.get("enabled", 1)) == 1]
+        if self._active_equipment_id is not None:
+            enabled_rows = [
+                row
+                for row in enabled_rows
+                if str(row.get("equipment_id") or "") == self._active_equipment_id
+            ]
+        enabled_rows.sort(
+            key=lambda row: (
+                int(row.get("sort_order", 0)),
+                str(row.get("name_en") or row.get("id") or ""),
+                str(row.get("id") or ""),
+            )
+        )
+
+        options: list[str] = []
+        for row in enabled_rows:
+            exercise_id = str(row["id"])
+            display = self.exercise_display_name(exercise_id)
+            options.append(display)
+            self._exercise_display_to_id[display] = exercise_id
+        self._exercise_options = options
+
+        if self._active_exercise_id not in self._exercise_by_id:
+            self._active_exercise_id = None
+        if self._active_exercise_id is not None and self._active_exercise_id not in [
+            str(row["id"]) for row in enabled_rows
+        ]:
+            self._active_exercise_id = str(enabled_rows[0]["id"]) if enabled_rows else None
+        if self._active_exercise_id is None and enabled_rows:
+            self._active_exercise_id = str(enabled_rows[0]["id"])
+
     # ------------------------------------------------------------------
     # Startup and statistics
     # ------------------------------------------------------------------
@@ -466,6 +691,7 @@ class HAFitnessCoordinator:
         try:
             await self.resolve_user_id(None)
             await self.async_refresh_users()
+            await self.async_refresh_equipment(notify=False)
             await self.async_refresh_exercises(notify=False)
 
             open_workout = await self._store.async_get_current_open_workout(self._selected_user_id or LEGACY_USER_ID)
@@ -602,6 +828,28 @@ class HAFitnessCoordinator:
             self._exercise_statistics = await self._store.async_get_exercise_statistics(
                 personal_user_id, household_user_ids
             )
+            equipment_global = await self._store.async_get_equipment_statistics()
+            equipment_personal = await self._store.async_get_user_equipment_statistics(personal_user_id)
+            equipment_household = await self._store.async_get_household_equipment_statistics(
+                household_user_ids
+            )
+            personal_map = {
+                str(row.get("equipment_id")): row
+                for row in equipment_personal
+                if row.get("equipment_id")
+            }
+            household_map = {
+                str(row.get("equipment_id")): row
+                for row in equipment_household
+                if row.get("equipment_id")
+            }
+            for row in equipment_global:
+                equipment_id = str(row.get("equipment_id") or "")
+                personal_row = personal_map.get(equipment_id, {})
+                household_row = household_map.get(equipment_id, {})
+                row["personal_volume"] = float(personal_row.get("total_volume", 0.0))
+                row["household_volume"] = float(household_row.get("total_volume", 0.0))
+            self._equipment_statistics = equipment_global
             for row in self._exercise_statistics:
                 exercise_id = str(row.get("exercise_id") or "")
                 row["display_name"] = (
@@ -630,6 +878,7 @@ class HAFitnessCoordinator:
                 "pr_by_exercise": self._pr_by_exercise,
                 "volume_by_exercise": self._volume_by_exercise,
                 "recent_sets": self._recent_sets,
+                "equipment_statistics": self._equipment_statistics,
             },
             "personal": {
                 "user_id": self._selected_user_id or self._current_user_id or LEGACY_USER_ID,
@@ -921,12 +1170,14 @@ class HAFitnessCoordinator:
     ) -> None:
         volume = weight * reps
         created_at = _now_utc()
+        selected_equipment_id = self._active_equipment_id or self.get_equipment_for_exercise(exercise_id)
         try:
             set_id = await self._store.async_save_set(
                 user_id=user_id,
                 workout_id=workout_id,
                 exercise=exercise_display,
                 exercise_id=exercise_id,
+                equipment_id=selected_equipment_id,
                 weight=weight,
                 reps=reps,
                 volume=volume,
@@ -950,6 +1201,7 @@ class HAFitnessCoordinator:
             "set_number": set_number,
             "exercise": exercise_display,
             "exercise_id": exercise_id,
+            "equipment_id": selected_equipment_id,
             "weight": weight,
             "reps": reps,
             "volume": volume,

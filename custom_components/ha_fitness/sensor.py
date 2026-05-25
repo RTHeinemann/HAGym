@@ -43,6 +43,8 @@ async def async_setup_entry(
         HAFitnessHouseholdRecentSetsSensor(coordinator, entry),
         HAFitnessExerciseCatalogSensor(coordinator, entry),
         HAFitnessExerciseStatisticsSensor(coordinator, entry),
+        HAFitnessEquipmentCatalogSensor(coordinator, entry),
+        HAFitnessEquipmentStatisticsSensor(coordinator, entry),
     ]
 
     for exercise_id in EXERCISE_IDS:
@@ -209,6 +211,8 @@ class HAFitnessActiveWorkoutSummarySensor(_HAFitnessSensorBase):
             "current_workout_started_at": coord.current_workout_started_at,
             "active_exercise": coord.active_exercise_display,
             "active_exercise_id": coord.active_exercise,
+            "active_equipment": coord.active_equipment_display,
+            "active_equipment_id": coord.active_equipment,
             "weight": coord.weight,
             "reps": coord.reps,
             "notes": coord.notes,
@@ -476,6 +480,62 @@ class HAFitnessExerciseStatisticsSensor(_HAFitnessSensorBase):
         return {"by_exercise": self._coordinator.exercise_statistics}
 
 
+class HAFitnessEquipmentCatalogSensor(_HAFitnessSensorBase):
+    """Sensor exposing full equipment catalog."""
+
+    _attr_translation_key = "equipment_catalog"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_equipment_catalog"
+
+    @property
+    def native_value(self) -> int:
+        return len([row for row in self._coordinator.equipment if int(row.get("enabled", 1)) == 1])
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        rows = [_equipment_row_payload(row) for row in self._coordinator.equipment]
+        enabled_rows = [row for row in rows if row["enabled"]]
+        disabled_rows = [row for row in rows if not row["enabled"]]
+        exercise_mapping: dict[str, list[str]] = {}
+        for exercise in self._coordinator.exercises:
+            equipment_id = str(exercise.get("equipment_id") or "")
+            if not equipment_id:
+                continue
+            exercise_mapping.setdefault(equipment_id, []).append(str(exercise.get("id") or ""))
+        return {
+            "equipment": rows,
+            "enabled_equipment": enabled_rows,
+            "disabled_equipment": disabled_rows,
+            "exercise_mapping": exercise_mapping,
+        }
+
+
+class HAFitnessEquipmentStatisticsSensor(_HAFitnessSensorBase):
+    """Sensor exposing grouped per-equipment global/personal/household stats."""
+
+    _attr_translation_key = "equipment_statistics"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_equipment_statistics"
+
+    @property
+    def native_value(self) -> int:
+        return len(
+            [
+                row
+                for row in self._coordinator.equipment_statistics
+                if int(row.get("total_sets", 0)) > 0
+            ]
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"by_equipment": self._coordinator.equipment_statistics}
+
+
 class _ExerciseMetricSensor(_HAFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
 
@@ -613,7 +673,21 @@ def _exercise_row_payload(
         "name_de": row.get("name_de"),
         "muscle_group": row.get("muscle_group"),
         "equipment": row.get("equipment"),
+        "equipment_id": row.get("equipment_id"),
         "enabled": int(row.get("enabled", 1)) == 1,
         "sort_order": int(row.get("sort_order", 0)),
+        "created_at": row.get("created_at"),
+    }
+
+
+def _equipment_row_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row.get("id") or ""),
+        "name": row.get("name"),
+        "description": row.get("description"),
+        "icon": row.get("icon"),
+        "location": row.get("location"),
+        "enabled": int(row.get("enabled", 1)) == 1,
+        "sort_order": int(row.get("sort_order", 100)),
         "created_at": row.get("created_at"),
     }
