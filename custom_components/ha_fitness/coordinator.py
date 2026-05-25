@@ -1072,22 +1072,32 @@ class HAFitnessCoordinator:
                 row = global_map.get(equipment_id)
                 if row is None:
                     catalog_row = catalog_map.get(equipment_id, {})
-                    metadata_row = {**household_row, **personal_row, **catalog_row}
-                    catalog_enabled = catalog_row.get("enabled")
-                    catalog_enabled_default = (
-                        bool(int(catalog_enabled)) if catalog_enabled is not None else True
+                    enabled_source = (
+                        catalog_row.get("enabled")
+                        if catalog_row.get("enabled") is not None
+                        else personal_row.get("enabled")
+                        if personal_row.get("enabled") is not None
+                        else household_row.get("enabled")
                     )
                     row = {
                         "equipment_id": equipment_id,
-                        "name": metadata_row.get("name") or equipment_id,
-                        "icon": metadata_row.get("icon"),
-                        "location": metadata_row.get("location"),
-                        "enabled": bool(
-                            metadata_row.get(
-                                "enabled",
-                                catalog_enabled_default,
-                            )
+                        "name": (
+                            catalog_row.get("name")
+                            or personal_row.get("name")
+                            or household_row.get("name")
+                            or equipment_id
                         ),
+                        "icon": (
+                            catalog_row.get("icon")
+                            or personal_row.get("icon")
+                            or household_row.get("icon")
+                        ),
+                        "location": (
+                            catalog_row.get("location")
+                            or personal_row.get("location")
+                            or household_row.get("location")
+                        ),
+                        "enabled": _coerce_enabled(enabled_source, default=True),
                         "total_volume": 0.0,
                         "total_sets": 0,
                         "total_trainings": 0,
@@ -1598,3 +1608,18 @@ def _write_json(path: str, payload: dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+
+def _coerce_enabled(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
