@@ -412,9 +412,20 @@ def _reassign_equipment_entities_to_equipment_devices(
     if not device_id_by_equipment:
         return
 
-    # Match longer IDs first (e.g. "rowing_station" before "row") to avoid partial matches.
-    sorted_equipment_ids = sorted(device_id_by_equipment, key=len, reverse=True)
     entry_prefix = f"{entry.entry_id}_"
+    equipment_entity_suffixes = (
+        "select_equipment",
+        "last_set",
+        "personal_total_volume",
+        "household_total_volume",
+        "total_volume",
+        "total_sets",
+        "personal_total_sets",
+        "household_total_sets",
+        "top_exercise",
+        "last_used",
+        "total_trainings",
+    )
 
     for entity_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         unique_id = entity_entry.unique_id
@@ -422,14 +433,16 @@ def _reassign_equipment_entities_to_equipment_devices(
             continue
 
         unique_suffix = unique_id[len(entry_prefix) :]
-        matched_equipment_id = next(
-            (
-                equipment_id
-                for equipment_id in sorted_equipment_ids
-                if unique_suffix.startswith(f"{equipment_id}_")
-            ),
-            None,
-        )
+        matched_equipment_id = None
+        for sensor_suffix in equipment_entity_suffixes:
+            suffix_marker = f"_{sensor_suffix}"
+            if not unique_suffix.endswith(suffix_marker):
+                continue
+            equipment_id = unique_suffix[: -len(suffix_marker)]
+            if equipment_id in device_id_by_equipment:
+                matched_equipment_id = equipment_id
+                break
+
         if matched_equipment_id is None:
             continue
 
