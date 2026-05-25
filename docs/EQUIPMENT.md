@@ -16,11 +16,11 @@ HA Fitness now supports an equipment catalog that links:
 
 ## Default equipment
 
-- `bench_station` (mdi:bench)
-- `cable_tower` (mdi:pulley)
-- `squat_rack` (mdi:weight-lifter)
-- `dumbbell_area` (mdi:dumbbell)
-- `rowing_station` (mdi:rowing)
+- `bench_station` — Bench Station (mdi:bench)
+- `cable_tower` — Cable Tower (mdi:pulley)
+- `squat_rack` — Squat Rack (mdi:weight-lifter)
+- `dumbbell_area` — Dumbbell Area (mdi:dumbbell)
+- `rowing_station` — Row Station (mdi:rowing)
 
 Default exercises are backfilled to these devices where known.
 
