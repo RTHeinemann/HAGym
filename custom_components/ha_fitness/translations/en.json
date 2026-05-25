@@ -7,7 +7,31 @@
         "data": {
           "display_name": "Display Name"
         }
+      },
+      "add_equipment": {
+        "title": "Add Fitness Equipment",
+        "description": "Add a global fitness equipment device to HA Fitness. Equipment is shared across all household users. After saving, the integration will reload to create the new HA device and entities.",
+        "data": {
+          "equipment_id": "Equipment ID",
+          "name": "Name",
+          "description": "Description",
+          "icon": "Icon (e.g. mdi:dumbbell)",
+          "location": "Location",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
       }
+    },
+    "error": {
+      "invalid_equipment_id": "Equipment ID must contain only lowercase letters, numbers, or underscores. Spaces and hyphens are converted automatically.",
+      "equipment_exists": "An equipment entry with this ID already exists.",
+      "name_required": "Name must not be empty.",
+      "invalid_sort_order": "Sort order must be a whole number.",
+      "unknown_error": "An unexpected error occurred. Please check the integration logs."
+    },
+    "abort": {
+      "equipment_added_reload_required": "Fitness equipment was added successfully. HA Fitness is reloading — the new device and entities will appear shortly.",
+      "unknown": "An unexpected error occurred loading the config flow."
     }
   },
   "options": {

@@ -7,7 +7,31 @@
         "data": {
           "display_name": "Anzeigename"
         }
+      },
+      "add_equipment": {
+        "title": "Fitnessgerät hinzufügen",
+        "description": "Füge ein globales Trainingsgerät zur HA Fitness Integration hinzu. Equipment ist für alle Haushaltsbenutzer sichtbar. Nach dem Speichern wird die Integration neu geladen, um das neue HA-Gerät und die Entitäten zu erstellen.",
+        "data": {
+          "equipment_id": "Equipment-ID",
+          "name": "Name",
+          "description": "Beschreibung",
+          "icon": "Icon (z.B. mdi:dumbbell)",
+          "location": "Standort",
+          "sort_order": "Sortierreihenfolge",
+          "enabled": "Aktiv"
+        }
       }
+    },
+    "error": {
+      "invalid_equipment_id": "Die Equipment-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten. Leerzeichen und Bindestriche werden automatisch umgewandelt.",
+      "equipment_exists": "Ein Equipment-Eintrag mit dieser ID existiert bereits.",
+      "name_required": "Der Name darf nicht leer sein.",
+      "invalid_sort_order": "Die Sortierreihenfolge muss eine ganze Zahl sein.",
+      "unknown_error": "Ein unerwarteter Fehler ist aufgetreten. Bitte die Integrationsprotokolle prüfen."
+    },
+    "abort": {
+      "equipment_added_reload_required": "Fitnessgerät wurde erfolgreich hinzugefügt. HA Fitness wird neu geladen — das neue Gerät und die Entitäten erscheinen in Kürze.",
+      "unknown": "Beim Laden des Konfigurationsflusses ist ein unerwarteter Fehler aufgetreten."
     }
   },
   "options": {

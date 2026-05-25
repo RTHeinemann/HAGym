@@ -8,6 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.selector import (
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_DISPLAY_NAME,
     DOMAIN,
 )
+from .storage import HAFitnessStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +74,19 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict | None = None
     ) -> FlowResult:
-        """Handle the initial step."""
+        """Handle the initial step.
+
+        If HA Fitness is already configured, redirect to adding equipment
+        instead of creating a second independent entry.
+        """
+        try:
+            existing = self._async_current_entries()
+            if existing:
+                return await self.async_step_add_equipment(None)
+        except Exception:
+            _LOGGER.exception("HA Fitness config flow user step failed")
+            return self.async_abort(reason="unknown")
+
         if user_input is not None:
             return self.async_create_entry(
                 title=user_input[CONF_DISPLAY_NAME],
@@ -90,17 +104,145 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         )
 
+    async def async_step_add_equipment(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Add a fitness equipment device when HA Fitness is already configured.
+
+        This step acts as the "Add Device" flow for the integration.
+        Equipment is global / shared across all HA users.
+        After saving, the integration reloads to create the new HA device and entities.
+        """
+        errors: dict[str, str] = {}
+
+        existing_entries = self._async_current_entries()
+        if not existing_entries:
+            return await self.async_step_user(user_input)
+
+        entry = existing_entries[0]
+        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id)
+
+        if user_input is not None:
+            try:
+                equipment_id = _normalize_equipment_id(
+                    str(user_input.get(ATTR_EQUIPMENT_ID, ""))
+                )
+                name = str(user_input.get("name", "")).strip()
+                description = _optional_str(user_input.get(ATTR_DESCRIPTION))
+                icon = _optional_str(user_input.get(ATTR_ICON))
+                location = _optional_str(user_input.get(ATTR_LOCATION))
+                enabled = bool(user_input.get(ATTR_ENABLED, True))
+                sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+                sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
+
+                if not equipment_id:
+                    errors[ATTR_EQUIPMENT_ID] = "invalid_equipment_id"
+                elif coordinator is not None and coordinator.get_equipment(equipment_id):
+                    errors[ATTR_EQUIPMENT_ID] = "equipment_exists"
+                elif equipment_id and coordinator is None:
+                    store_check = HAFitnessStore(self.hass)
+                    await store_check.async_initialize()
+                    if await store_check.async_get_equipment(equipment_id) is not None:
+                        errors[ATTR_EQUIPMENT_ID] = "equipment_exists"
+                if not name:
+                    errors["name"] = "name_required"
+                if not _is_valid_sort_order_input(sort_order_raw):
+                    errors[ATTR_SORT_ORDER] = "invalid_sort_order"
+
+                if not errors:
+                    if coordinator is not None:
+                        await coordinator.async_add_equipment(
+                            equipment_id=equipment_id,
+                            name=name,
+                            description=description,
+                            icon=icon,
+                            location=location,
+                            enabled=enabled,
+                            sort_order=sort_order,
+                        )
+                    else:
+                        store = HAFitnessStore(self.hass)
+                        await store.async_initialize()
+                        await store.async_add_equipment(
+                            equipment_id=equipment_id,
+                            name=name,
+                            description=description,
+                            icon=icon,
+                            location=location,
+                            enabled=enabled,
+                            sort_order=sort_order,
+                        )
+
+                    self.hass.async_create_task(
+                        self.hass.config_entries.async_reload(entry.entry_id)
+                    )
+                    return self.async_abort(reason="equipment_added_reload_required")
+            except Exception:
+                _LOGGER.exception("HA Fitness add_equipment config flow step failed")
+                errors["base"] = "unknown_error"
+
+        return self.async_show_form(
+            step_id="add_equipment",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        ATTR_EQUIPMENT_ID,
+                        default=str(user_input.get(ATTR_EQUIPMENT_ID, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Required(
+                        "name",
+                        default=str(user_input.get("name", "")) if user_input else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_DESCRIPTION,
+                        default=str(user_input.get(ATTR_DESCRIPTION, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_ICON,
+                        default=str(user_input.get(ATTR_ICON, ""))
+                        if user_input
+                        else "mdi:dumbbell",
+                    ): str,
+                    vol.Optional(
+                        ATTR_LOCATION,
+                        default=str(user_input.get(ATTR_LOCATION, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_SORT_ORDER,
+                        default=user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+                        if user_input
+                        else _DEFAULT_SORT_ORDER,
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=0, max=9999, step=1, mode="box")
+                    ),
+                    vol.Optional(
+                        ATTR_ENABLED,
+                        default=bool(user_input.get(ATTR_ENABLED, True))
+                        if user_input
+                        else True,
+                    ): bool,
+                }
+            ),
+            errors=errors,
+        )
+
     @staticmethod
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "HAFitnessOptionsFlow":
         """Return options flow for HA Fitness."""
-        return HAFitnessOptionsFlow(config_entry)
+        return HAFitnessOptionsFlow()
 
 
 class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     """Options flow for household users and exercise management."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+    def __init__(self) -> None:
         self._selected_exercise_id: str | None = None
         self._selected_equipment_id: str | None = None
 
@@ -126,7 +268,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     "assign_exercises_select_equipment",
                 ],
             )
-        except (HomeAssistantError, ValueError, TypeError, KeyError):
+        except Exception:
             _LOGGER.exception("HA Fitness options flow init failed")
             return self.async_abort(reason="options_flow_error")
 
@@ -932,7 +1074,7 @@ def _optional_str(value: Any) -> str | None:
 
 def _normalize_exercise_id(raw_exercise_id: str) -> str | None:
     """Normalize raw exercise id to lowercase underscore format and validate it."""
-    normalized = raw_exercise_id.strip().lower().replace("-", "_")
+    normalized = raw_exercise_id.strip().lower().replace("-", "_").replace(" ", "_")
     if not normalized:
         return None
     if not _EXERCISE_ID_PATTERN.match(normalized):
@@ -942,7 +1084,7 @@ def _normalize_exercise_id(raw_exercise_id: str) -> str | None:
 
 def _normalize_equipment_id(raw_equipment_id: str) -> str | None:
     """Normalize raw equipment id and validate allowed characters."""
-    normalized = raw_equipment_id.strip().lower().replace("-", "_")
+    normalized = raw_equipment_id.strip().lower().replace("-", "_").replace(" ", "_")
     if not normalized:
         return None
     if not _EQUIPMENT_ID_PATTERN.match(normalized):
