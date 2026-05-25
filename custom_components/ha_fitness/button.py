@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -18,13 +18,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up HA Fitness buttons from a config entry."""
     coordinator: HAFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        [
-            HAFitnessStartWorkoutButton(coordinator, entry),
-            HAFitnessFinishWorkoutButton(coordinator, entry),
-            HAFitnessSaveSetButton(coordinator, entry),
-        ]
-    )
+    entities: list[ButtonEntity] = [
+        HAFitnessStartWorkoutButton(coordinator, entry),
+        HAFitnessFinishWorkoutButton(coordinator, entry),
+        HAFitnessSaveSetButton(coordinator, entry),
+    ]
+    for equipment_id in coordinator.enabled_equipment_ids:
+        entities.append(HAFitnessEquipmentSaveSetButton(coordinator, entry, equipment_id))
+    async_add_entities(entities)
 
 
 class _HAFitnessButtonBase(ButtonEntity):
@@ -57,7 +58,7 @@ class HAFitnessStartWorkoutButton(_HAFitnessButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_start_workout"
 
     async def async_press(self) -> None:
-        await self._coordinator.start_workout(context_user_id=None)
+        await self._coordinator.start_workout(context_user_id=self._context.user_id)
 
 
 class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
@@ -72,7 +73,7 @@ class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_finish_workout"
 
     async def async_press(self) -> None:
-        await self._coordinator.finish_workout(context_user_id=None)
+        await self._coordinator.finish_workout(context_user_id=self._context.user_id)
 
 
 class HAFitnessSaveSetButton(_HAFitnessButtonBase):
@@ -87,4 +88,45 @@ class HAFitnessSaveSetButton(_HAFitnessButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_save_set"
 
     async def async_press(self) -> None:
-        await self._coordinator.save_current_set(context_user_id=None)
+        await self._coordinator.save_current_set(context_user_id=self._context.user_id)
+
+
+class HAFitnessEquipmentSaveSetButton(ButtonEntity):
+    """Button to save a set using equipment-specific runtime state."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "save_set"
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        self._coordinator = coordinator
+        self._equipment_id = equipment_id
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_save_set"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id, equipment_id)},
+            name=coordinator.equipment_display_name(equipment_id),
+            manufacturer="HA Fitness",
+            model="Fitness Equipment",
+            suggested_area=coordinator.equipment_location(equipment_id),
+            entry_type="service",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to coordinator updates."""
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.equipment_enabled(self._equipment_id)
+
+    async def async_press(self) -> None:
+        await self._coordinator.save_current_set_for_equipment(
+            self._equipment_id, context_user_id=self._context.user_id
+        )

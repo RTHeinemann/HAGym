@@ -55,6 +55,13 @@ async def async_setup_entry(
         entities.append(HAFitnessHouseholdPRByExerciseSensor(coordinator, entry, exercise_id))
         entities.append(HAFitnessHouseholdVolumeByExerciseSensor(coordinator, entry, exercise_id))
 
+    for equipment_id in coordinator.enabled_equipment_ids:
+        entities.append(HAFitnessEquipmentLastSetSensor(coordinator, entry, equipment_id))
+        entities.append(HAFitnessEquipmentPersonalVolumeSensor(coordinator, entry, equipment_id))
+        entities.append(HAFitnessEquipmentHouseholdVolumeSensor(coordinator, entry, equipment_id))
+        entities.append(HAFitnessEquipmentTotalVolumeSensor(coordinator, entry, equipment_id))
+        entities.append(HAFitnessEquipmentTotalSetsSensor(coordinator, entry, equipment_id))
+
     async_add_entities(entities)
 
 
@@ -534,6 +541,127 @@ class HAFitnessEquipmentStatisticsSensor(_HAFitnessSensorBase):
     @property
     def extra_state_attributes(self) -> dict:
         return {"by_equipment": self._coordinator.equipment_statistics}
+
+
+class _HAFitnessEquipmentSensorBase(SensorEntity):
+    """Base class for equipment-specific sensors."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        self._coordinator = coordinator
+        self._equipment_id = equipment_id
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id, equipment_id)},
+            name=coordinator.equipment_display_name(equipment_id),
+            manufacturer="HA Fitness",
+            model="Fitness Equipment",
+            suggested_area=coordinator.equipment_location(equipment_id),
+            entry_type="service",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to coordinator updates."""
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.equipment_enabled(self._equipment_id)
+
+
+class HAFitnessEquipmentLastSetSensor(_HAFitnessEquipmentSensorBase):
+    """Sensor reporting last set summary for one equipment runtime state."""
+
+    _attr_translation_key = "last_set"
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        super().__init__(coordinator, entry, equipment_id)
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_last_set"
+
+    @property
+    def native_value(self) -> str:
+        return self._coordinator.get_equipment_last_set_summary(self._equipment_id) or "none"
+
+
+class HAFitnessEquipmentPersonalVolumeSensor(_HAFitnessEquipmentSensorBase):
+    """Sensor for personal volume total on one equipment."""
+
+    _attr_translation_key = "personal_total_volume"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        super().__init__(coordinator, entry, equipment_id)
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_personal_total_volume"
+
+    @property
+    def native_value(self) -> float:
+        return self._coordinator.get_equipment_personal_volume(self._equipment_id)
+
+
+class HAFitnessEquipmentHouseholdVolumeSensor(_HAFitnessEquipmentSensorBase):
+    """Sensor for household volume total on one equipment."""
+
+    _attr_translation_key = "household_total_volume"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        super().__init__(coordinator, entry, equipment_id)
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_household_total_volume"
+
+    @property
+    def native_value(self) -> float:
+        return self._coordinator.get_equipment_household_volume(self._equipment_id)
+
+
+class HAFitnessEquipmentTotalVolumeSensor(_HAFitnessEquipmentSensorBase):
+    """Sensor for global total volume on one equipment."""
+
+    _attr_translation_key = "total_volume"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        super().__init__(coordinator, entry, equipment_id)
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_total_volume"
+
+    @property
+    def native_value(self) -> float:
+        return self._coordinator.get_equipment_total_volume(self._equipment_id)
+
+
+class HAFitnessEquipmentTotalSetsSensor(_HAFitnessEquipmentSensorBase):
+    """Sensor for global total set count on one equipment."""
+
+    _attr_translation_key = "total_sets"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
+    ) -> None:
+        super().__init__(coordinator, entry, equipment_id)
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_total_sets"
+
+    @property
+    def native_value(self) -> int:
+        return self._coordinator.get_equipment_total_sets(self._equipment_id)
 
 
 class _ExerciseMetricSensor(_HAFitnessSensorBase):
