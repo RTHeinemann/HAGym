@@ -39,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 _EXERCISE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _EQUIPMENT_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _DEFAULT_SORT_ORDER = 100
-_MUSCLE_GROUP_VALUES = [
+_MUSCLE_GROUP_OPTIONS = [
     "chest",
     "back",
     "legs",
@@ -51,7 +51,7 @@ _MUSCLE_GROUP_VALUES = [
     "full_body",
     "other",
 ]
-_EQUIPMENT_VALUES = [
+_EQUIPMENT_OPTIONS = [
     "barbell",
     "dumbbell",
     "machine",
@@ -277,7 +277,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else "",
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_selector_options(_MUSCLE_GROUP_VALUES),
+                            options=_selector_options(_MUSCLE_GROUP_OPTIONS),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -287,7 +287,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         default=str(user_input.get(ATTR_EQUIPMENT, "")) if user_input else "",
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_selector_options(_EQUIPMENT_VALUES),
+                            options=_selector_options(_EQUIPMENT_OPTIONS),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -441,7 +441,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else str(exercise.get(ATTR_MUSCLE_GROUP, "")),
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_selector_options(_MUSCLE_GROUP_VALUES),
+                            options=_selector_options(_MUSCLE_GROUP_OPTIONS),
                             mode="dropdown",
                             custom_value=True,
                         )
@@ -455,7 +455,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         else str(exercise.get(ATTR_EQUIPMENT, "")),
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=_selector_options(_EQUIPMENT_VALUES),
+                            options=_selector_options(_EQUIPMENT_OPTIONS),
                             mode="dropdown",
                             custom_value=True,
                         )
