@@ -8,7 +8,11 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from .const import (
     ATTR_EXERCISE,
@@ -68,6 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _reassign_equipment_entities_to_equipment_devices(hass, entry, coordinator)
 
     _register_services(hass)
 
@@ -379,3 +384,73 @@ def _optional_str(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized if normalized else None
+
+
+def _reassign_equipment_entities_to_equipment_devices(
+    hass: HomeAssistant, entry: ConfigEntry, coordinator: HAFitnessCoordinator
+) -> None:
+    """Move legacy equipment-scoped entities to their equipment devices."""
+    entity_registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
+
+    equipment_ids = [
+        equipment_id
+        for row in coordinator.equipment
+        if isinstance((equipment_id := row.get("id")), str) and equipment_id.strip()
+    ]
+    if not equipment_ids:
+        return
+
+    device_id_by_equipment: dict[str, str] = {}
+    for equipment_id in equipment_ids:
+        device_entry = device_registry.async_get_device(
+            identifiers={(DOMAIN, entry.entry_id, equipment_id)}
+        )
+        if device_entry is not None:
+            device_id_by_equipment[equipment_id] = device_entry.id
+
+    if not device_id_by_equipment:
+        return
+
+    entry_prefix = f"{entry.entry_id}_"
+    equipment_entity_suffixes = (
+        "select_equipment",
+        "last_set",
+        "personal_total_volume",
+        "household_total_volume",
+        "total_volume",
+        "total_sets",
+        "personal_total_sets",
+        "household_total_sets",
+        "top_exercise",
+        "last_used",
+        "total_trainings",
+    )
+
+    for entity_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        unique_id = entity_entry.unique_id
+        if not unique_id or not unique_id.startswith(entry_prefix):
+            continue
+
+        unique_suffix = unique_id[len(entry_prefix) :]
+        matched_equipment_id = None
+        for sensor_suffix in equipment_entity_suffixes:
+            suffix_marker = f"_{sensor_suffix}"
+            if not unique_suffix.endswith(suffix_marker):
+                continue
+            equipment_id = unique_suffix[: -len(suffix_marker)]
+            if equipment_id in device_id_by_equipment:
+                matched_equipment_id = equipment_id
+                break
+
+        if matched_equipment_id is None:
+            continue
+
+        target_device_id = device_id_by_equipment[matched_equipment_id]
+        if entity_entry.device_id == target_device_id:
+            continue
+
+        entity_registry.async_update_entity(
+            entity_entry.entity_id,
+            device_id=target_device_id,
+        )

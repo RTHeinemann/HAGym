@@ -67,6 +67,22 @@ Equipment devices are primarily used for:
 - optional "select this equipment" action button
 - future NFC/QR and area/device organization
 
+## Device assignment cleanup (Phase 2.7)
+
+Main integration device (`HA Fitness Tracker`) is reserved for global entities, for example:
+
+- central workout controls (`active_equipment`, `active_exercise`, `weight`, `reps`, `notes`)
+- workout action buttons (`start_workout`, `save_set`, `finish_workout`)
+- global/personal/household overview sensors
+- aggregate catalog/debug sensors like `equipment_catalog` and `equipment_statistics`
+
+Equipment devices contain only equipment-scoped entities (for example one station's totals and `select_equipment` button).
+Per-equipment sensors should not be duplicated on the main integration device.
+
+If older duplicate entities still exist after update, they can stay in Home Assistant as unavailable stale entries.
+You can remove them safely from the Home Assistant UI (**Settings -> Devices & Services -> Entities**).
+Do **not** edit `/config/.storage/entity_registry` manually.
+
 ## Exercise filtering
 
 The workflow is:

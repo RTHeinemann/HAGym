@@ -79,6 +79,15 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - Persistent notification on save errors
 - Native dashboard at `dashboards/ha_fitness_native_dashboard.yaml`
 
+### Device model (Phase 2.7)
+
+- Main device (**HA Fitness Tracker**) contains global controls and overview sensors.
+- Equipment-specific entities are assigned only to their equipment devices.
+- Integration entity count can still be high because Home Assistant counts entities across all devices.
+- Older duplicate entities from previous versions can remain in the entity registry as unavailable entries.
+  - Remove these in the Home Assistant UI if needed.
+  - Do **not** edit `/config/.storage/entity_registry` manually.
+
 ### YAML MVP+ Prototype (still more feature-complete for analytics)
 
 - modular package examples
