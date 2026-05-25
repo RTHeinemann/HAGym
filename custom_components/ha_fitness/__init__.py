@@ -14,14 +14,19 @@ from .const import (
     ATTR_EXERCISE,
     ATTR_NOTES,
     ATTR_REPS,
+    ATTR_USER_ID,
     ATTR_WEIGHT,
     CONF_DISPLAY_NAME,
+    CONF_INCLUDED_USER_IDS,
     DEFAULT_DISPLAY_NAME,
     DOMAIN,
     SERVICE_EXPORT_DATA,
     SERVICE_FINISH_WORKOUT,
     SERVICE_REFRESH_STATISTICS,
+    SERVICE_REFRESH_USERS,
+    SERVICE_SAVE_CURRENT_SET,
     SERVICE_SAVE_SET,
+    SERVICE_SELECT_USER,
     SERVICE_START_WORKOUT,
 )
 from .coordinator import HAFitnessCoordinator
@@ -35,16 +40,19 @@ PLATFORMS = ["sensor", "button", "select", "number", "text"]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Fitness Tracker from a config entry."""
     display_name: str = entry.data.get(CONF_DISPLAY_NAME, DEFAULT_DISPLAY_NAME)
+    included_user_ids: list[str] | None = entry.options.get(CONF_INCLUDED_USER_IDS)
+
     try:
         store = HAFitnessStore(hass)
         await store.async_initialize()
-        coordinator = HAFitnessCoordinator(hass, display_name, store)
+        coordinator = HAFitnessCoordinator(hass, display_name, store, included_user_ids)
         await coordinator.async_initialize()
     except (HomeAssistantError, sqlite3.Error, OSError) as err:
         _LOGGER.error("HA Fitness setup failed: %s", err)
         return False
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -66,19 +74,24 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-def _register_services(hass: HomeAssistant) -> None:
-    """Register integration services once (idempotent).
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload entry when options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
-    Service handlers iterate all loaded config entries so that
-    every coordinator instance receives the call.
-    """
-    if (
-        hass.services.has_service(DOMAIN, SERVICE_START_WORKOUT)
-        and hass.services.has_service(DOMAIN, SERVICE_FINISH_WORKOUT)
-        and hass.services.has_service(DOMAIN, SERVICE_SAVE_SET)
-        and hass.services.has_service(DOMAIN, SERVICE_REFRESH_STATISTICS)
-        and hass.services.has_service(DOMAIN, SERVICE_EXPORT_DATA)
-    ):
+
+def _register_services(hass: HomeAssistant) -> None:
+    """Register integration services once (idempotent)."""
+    required_services = (
+        SERVICE_START_WORKOUT,
+        SERVICE_FINISH_WORKOUT,
+        SERVICE_SAVE_SET,
+        SERVICE_SAVE_CURRENT_SET,
+        SERVICE_REFRESH_STATISTICS,
+        SERVICE_EXPORT_DATA,
+        SERVICE_SELECT_USER,
+        SERVICE_REFRESH_USERS,
+    )
+    if all(hass.services.has_service(DOMAIN, service) for service in required_services):
         return
 
     def _all_coordinators() -> list[HAFitnessCoordinator]:
@@ -86,11 +99,11 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def handle_start_workout(call: ServiceCall) -> None:
         for coordinator in _all_coordinators():
-            await coordinator.start_workout()
+            await coordinator.start_workout(context_user_id=call.context.user_id)
 
     async def handle_finish_workout(call: ServiceCall) -> None:
         for coordinator in _all_coordinators():
-            await coordinator.finish_workout()
+            await coordinator.finish_workout(context_user_id=call.context.user_id)
 
     async def handle_save_set(call: ServiceCall) -> None:
         exercise: str = call.data[ATTR_EXERCISE]
@@ -117,7 +130,12 @@ def _register_services(hass: HomeAssistant) -> None:
                 weight=weight,
                 reps=reps,
                 notes=notes,
+                context_user_id=call.context.user_id,
             )
+
+    async def handle_save_current_set(call: ServiceCall) -> None:
+        for coordinator in _all_coordinators():
+            await coordinator.save_current_set(context_user_id=call.context.user_id)
 
     async def handle_refresh_statistics(call: ServiceCall) -> None:
         for coordinator in _all_coordinators():
@@ -126,6 +144,16 @@ def _register_services(hass: HomeAssistant) -> None:
     async def handle_export_data(call: ServiceCall) -> None:
         for coordinator in _all_coordinators():
             await coordinator.async_export_data()
+
+    async def handle_select_user(call: ServiceCall) -> None:
+        user_id: str | None = call.data.get(ATTR_USER_ID)
+        for coordinator in _all_coordinators():
+            await coordinator.set_selected_user(user_id)
+
+    async def handle_refresh_users(call: ServiceCall) -> None:
+        for coordinator in _all_coordinators():
+            await coordinator.async_refresh_users()
+            await coordinator.async_refresh_statistics()
 
     hass.services.async_register(DOMAIN, SERVICE_START_WORKOUT, handle_start_workout)
     hass.services.async_register(DOMAIN, SERVICE_FINISH_WORKOUT, handle_finish_workout)
@@ -142,6 +170,7 @@ def _register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
+    hass.services.async_register(DOMAIN, SERVICE_SAVE_CURRENT_SET, handle_save_current_set)
     hass.services.async_register(
         DOMAIN,
         SERVICE_REFRESH_STATISTICS,
@@ -152,6 +181,13 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_EXPORT_DATA,
         handle_export_data,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SELECT_USER,
+        handle_select_user,
+        schema=vol.Schema({vol.Optional(ATTR_USER_ID): cv.string}),
+    )
+    hass.services.async_register(DOMAIN, SERVICE_REFRESH_USERS, handle_refresh_users)
 
 
 def _unregister_services(hass: HomeAssistant) -> None:
@@ -160,8 +196,11 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_START_WORKOUT,
         SERVICE_FINISH_WORKOUT,
         SERVICE_SAVE_SET,
+        SERVICE_SAVE_CURRENT_SET,
         SERVICE_REFRESH_STATISTICS,
         SERVICE_EXPORT_DATA,
+        SERVICE_SELECT_USER,
+        SERVICE_REFRESH_USERS,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

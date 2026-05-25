@@ -1,14 +1,14 @@
 start_workout:
   name: Start Workout
-  description: Marks the start of a workout session.
+  description: Marks the start of a workout session for the calling Home Assistant user context when available.
 
 finish_workout:
   name: Finish Workout
-  description: Marks the end of a workout session.
+  description: Marks the end of a workout session for the calling Home Assistant user context when available.
 
 save_set:
   name: Save Set
-  description: Logs a completed exercise set. If no workout is active, an implicit workout is created and finished automatically.
+  description: Logs a completed exercise set for the calling Home Assistant user context. If no workout is active for that user, an implicit workout is created and finished automatically.
   fields:
     exercise:
       name: Exercise
@@ -46,10 +46,29 @@ save_set:
       selector:
         text:
 
+save_current_set:
+  name: Save Current Set
+  description: Saves a set using current active_exercise, weight, reps, and notes from integration runtime state for the calling Home Assistant user.
+
+select_user:
+  name: Select User
+  description: Sets the selected user id used for personal dashboard statistics.
+  fields:
+    user_id:
+      name: User ID
+      description: Optional stored HA Fitness user id. If omitted, selected user fallback is reset.
+      required: false
+      selector:
+        text:
+
+refresh_users:
+  name: Refresh Users
+  description: Refreshes known users from the HA Fitness users table and refreshes statistics.
+
 refresh_statistics:
   name: Refresh Statistics
-  description: Refreshes cached totals, PR values, and recent sets from the SQLite database.
+  description: Refreshes cached global, personal, and household statistics from the SQLite database.
 
 export_data:
   name: Export Data
-  description: Exports totals, PR values, and recent sets to /config/ha_fitness/export.json.
+  description: Exports users plus global, personal, and household statistics to /config/ha_fitness/export.json.

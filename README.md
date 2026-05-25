@@ -131,3 +131,21 @@ Planned model fields:
 ## Contribution
 
 Please read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Phase 2.1 – Home Assistant User-Aware Multi-User Tracking
+
+The integration now supports Home Assistant user-aware attribution via `call.context.user_id`.
+
+- Sets and workouts are attributed to the calling HA user when actions use services.
+- Existing pre-multi-user data is preserved and assigned to:
+  - `legacy` (`Legacy / Pre-Multi-User Data`)
+- Personal statistics are available per selected/current user.
+- Household/family statistics aggregate configurable included users (or all enabled users by default).
+- Existing global sensors are preserved for backward compatibility and aggregate all users.
+
+Recommended dashboard action style for accurate attribution:
+- `ha_fitness.start_workout`
+- `ha_fitness.save_current_set`
+- `ha_fitness.finish_workout`
+
+> The integration does not parse or modify `/config/.storage/auth` and does not write to Home Assistant recorder tables.

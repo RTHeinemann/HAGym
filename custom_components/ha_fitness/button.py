@@ -57,7 +57,7 @@ class HAFitnessStartWorkoutButton(_HAFitnessButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_start_workout"
 
     async def async_press(self) -> None:
-        await self._coordinator.start_workout()
+        await self._coordinator.start_workout(context_user_id=None)
 
 
 class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
@@ -72,7 +72,7 @@ class HAFitnessFinishWorkoutButton(_HAFitnessButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_finish_workout"
 
     async def async_press(self) -> None:
-        await self._coordinator.finish_workout()
+        await self._coordinator.finish_workout(context_user_id=None)
 
 
 class HAFitnessSaveSetButton(_HAFitnessButtonBase):
@@ -87,4 +87,4 @@ class HAFitnessSaveSetButton(_HAFitnessButtonBase):
         self._attr_unique_id = f"{entry.entry_id}_save_set"
 
     async def async_press(self) -> None:
-        await self._coordinator.save_current_set()
+        await self._coordinator.save_current_set(context_user_id=None)

@@ -93,6 +93,129 @@
       },
       "volume_tricep_pushdown_total": {
         "name": "Volumen Trizepsdrücken Gesamt"
+      },
+      "current_user_id": {
+        "name": "Aktuelle Benutzer-ID"
+      },
+      "personal_total_volume": {
+        "name": "Persönliches Gesamtvolumen"
+      },
+      "personal_total_sets": {
+        "name": "Persönliche Gesamtsätze"
+      },
+      "personal_total_workouts": {
+        "name": "Persönliche Gesamttrainings"
+      },
+      "personal_recent_sets": {
+        "name": "Persönliche letzte Sätze"
+      },
+      "household_total_volume": {
+        "name": "Haushalts-Gesamtvolumen"
+      },
+      "household_total_sets": {
+        "name": "Haushalts-Gesamtsätze"
+      },
+      "household_total_workouts": {
+        "name": "Haushalts-Gesamttrainings"
+      },
+      "household_recent_sets": {
+        "name": "Haushalts-letzte Sätze"
+      },
+      "personal_pr_bench_press": {
+        "name": "Persönlicher PR Bench Press"
+      },
+      "household_pr_bench_press": {
+        "name": "Haushalts-PR Bench Press"
+      },
+      "personal_volume_bench_press_total": {
+        "name": "Persönliches Volumen Bench Press Gesamt"
+      },
+      "household_volume_bench_press_total": {
+        "name": "Haushalts-Volumen Bench Press Gesamt"
+      },
+      "personal_pr_squat": {
+        "name": "Persönlicher PR Squat"
+      },
+      "household_pr_squat": {
+        "name": "Haushalts-PR Squat"
+      },
+      "personal_volume_squat_total": {
+        "name": "Persönliches Volumen Squat Gesamt"
+      },
+      "household_volume_squat_total": {
+        "name": "Haushalts-Volumen Squat Gesamt"
+      },
+      "personal_pr_deadlift": {
+        "name": "Persönlicher PR Deadlift"
+      },
+      "household_pr_deadlift": {
+        "name": "Haushalts-PR Deadlift"
+      },
+      "personal_volume_deadlift_total": {
+        "name": "Persönliches Volumen Deadlift Gesamt"
+      },
+      "household_volume_deadlift_total": {
+        "name": "Haushalts-Volumen Deadlift Gesamt"
+      },
+      "personal_pr_shoulder_press": {
+        "name": "Persönlicher PR Shoulder Press"
+      },
+      "household_pr_shoulder_press": {
+        "name": "Haushalts-PR Shoulder Press"
+      },
+      "personal_volume_shoulder_press_total": {
+        "name": "Persönliches Volumen Shoulder Press Gesamt"
+      },
+      "household_volume_shoulder_press_total": {
+        "name": "Haushalts-Volumen Shoulder Press Gesamt"
+      },
+      "personal_pr_row": {
+        "name": "Persönlicher PR Row"
+      },
+      "household_pr_row": {
+        "name": "Haushalts-PR Row"
+      },
+      "personal_volume_row_total": {
+        "name": "Persönliches Volumen Row Gesamt"
+      },
+      "household_volume_row_total": {
+        "name": "Haushalts-Volumen Row Gesamt"
+      },
+      "personal_pr_lat_pulldown": {
+        "name": "Persönlicher PR Lat Pulldown"
+      },
+      "household_pr_lat_pulldown": {
+        "name": "Haushalts-PR Lat Pulldown"
+      },
+      "personal_volume_lat_pulldown_total": {
+        "name": "Persönliches Volumen Lat Pulldown Gesamt"
+      },
+      "household_volume_lat_pulldown_total": {
+        "name": "Haushalts-Volumen Lat Pulldown Gesamt"
+      },
+      "personal_pr_bicep_curl": {
+        "name": "Persönlicher PR Bicep Curl"
+      },
+      "household_pr_bicep_curl": {
+        "name": "Haushalts-PR Bicep Curl"
+      },
+      "personal_volume_bicep_curl_total": {
+        "name": "Persönliches Volumen Bicep Curl Gesamt"
+      },
+      "household_volume_bicep_curl_total": {
+        "name": "Haushalts-Volumen Bicep Curl Gesamt"
+      },
+      "personal_pr_tricep_pushdown": {
+        "name": "Persönlicher PR Tricep Pushdown"
+      },
+      "household_pr_tricep_pushdown": {
+        "name": "Haushalts-PR Tricep Pushdown"
+      },
+      "personal_volume_tricep_pushdown_total": {
+        "name": "Persönliches Volumen Tricep Pushdown Gesamt"
+      },
+      "household_volume_tricep_pushdown_total": {
+        "name": "Haushalts-Volumen Tricep Pushdown Gesamt"
       }
     },
     "button": {
@@ -163,6 +286,24 @@
     "export_data": {
       "name": "Daten exportieren",
       "description": "Exportiert Summen, PR-Werte und letzte Sätze nach /config/ha_fitness/export.json."
+    },
+    "save_current_set": {
+      "name": "Aktuellen Satz speichern",
+      "description": "Speichert einen Satz aus den aktuellen Laufzeitwerten im Kontext des aufrufenden Home-Assistant-Benutzers."
+    },
+    "select_user": {
+      "name": "Benutzer auswählen",
+      "description": "Wählt die Benutzer-ID für persönliche Dashboard-Statistiken aus.",
+      "fields": {
+        "user_id": {
+          "name": "Benutzer-ID",
+          "description": "Optionale bekannte HA-Fitness-Benutzer-ID."
+        }
+      }
+    },
+    "refresh_users": {
+      "name": "Benutzer aktualisieren",
+      "description": "Aktualisiert bekannte Benutzer aus SQLite und aktualisiert Statistiken."
     }
   }
 }

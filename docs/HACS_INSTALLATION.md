@@ -107,3 +107,13 @@ A ready-made native dashboard is available at
 - Advanced charts/cards are still provided mainly by YAML examples.
 
 See [MIGRATION_FROM_YAML_TO_INTEGRATION.md](MIGRATION_FROM_YAML_TO_INTEGRATION.md) for the migration roadmap.
+
+## Multi-User Attribution Notes (Phase 2.1)
+
+- User attribution is based on Home Assistant service context (`call.context.user_id`).
+- For best attribution accuracy, prefer Lovelace buttons that call services instead of direct button entities:
+  - `ha_fitness.start_workout`
+  - `ha_fitness.save_current_set`
+  - `ha_fitness.finish_workout`
+- Existing global sensors remain and aggregate all users.
+- New personal and household sensors are available for multi-user dashboards.

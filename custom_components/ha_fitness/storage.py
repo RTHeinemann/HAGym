@@ -9,6 +9,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
+from .const import LEGACY_USER_ID
 from .migrations import apply_migrations
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,9 +26,9 @@ class HAFitnessStore:
         """Initialize database directory, file, and schema."""
         await self._hass.async_add_executor_job(self._initialize)
 
-    async def async_start_workout(self, started_at: datetime) -> int:
+    async def async_start_workout(self, user_id: str, started_at: datetime) -> int:
         """Create a workout row and return its id."""
-        return await self._hass.async_add_executor_job(self._start_workout, started_at)
+        return await self._hass.async_add_executor_job(self._start_workout, user_id, started_at)
 
     async def async_finish_workout(self, workout_id: int, finished_at: datetime) -> None:
         """Mark a workout as finished."""
@@ -35,6 +36,7 @@ class HAFitnessStore:
 
     async def async_save_set(
         self,
+        user_id: str,
         workout_id: int | None,
         exercise: str,
         weight: float,
@@ -46,6 +48,7 @@ class HAFitnessStore:
         """Persist a set row and return its id."""
         return await self._hass.async_add_executor_job(
             self._save_set,
+            user_id,
             workout_id,
             exercise,
             weight,
@@ -63,25 +66,29 @@ class HAFitnessStore:
         """Return most recent set for one exercise."""
         return await self._hass.async_add_executor_job(self._get_last_set_for_exercise, exercise)
 
-    async def async_get_current_open_workout(self) -> dict[str, Any] | None:
-        """Return open workout where finished_at is NULL."""
-        return await self._hass.async_add_executor_job(self._get_current_open_workout)
+    async def async_get_current_open_workout(self, user_id: str) -> dict[str, Any] | None:
+        """Return open workout where finished_at is NULL for one user."""
+        return await self._hass.async_add_executor_job(self._get_current_open_workout, user_id)
 
-    async def async_get_total_volume(self) -> float:
-        """Return total volume across all sets."""
-        return await self._hass.async_add_executor_job(self._get_total_volume)
+    async def async_get_total_volume(self, user_id: str | None = None) -> float:
+        """Return total volume, optionally filtered by user."""
+        return await self._hass.async_add_executor_job(self._get_total_volume, user_id)
 
-    async def async_get_total_volume_by_exercise(self, exercise: str) -> float:
-        """Return total volume for an exercise."""
-        return await self._hass.async_add_executor_job(self._get_total_volume_by_exercise, exercise)
+    async def async_get_total_volume_by_exercise(
+        self, exercise: str, user_id: str | None = None
+    ) -> float:
+        """Return total volume for an exercise, optionally filtered by user."""
+        return await self._hass.async_add_executor_job(
+            self._get_total_volume_by_exercise, exercise, user_id
+        )
 
-    async def async_get_pr_by_exercise(self, exercise: str) -> float:
-        """Return max weight for an exercise."""
-        return await self._hass.async_add_executor_job(self._get_pr_by_exercise, exercise)
+    async def async_get_pr_by_exercise(self, exercise: str, user_id: str | None = None) -> float:
+        """Return max weight for an exercise, optionally filtered by user."""
+        return await self._hass.async_add_executor_job(self._get_pr_by_exercise, exercise, user_id)
 
-    async def async_get_set_count(self) -> int:
-        """Return set count."""
-        return await self._hass.async_add_executor_job(self._get_set_count)
+    async def async_get_set_count(self, user_id: str | None = None) -> int:
+        """Return set count, optionally filtered by user."""
+        return await self._hass.async_add_executor_job(self._get_set_count, user_id)
 
     async def async_get_set_count_for_workout(self, workout_id: int) -> int:
         """Return set count for one workout."""
@@ -89,13 +96,65 @@ class HAFitnessStore:
             self._get_set_count_for_workout, workout_id
         )
 
-    async def async_get_workout_count(self) -> int:
-        """Return workout count."""
-        return await self._hass.async_add_executor_job(self._get_workout_count)
+    async def async_get_workout_count(self, user_id: str | None = None) -> int:
+        """Return workout count, optionally filtered by user."""
+        return await self._hass.async_add_executor_job(self._get_workout_count, user_id)
 
-    async def async_get_recent_sets(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Return most recent set rows."""
-        return await self._hass.async_add_executor_job(self._get_recent_sets, limit)
+    async def async_get_recent_sets(
+        self, limit: int = 10, user_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return most recent set rows, optionally filtered by user."""
+        return await self._hass.async_add_executor_job(self._get_recent_sets, limit, user_id)
+
+    async def async_upsert_user(self, user_id: str, display_name: str | None = None) -> None:
+        """Insert or update one user row."""
+        await self._hass.async_add_executor_job(self._upsert_user, user_id, display_name)
+
+    async def async_get_users(self) -> list[dict[str, Any]]:
+        """Return known users sorted by display_name/id."""
+        return await self._hass.async_add_executor_job(self._get_users)
+
+    async def async_get_user(self, user_id: str) -> dict[str, Any] | None:
+        """Return one user row by id."""
+        return await self._hass.async_add_executor_job(self._get_user, user_id)
+
+    async def async_get_household_total_volume(self, user_ids: list[str] | None = None) -> float:
+        """Return household total volume."""
+        return await self._hass.async_add_executor_job(self._get_household_total_volume, user_ids)
+
+    async def async_get_household_set_count(self, user_ids: list[str] | None = None) -> int:
+        """Return household set count."""
+        return await self._hass.async_add_executor_job(self._get_household_set_count, user_ids)
+
+    async def async_get_household_workout_count(self, user_ids: list[str] | None = None) -> int:
+        """Return household workout count."""
+        return await self._hass.async_add_executor_job(
+            self._get_household_workout_count, user_ids
+        )
+
+    async def async_get_household_recent_sets(
+        self, limit: int = 10, user_ids: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Return household recent sets."""
+        return await self._hass.async_add_executor_job(
+            self._get_household_recent_sets, limit, user_ids
+        )
+
+    async def async_get_household_total_volume_by_exercise(
+        self, exercise: str, user_ids: list[str] | None = None
+    ) -> float:
+        """Return household exercise volume."""
+        return await self._hass.async_add_executor_job(
+            self._get_household_total_volume_by_exercise, exercise, user_ids
+        )
+
+    async def async_get_household_pr_by_exercise(
+        self, exercise: str, user_ids: list[str] | None = None
+    ) -> float:
+        """Return household exercise PR."""
+        return await self._hass.async_add_executor_job(
+            self._get_household_pr_by_exercise, exercise, user_ids
+        )
 
     # ------------------------------------------------------------------
     # Sync implementation (executor only)
@@ -107,15 +166,15 @@ class HAFitnessStore:
             apply_migrations(conn)
             conn.commit()
 
-    def _start_workout(self, started_at: datetime) -> int:
+    def _start_workout(self, user_id: str, started_at: datetime) -> int:
         iso_started_at = _isoformat(started_at)
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO workouts(started_at, finished_at, created_at)
-                VALUES(?, NULL, ?)
+                INSERT INTO workouts(user_id, started_at, finished_at, created_at)
+                VALUES(?, ?, NULL, ?)
                 """,
-                (iso_started_at, iso_started_at),
+                (user_id, iso_started_at, iso_started_at),
             )
             conn.commit()
             return int(cursor.lastrowid)
@@ -130,6 +189,7 @@ class HAFitnessStore:
 
     def _save_set(
         self,
+        user_id: str,
         workout_id: int | None,
         exercise: str,
         weight: float,
@@ -141,10 +201,19 @@ class HAFitnessStore:
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO set_logs(workout_id, exercise, weight, reps, volume, notes, created_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO set_logs(user_id, workout_id, exercise, weight, reps, volume, notes, created_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (workout_id, exercise, weight, reps, volume, notes, _isoformat(created_at)),
+                (
+                    user_id,
+                    workout_id,
+                    exercise,
+                    weight,
+                    reps,
+                    volume,
+                    notes,
+                    _isoformat(created_at),
+                ),
             )
             conn.commit()
             return int(cursor.lastrowid)
@@ -153,7 +222,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, workout_id, exercise, weight, reps, volume, notes, created_at
+                SELECT id, user_id, workout_id, exercise, weight, reps, volume, notes, created_at
                 FROM set_logs
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
@@ -165,7 +234,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, workout_id, exercise, weight, reps, volume, notes, created_at
+                SELECT id, user_id, workout_id, exercise, weight, reps, volume, notes, created_at
                 FROM set_logs
                 WHERE exercise = ?
                 ORDER BY created_at DESC, id DESC
@@ -175,55 +244,219 @@ class HAFitnessStore:
             ).fetchone()
             return _row_to_dict(row)
 
-    def _get_current_open_workout(self) -> dict[str, Any] | None:
+    def _get_current_open_workout(self, user_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, started_at, finished_at, created_at
+                SELECT id, user_id, started_at, finished_at, created_at
                 FROM workouts
                 WHERE finished_at IS NULL
+                  AND user_id = ?
                 ORDER BY started_at DESC, id DESC
                 LIMIT 1
-                """
+                """,
+                (user_id,),
             ).fetchone()
             return _row_to_dict(row)
 
-    def _get_total_volume(self) -> float:
-        return self._read_float("SELECT COALESCE(SUM(volume), 0) AS value FROM set_logs")
+    def _get_total_volume(self, user_id: str | None) -> float:
+        sql = "SELECT COALESCE(SUM(volume), 0) AS value FROM set_logs"
+        params: tuple[Any, ...] = ()
+        if user_id is not None:
+            sql += " WHERE user_id = ?"
+            params = (user_id,)
+        return self._read_float(sql, params)
 
-    def _get_total_volume_by_exercise(self, exercise: str) -> float:
-        return self._read_float(
-            "SELECT COALESCE(SUM(volume), 0) AS value FROM set_logs WHERE exercise = ?",
-            (exercise,),
-        )
+    def _get_total_volume_by_exercise(self, exercise: str, user_id: str | None) -> float:
+        sql = "SELECT COALESCE(SUM(volume), 0) AS value FROM set_logs WHERE exercise = ?"
+        params: tuple[Any, ...] = (exercise,)
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params = (exercise, user_id)
+        return self._read_float(sql, params)
 
-    def _get_pr_by_exercise(self, exercise: str) -> float:
-        return self._read_float(
-            "SELECT COALESCE(MAX(weight), 0) AS value FROM set_logs WHERE exercise = ?",
-            (exercise,),
-        )
+    def _get_pr_by_exercise(self, exercise: str, user_id: str | None) -> float:
+        sql = "SELECT COALESCE(MAX(weight), 0) AS value FROM set_logs WHERE exercise = ?"
+        params: tuple[Any, ...] = (exercise,)
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params = (exercise, user_id)
+        return self._read_float(sql, params)
 
-    def _get_set_count(self) -> int:
-        return self._read_int("SELECT COUNT(*) AS value FROM set_logs")
+    def _get_set_count(self, user_id: str | None) -> int:
+        sql = "SELECT COUNT(*) AS value FROM set_logs"
+        params: tuple[Any, ...] = ()
+        if user_id is not None:
+            sql += " WHERE user_id = ?"
+            params = (user_id,)
+        return self._read_int(sql, params)
 
     def _get_set_count_for_workout(self, workout_id: int) -> int:
         return self._read_int("SELECT COUNT(*) AS value FROM set_logs WHERE workout_id = ?", (workout_id,))
 
-    def _get_workout_count(self) -> int:
-        return self._read_int("SELECT COUNT(*) AS value FROM workouts")
+    def _get_workout_count(self, user_id: str | None) -> int:
+        sql = "SELECT COUNT(*) AS value FROM workouts"
+        params: tuple[Any, ...] = ()
+        if user_id is not None:
+            sql += " WHERE user_id = ?"
+            params = (user_id,)
+        return self._read_int(sql, params)
 
-    def _get_recent_sets(self, limit: int) -> list[dict[str, Any]]:
+    def _get_recent_sets(self, limit: int, user_id: str | None) -> list[dict[str, Any]]:
+        sql = """
+            SELECT id, user_id, workout_id, exercise, weight, reps, volume, notes, created_at
+            FROM set_logs
+        """
+        params: tuple[Any, ...] = ()
+        if user_id is not None:
+            sql += " WHERE user_id = ?"
+            params = (user_id,)
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
+        params = (*params, limit)
+
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+            return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _upsert_user(self, user_id: str, display_name: str | None = None) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO users(id, display_name, enabled, created_at)
+                VALUES(?, ?, 1, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    display_name = CASE
+                        WHEN excluded.display_name IS NOT NULL AND excluded.display_name != ''
+                            THEN excluded.display_name
+                        ELSE users.display_name
+                    END,
+                    enabled = 1
+                """,
+                (user_id, display_name, _isoformat(datetime.now(timezone.utc))),
+            )
+            conn.commit()
+
+    def _get_users(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, workout_id, exercise, weight, reps, volume, notes, created_at
-                FROM set_logs
-                ORDER BY created_at DESC, id DESC
-                LIMIT ?
-                """,
-                (limit,),
+                SELECT id, display_name, enabled, created_at
+                FROM users
+                ORDER BY COALESCE(display_name, id) ASC
+                """
             ).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _get_user(self, user_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, display_name, enabled, created_at
+                FROM users
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+            return _row_to_dict(row)
+
+    def _get_household_total_volume(self, user_ids: list[str] | None) -> float:
+        with self._connect() as conn:
+            resolved = self._resolve_household_user_ids(conn, user_ids)
+            if resolved == []:
+                return 0.0
+            sql, params = _in_clause_sql(
+                "SELECT COALESCE(SUM(volume), 0) AS value FROM set_logs",
+                "user_id",
+                resolved,
+            )
+            row = conn.execute(sql, params).fetchone()
+            return float(row["value"] if row is not None else 0.0)
+
+    def _get_household_set_count(self, user_ids: list[str] | None) -> int:
+        with self._connect() as conn:
+            resolved = self._resolve_household_user_ids(conn, user_ids)
+            if resolved == []:
+                return 0
+            sql, params = _in_clause_sql(
+                "SELECT COUNT(*) AS value FROM set_logs",
+                "user_id",
+                resolved,
+            )
+            row = conn.execute(sql, params).fetchone()
+            return int(row["value"] if row is not None else 0)
+
+    def _get_household_workout_count(self, user_ids: list[str] | None) -> int:
+        with self._connect() as conn:
+            resolved = self._resolve_household_user_ids(conn, user_ids)
+            if resolved == []:
+                return 0
+            sql, params = _in_clause_sql(
+                "SELECT COUNT(*) AS value FROM workouts",
+                "user_id",
+                resolved,
+            )
+            row = conn.execute(sql, params).fetchone()
+            return int(row["value"] if row is not None else 0)
+
+    def _get_household_recent_sets(
+        self, limit: int, user_ids: list[str] | None
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            resolved = self._resolve_household_user_ids(conn, user_ids)
+            if resolved == []:
+                return []
+            sql, params = _in_clause_sql(
+                """
+                SELECT id, user_id, workout_id, exercise, weight, reps, volume, notes, created_at
+                FROM set_logs
+                """,
+                "user_id",
+                resolved,
+            )
+            sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
+            rows = conn.execute(sql, (*params, limit)).fetchall()
+            return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _get_household_total_volume_by_exercise(
+        self, exercise: str, user_ids: list[str] | None
+    ) -> float:
+        with self._connect() as conn:
+            resolved = self._resolve_household_user_ids(conn, user_ids)
+            if resolved == []:
+                return 0.0
+            sql = "SELECT COALESCE(SUM(volume), 0) AS value FROM set_logs WHERE exercise = ?"
+            params: tuple[Any, ...] = (exercise,)
+            sql, in_params = _in_clause_sql(sql, "user_id", resolved, initial_where=True)
+            row = conn.execute(sql, (*params, *in_params)).fetchone()
+            return float(row["value"] if row is not None else 0.0)
+
+    def _get_household_pr_by_exercise(
+        self, exercise: str, user_ids: list[str] | None
+    ) -> float:
+        with self._connect() as conn:
+            resolved = self._resolve_household_user_ids(conn, user_ids)
+            if resolved == []:
+                return 0.0
+            sql = "SELECT COALESCE(MAX(weight), 0) AS value FROM set_logs WHERE exercise = ?"
+            params: tuple[Any, ...] = (exercise,)
+            sql, in_params = _in_clause_sql(sql, "user_id", resolved, initial_where=True)
+            row = conn.execute(sql, (*params, *in_params)).fetchone()
+            return float(row["value"] if row is not None else 0.0)
+
+    def _resolve_household_user_ids(
+        self, conn: sqlite3.Connection, user_ids: list[str] | None
+    ) -> list[str] | None:
+        if user_ids is not None:
+            return user_ids
+
+        rows = conn.execute(
+            "SELECT id FROM users WHERE enabled = 1 ORDER BY created_at ASC"
+        ).fetchall()
+        resolved = [str(row["id"]) for row in rows if row["id"]]
+        if not resolved:
+            return [LEGACY_USER_ID]
+        return resolved
 
     def _read_float(self, sql: str, params: tuple[Any, ...] = ()) -> float:
         with self._connect() as conn:
@@ -247,6 +480,25 @@ class HAFitnessStore:
                 conn.close()
             _LOGGER.exception("HA Fitness: failed to open sqlite database at %s", self._db_path)
             raise
+
+
+def _in_clause_sql(
+    base_sql: str,
+    column: str,
+    values: list[str] | None,
+    *,
+    initial_where: bool = False,
+) -> tuple[str, tuple[Any, ...]]:
+    if values is None:
+        return base_sql, ()
+    if not values:
+        empty_sql = f"{base_sql} {'AND' if initial_where else 'WHERE'} 1 = 0"
+        return empty_sql, ()
+
+    placeholders = ",".join("?" for _ in values)
+    connector = "AND" if initial_where else "WHERE"
+    sql = f"{base_sql} {connector} {column} IN ({placeholders})"
+    return sql, tuple(values)
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:

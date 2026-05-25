@@ -5,12 +5,27 @@ views:
     icon: mdi:dumbbell
     cards:
       - type: entities
-        title: Workout Controls
+        title: Workout Controls (Service Context Aware)
         entities:
           - entity: sensor.ha_fitness_status
-          - entity: button.ha_fitness_start_workout
-          - entity: button.ha_fitness_finish_workout
-          - entity: button.ha_fitness_save_set
+          - type: button
+            name: Start Workout
+            icon: mdi:play
+            tap_action:
+              action: call-service
+              service: ha_fitness.start_workout
+          - type: button
+            name: Finish Workout
+            icon: mdi:stop
+            tap_action:
+              action: call-service
+              service: ha_fitness.finish_workout
+          - type: button
+            name: Save Current Set
+            icon: mdi:content-save
+            tap_action:
+              action: call-service
+              service: ha_fitness.save_current_set
 
       - type: entities
         title: Set Inputs
@@ -21,54 +36,87 @@ views:
           - entity: text.ha_fitness_notes
 
       - type: entities
-        title: Current Workout Summary
+        title: Current User
         entities:
+          - entity: sensor.ha_fitness_current_user_id
           - entity: sensor.ha_fitness_active_workout_summary
-          - entity: sensor.ha_fitness_active_exercise
-          - entity: sensor.ha_fitness_current_set_number
 
       - type: entities
-        title: Last Set
+        title: Personal Stats
         entities:
-          - entity: sensor.ha_fitness_last_set
+          - entity: sensor.ha_fitness_personal_total_volume
+          - entity: sensor.ha_fitness_personal_total_sets
+          - entity: sensor.ha_fitness_personal_total_workouts
 
       - type: entities
-        title: Current Set Volume
+        title: Household / Family Stats
         entities:
-          - entity: sensor.ha_fitness_current_set_volume
+          - entity: sensor.ha_fitness_household_total_volume
+          - entity: sensor.ha_fitness_household_total_sets
+          - entity: sensor.ha_fitness_household_total_workouts
 
       - type: entities
-        title: Global Totals
+        title: Personal PRs
+        entities:
+          - entity: sensor.ha_fitness_personal_pr_bench_press
+          - entity: sensor.ha_fitness_personal_pr_squat
+          - entity: sensor.ha_fitness_personal_pr_deadlift
+          - entity: sensor.ha_fitness_personal_pr_shoulder_press
+          - entity: sensor.ha_fitness_personal_pr_row
+          - entity: sensor.ha_fitness_personal_pr_lat_pulldown
+          - entity: sensor.ha_fitness_personal_pr_bicep_curl
+          - entity: sensor.ha_fitness_personal_pr_tricep_pushdown
+
+      - type: entities
+        title: Household PRs
+        entities:
+          - entity: sensor.ha_fitness_household_pr_bench_press
+          - entity: sensor.ha_fitness_household_pr_squat
+          - entity: sensor.ha_fitness_household_pr_deadlift
+          - entity: sensor.ha_fitness_household_pr_shoulder_press
+          - entity: sensor.ha_fitness_household_pr_row
+          - entity: sensor.ha_fitness_household_pr_lat_pulldown
+          - entity: sensor.ha_fitness_household_pr_bicep_curl
+          - entity: sensor.ha_fitness_household_pr_tricep_pushdown
+
+      - type: entities
+        title: Personal Volume by Exercise
+        entities:
+          - entity: sensor.ha_fitness_personal_volume_bench_press_total
+          - entity: sensor.ha_fitness_personal_volume_squat_total
+          - entity: sensor.ha_fitness_personal_volume_deadlift_total
+          - entity: sensor.ha_fitness_personal_volume_shoulder_press_total
+          - entity: sensor.ha_fitness_personal_volume_row_total
+          - entity: sensor.ha_fitness_personal_volume_lat_pulldown_total
+          - entity: sensor.ha_fitness_personal_volume_bicep_curl_total
+          - entity: sensor.ha_fitness_personal_volume_tricep_pushdown_total
+
+      - type: entities
+        title: Household Volume by Exercise
+        entities:
+          - entity: sensor.ha_fitness_household_volume_bench_press_total
+          - entity: sensor.ha_fitness_household_volume_squat_total
+          - entity: sensor.ha_fitness_household_volume_deadlift_total
+          - entity: sensor.ha_fitness_household_volume_shoulder_press_total
+          - entity: sensor.ha_fitness_household_volume_row_total
+          - entity: sensor.ha_fitness_household_volume_lat_pulldown_total
+          - entity: sensor.ha_fitness_household_volume_bicep_curl_total
+          - entity: sensor.ha_fitness_household_volume_tricep_pushdown_total
+
+      - type: entities
+        title: Recent Personal Sets
+        entities:
+          - entity: sensor.ha_fitness_personal_recent_sets
+
+      - type: entities
+        title: Recent Household Sets
+        entities:
+          - entity: sensor.ha_fitness_household_recent_sets
+
+      - type: entities
+        title: Backward Compatible Global Sensors
         entities:
           - entity: sensor.ha_fitness_total_volume
           - entity: sensor.ha_fitness_total_sets
           - entity: sensor.ha_fitness_total_workouts
-
-      - type: entities
-        title: PR by Exercise
-        entities:
-          - entity: sensor.ha_fitness_pr_bench_press
-          - entity: sensor.ha_fitness_pr_squat
-          - entity: sensor.ha_fitness_pr_deadlift
-          - entity: sensor.ha_fitness_pr_shoulder_press
-          - entity: sensor.ha_fitness_pr_row
-          - entity: sensor.ha_fitness_pr_lat_pulldown
-          - entity: sensor.ha_fitness_pr_bicep_curl
-          - entity: sensor.ha_fitness_pr_tricep_pushdown
-
-      - type: entities
-        title: Volume by Exercise
-        entities:
-          - entity: sensor.ha_fitness_volume_bench_press_total
-          - entity: sensor.ha_fitness_volume_squat_total
-          - entity: sensor.ha_fitness_volume_deadlift_total
-          - entity: sensor.ha_fitness_volume_shoulder_press_total
-          - entity: sensor.ha_fitness_volume_row_total
-          - entity: sensor.ha_fitness_volume_lat_pulldown_total
-          - entity: sensor.ha_fitness_volume_bicep_curl_total
-          - entity: sensor.ha_fitness_volume_tricep_pushdown_total
-
-      - type: entities
-        title: Recent Sets
-        entities:
           - entity: sensor.ha_fitness_recent_sets

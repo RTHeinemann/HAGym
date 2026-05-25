@@ -93,6 +93,129 @@
       },
       "volume_tricep_pushdown_total": {
         "name": "Volume Tricep Pushdown Total"
+      },
+      "current_user_id": {
+        "name": "Current User ID"
+      },
+      "personal_total_volume": {
+        "name": "Personal Total Volume"
+      },
+      "personal_total_sets": {
+        "name": "Personal Total Sets"
+      },
+      "personal_total_workouts": {
+        "name": "Personal Total Workouts"
+      },
+      "personal_recent_sets": {
+        "name": "Personal Recent Sets"
+      },
+      "household_total_volume": {
+        "name": "Household Total Volume"
+      },
+      "household_total_sets": {
+        "name": "Household Total Sets"
+      },
+      "household_total_workouts": {
+        "name": "Household Total Workouts"
+      },
+      "household_recent_sets": {
+        "name": "Household Recent Sets"
+      },
+      "personal_pr_bench_press": {
+        "name": "Personal PR Bench Press"
+      },
+      "household_pr_bench_press": {
+        "name": "Household PR Bench Press"
+      },
+      "personal_volume_bench_press_total": {
+        "name": "Personal Volume Bench Press Total"
+      },
+      "household_volume_bench_press_total": {
+        "name": "Household Volume Bench Press Total"
+      },
+      "personal_pr_squat": {
+        "name": "Personal PR Squat"
+      },
+      "household_pr_squat": {
+        "name": "Household PR Squat"
+      },
+      "personal_volume_squat_total": {
+        "name": "Personal Volume Squat Total"
+      },
+      "household_volume_squat_total": {
+        "name": "Household Volume Squat Total"
+      },
+      "personal_pr_deadlift": {
+        "name": "Personal PR Deadlift"
+      },
+      "household_pr_deadlift": {
+        "name": "Household PR Deadlift"
+      },
+      "personal_volume_deadlift_total": {
+        "name": "Personal Volume Deadlift Total"
+      },
+      "household_volume_deadlift_total": {
+        "name": "Household Volume Deadlift Total"
+      },
+      "personal_pr_shoulder_press": {
+        "name": "Personal PR Shoulder Press"
+      },
+      "household_pr_shoulder_press": {
+        "name": "Household PR Shoulder Press"
+      },
+      "personal_volume_shoulder_press_total": {
+        "name": "Personal Volume Shoulder Press Total"
+      },
+      "household_volume_shoulder_press_total": {
+        "name": "Household Volume Shoulder Press Total"
+      },
+      "personal_pr_row": {
+        "name": "Personal PR Row"
+      },
+      "household_pr_row": {
+        "name": "Household PR Row"
+      },
+      "personal_volume_row_total": {
+        "name": "Personal Volume Row Total"
+      },
+      "household_volume_row_total": {
+        "name": "Household Volume Row Total"
+      },
+      "personal_pr_lat_pulldown": {
+        "name": "Personal PR Lat Pulldown"
+      },
+      "household_pr_lat_pulldown": {
+        "name": "Household PR Lat Pulldown"
+      },
+      "personal_volume_lat_pulldown_total": {
+        "name": "Personal Volume Lat Pulldown Total"
+      },
+      "household_volume_lat_pulldown_total": {
+        "name": "Household Volume Lat Pulldown Total"
+      },
+      "personal_pr_bicep_curl": {
+        "name": "Personal PR Bicep Curl"
+      },
+      "household_pr_bicep_curl": {
+        "name": "Household PR Bicep Curl"
+      },
+      "personal_volume_bicep_curl_total": {
+        "name": "Personal Volume Bicep Curl Total"
+      },
+      "household_volume_bicep_curl_total": {
+        "name": "Household Volume Bicep Curl Total"
+      },
+      "personal_pr_tricep_pushdown": {
+        "name": "Personal PR Tricep Pushdown"
+      },
+      "household_pr_tricep_pushdown": {
+        "name": "Household PR Tricep Pushdown"
+      },
+      "personal_volume_tricep_pushdown_total": {
+        "name": "Personal Volume Tricep Pushdown Total"
+      },
+      "household_volume_tricep_pushdown_total": {
+        "name": "Household Volume Tricep Pushdown Total"
       }
     },
     "button": {
@@ -163,6 +286,24 @@
     "export_data": {
       "name": "Export Data",
       "description": "Exports totals, PR values, and recent sets to /config/ha_fitness/export.json."
+    },
+    "save_current_set": {
+      "name": "Save Current Set",
+      "description": "Saves a set from current runtime inputs for the calling Home Assistant user context."
+    },
+    "select_user": {
+      "name": "Select User",
+      "description": "Selects the user id used for personal dashboard statistics.",
+      "fields": {
+        "user_id": {
+          "name": "User ID",
+          "description": "Optional known HA Fitness user id."
+        }
+      }
+    },
+    "refresh_users": {
+      "name": "Refresh Users",
+      "description": "Refreshes known users from SQLite and updates statistics."
     }
   }
 }

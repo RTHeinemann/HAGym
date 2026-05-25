@@ -37,3 +37,27 @@ In integration code this is resolved with:
 
 - HA Fitness does **not** write directly to Home Assistant recorder DB tables.
 - HA Fitness has no cloud storage dependency.
+
+## Multi-User Schema (v2)
+
+Schema migration v2 adds:
+
+- `users` table (`id`, `display_name`, `enabled`, `created_at`)
+- `workouts.user_id`
+- `set_logs.user_id`
+
+Backfill behavior:
+
+- Legacy rows from schema v1 are assigned to user id `legacy`.
+- Legacy user record is created as `Legacy / Pre-Multi-User Data`.
+
+Indexes:
+
+- `idx_workouts_user_id_started_at`
+- `idx_set_logs_user_id_created_at`
+- `idx_set_logs_user_id_exercise_created_at`
+
+Aggregation behavior:
+
+- `user_id=None` in personal/global queries means all users.
+- `user_ids=None` in household queries means all enabled users from `users`.
