@@ -453,7 +453,11 @@ class HAFitnessStore:
         rows = conn.execute(
             "SELECT id FROM users WHERE enabled = 1 ORDER BY created_at ASC"
         ).fetchall()
-        resolved = [str(row["id"]) for row in rows if row["id"]]
+        resolved = [
+            str(row["id"])
+            for row in rows
+            if row["id"] is not None and str(row["id"]) != ""
+        ]
         if not resolved:
             return [LEGACY_USER_ID]
         return resolved
