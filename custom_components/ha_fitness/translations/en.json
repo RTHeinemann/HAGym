@@ -20,7 +20,12 @@
           "manage_exercises": "Manage exercises",
           "add_exercise": "Add exercise",
           "edit_exercise_select": "Edit exercise",
-          "toggle_exercise_select": "Disable / enable exercise"
+          "toggle_exercise_select": "Disable / enable exercise",
+          "manage_equipment": "Manage equipment",
+          "add_equipment": "Add equipment",
+          "edit_equipment_select": "Edit equipment",
+          "toggle_equipment_select": "Disable / enable equipment",
+          "assign_exercises_select_equipment": "Assign exercises"
         }
       },
       "manage_exercises": {
@@ -30,7 +35,9 @@
           "add_exercise": "Add exercise",
           "edit_exercise_select": "Edit exercise",
           "toggle_exercise_select": "Disable / enable exercise",
-          "init": "Back to options menu"
+          "init": "Back to options menu",
+          "assign_exercises_select_equipment": "Assign exercises",
+          "manage_equipment": "Manage equipment"
         }
       },
       "configure_household_users": {
@@ -50,7 +57,8 @@
           "muscle_group": "Muscle group",
           "equipment": "Equipment",
           "sort_order": "Sort order",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "equipment_id": "Equipment ID"
         }
       },
       "edit_exercise_select": {
@@ -69,7 +77,8 @@
           "muscle_group": "Muscle group",
           "equipment": "Equipment",
           "sort_order": "Sort order",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "equipment_id": "Equipment ID"
         }
       },
       "toggle_exercise_select": {
@@ -85,6 +94,78 @@
         "data": {
           "confirm": "Confirm"
         }
+      },
+      "manage_equipment": {
+        "title": "Manage equipment",
+        "description": "Add, edit, disable, or re-enable equipment and assign exercises.",
+        "menu_options": {
+          "add_equipment": "Add equipment",
+          "edit_equipment_select": "Edit equipment",
+          "toggle_equipment_select": "Disable / enable equipment",
+          "assign_exercises_select_equipment": "Assign exercises",
+          "manage_exercises": "Manage exercises",
+          "init": "Back to options menu"
+        }
+      },
+      "add_equipment": {
+        "title": "Add equipment",
+        "description": "Create a new equipment id. IDs are normalized to lowercase and - is converted to _.",
+        "data": {
+          "equipment_id": "Equipment ID",
+          "name": "Name",
+          "description": "Description",
+          "icon": "Icon",
+          "location": "Location",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
+      },
+      "edit_equipment_select": {
+        "title": "Select equipment to edit",
+        "description": "Select equipment from the catalog (including disabled entries).",
+        "data": {
+          "equipment_id": "Equipment"
+        }
+      },
+      "edit_equipment": {
+        "title": "Edit equipment",
+        "description": "Editing equipment: {equipment_id}",
+        "data": {
+          "name": "Name",
+          "description": "Description",
+          "icon": "Icon",
+          "location": "Location",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
+      },
+      "toggle_equipment_select": {
+        "title": "Select equipment to toggle",
+        "description": "Select equipment to disable or re-enable.",
+        "data": {
+          "equipment_id": "Equipment"
+        }
+      },
+      "toggle_equipment_confirm": {
+        "title": "Confirm equipment toggle",
+        "description": "{equipment_name} ({equipment_id}) is currently {status}. Confirm to {action} this equipment.",
+        "data": {
+          "confirm": "Confirm"
+        }
+      },
+      "assign_exercises_select_equipment": {
+        "title": "Select equipment",
+        "description": "Select equipment for exercise assignment.",
+        "data": {
+          "equipment_id": "Equipment"
+        }
+      },
+      "assign_exercises_select_exercises": {
+        "title": "Assign exercises",
+        "description": "Select exercises assigned to equipment {equipment_id}.",
+        "data": {
+          "exercise_id": "Exercises"
+        }
       }
     },
     "error": {
@@ -93,11 +174,15 @@
       "name_required": "English name must not be empty.",
       "invalid_sort_order": "Sort order must be a whole number.",
       "exercise_not_found": "Exercise not found.",
-      "coordinator_unavailable": "Integration data is not ready yet. Please try again."
+      "coordinator_unavailable": "Integration data is not ready yet. Please try again.",
+      "invalid_equipment_id": "Equipment ID must contain only lowercase letters, numbers, or underscore.",
+      "equipment_exists": "Equipment already exists.",
+      "equipment_not_found": "Equipment not found."
     },
     "abort": {
       "exercise_not_found": "Exercise not found.",
-      "coordinator_unavailable": "Integration data is not ready yet. Please try again."
+      "coordinator_unavailable": "Integration data is not ready yet. Please try again.",
+      "equipment_not_found": "Equipment not found."
     }
   },
   "entity": {
@@ -312,6 +397,12 @@
       },
       "household_volume_tricep_pushdown_total": {
         "name": "Household Volume Tricep Pushdown Total"
+      },
+      "equipment_catalog": {
+        "name": "Equipment Catalog"
+      },
+      "equipment_statistics": {
+        "name": "Equipment Statistics"
       }
     },
     "button": {
@@ -328,6 +419,9 @@
     "select": {
       "active_exercise": {
         "name": "Active Exercise"
+      },
+      "active_equipment": {
+        "name": "Active Equipment"
       }
     },
     "number": {
@@ -416,6 +510,16 @@
     "refresh_exercises": {
       "name": "Refresh Exercises",
       "description": "Re-seeds default built-in exercises in SQLite and refreshes runtime exercise options/statistics."
+    },
+    "select_equipment": {
+      "name": "Select Equipment",
+      "description": "Sets the active equipment filter for workout views.",
+      "fields": {
+        "equipment_id": {
+          "name": "Equipment ID",
+          "description": "Optional equipment id. Empty means show all exercises."
+        }
+      }
     }
   }
 }

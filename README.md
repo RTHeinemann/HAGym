@@ -57,7 +57,9 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 ### HACS Native Integration
 
 - `select.ha_fitness_active_exercise` – dropdown for 8 built-in exercises
+- `select.ha_fitness_active_equipment` – equipment/station selector for exercise filtering
 - integration options UI for exercise catalog management (add/edit/disable/re-enable)
+- equipment catalog options UI (add/edit/disable/assign exercises)
 - `number.ha_fitness_weight` and `number.ha_fitness_reps` – set input controls
 - `text.ha_fitness_notes` – optional per-set notes
 - `button.ha_fitness_save_set` – saves the current set with validation
@@ -67,6 +69,9 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - generic catalog/statistics sensors for all exercises:
   - `sensor.ha_fitness_exercise_catalog`
   - `sensor.ha_fitness_exercise_statistics`
+- generic equipment sensors:
+  - `sensor.ha_fitness_equipment_catalog`
+  - `sensor.ha_fitness_equipment_statistics`
 - per-exercise PR sensors and volume-total sensors
 - recent sets sensor for dashboard history attributes
 - improved `ha_fitness.save_set` service with implicit workout fallback
@@ -128,6 +133,7 @@ Planned model fields:
 - [`docs/SQLITE_MIGRATION.md`](docs/SQLITE_MIGRATION.md)
 - [`docs/STORAGE.md`](docs/STORAGE.md)
 - [`docs/EXERCISES.md`](docs/EXERCISES.md)
+- [`docs/EQUIPMENT.md`](docs/EQUIPMENT.md)
 - [`docs/HACS_PREPARATION.md`](docs/HACS_PREPARATION.md)
 - [`docs/HACS_INSTALLATION.md`](docs/HACS_INSTALLATION.md)
 - [`docs/MIGRATION_FROM_YAML_TO_INTEGRATION.md`](docs/MIGRATION_FROM_YAML_TO_INTEGRATION.md)

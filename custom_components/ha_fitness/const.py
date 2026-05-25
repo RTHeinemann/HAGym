@@ -28,6 +28,7 @@ SERVICE_ADD_EXERCISE = "add_exercise"
 SERVICE_UPDATE_EXERCISE = "update_exercise"
 SERVICE_DISABLE_EXERCISE = "disable_exercise"
 SERVICE_REFRESH_EXERCISES = "refresh_exercises"
+SERVICE_SELECT_EQUIPMENT = "select_equipment"
 
 # Service field names
 ATTR_EXERCISE = "exercise"
@@ -40,6 +41,10 @@ ATTR_NAME_EN = "name_en"
 ATTR_NAME_DE = "name_de"
 ATTR_MUSCLE_GROUP = "muscle_group"
 ATTR_EQUIPMENT = "equipment"
+ATTR_EQUIPMENT_ID = "equipment_id"
+ATTR_DESCRIPTION = "description"
+ATTR_ICON = "icon"
+ATTR_LOCATION = "location"
 ATTR_ENABLED = "enabled"
 ATTR_SORT_ORDER = "sort_order"
 
@@ -61,7 +66,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Bench Press",
         "name_de": "Bankdrücken",
         "muscle_group": "chest",
-        "equipment": None,
+        "equipment": "barbell",
         "sort_order": 10,
     },
     {
@@ -69,7 +74,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Squat",
         "name_de": "Kniebeuge",
         "muscle_group": "legs",
-        "equipment": None,
+        "equipment": "barbell",
         "sort_order": 20,
     },
     {
@@ -77,7 +82,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Deadlift",
         "name_de": "Kreuzheben",
         "muscle_group": "posterior_chain",
-        "equipment": None,
+        "equipment": "barbell",
         "sort_order": 30,
     },
     {
@@ -85,7 +90,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Shoulder Press",
         "name_de": "Schulterdrücken",
         "muscle_group": "shoulders",
-        "equipment": None,
+        "equipment": "barbell",
         "sort_order": 40,
     },
     {
@@ -93,7 +98,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Row",
         "name_de": "Rudern",
         "muscle_group": "back",
-        "equipment": None,
+        "equipment": "machine",
         "sort_order": 50,
     },
     {
@@ -101,7 +106,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Lat Pulldown",
         "name_de": "Latzug",
         "muscle_group": "back",
-        "equipment": None,
+        "equipment": "cable",
         "sort_order": 60,
     },
     {
@@ -109,7 +114,7 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Bicep Curl",
         "name_de": "Bizepscurls",
         "muscle_group": "biceps",
-        "equipment": None,
+        "equipment": "dumbbell",
         "sort_order": 70,
     },
     {
@@ -117,7 +122,66 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
         "name_en": "Tricep Pushdown",
         "name_de": "Trizepsdrücken",
         "muscle_group": "triceps",
-        "equipment": None,
+        "equipment": "cable",
         "sort_order": 80,
     },
 ]
+
+DEFAULT_EQUIPMENT: list[dict[str, object]] = [
+    {
+        "id": "bench_station",
+        "name": "Bench Station",
+        "description": None,
+        "icon": "mdi:bench",
+        "location": None,
+        "enabled": True,
+        "sort_order": 10,
+    },
+    {
+        "id": "cable_tower",
+        "name": "Cable Tower",
+        "description": None,
+        "icon": "mdi:pulley",
+        "location": None,
+        "enabled": True,
+        "sort_order": 20,
+    },
+    {
+        "id": "squat_rack",
+        "name": "Squat Rack",
+        "description": None,
+        "icon": "mdi:weight-lifter",
+        "location": None,
+        "enabled": True,
+        "sort_order": 30,
+    },
+    {
+        "id": "dumbbell_area",
+        "name": "Dumbbell Area",
+        "description": None,
+        "icon": "mdi:dumbbell",
+        "location": None,
+        "enabled": True,
+        "sort_order": 40,
+    },
+    {
+        "id": "rowing_station",
+        "name": "Row Station",
+        "description": None,
+        "icon": "mdi:rowing",
+        "location": None,
+        "enabled": True,
+        "sort_order": 50,
+    },
+]
+
+DEFAULT_EXERCISE_EQUIPMENT_MAP: dict[str, str] = {
+    "bench_press": "bench_station",
+    "lat_pulldown": "cable_tower",
+    "tricep_pushdown": "cable_tower",
+    "squat": "squat_rack",
+    "row": "rowing_station",
+    "bicep_curl": "dumbbell_area",
+    "deadlift": "squat_rack",
+    "shoulder_press": "squat_rack",
+}

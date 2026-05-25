@@ -30,6 +30,7 @@ views:
       - type: entities
         title: Set Inputs
         entities:
+          - entity: select.ha_fitness_active_equipment
           - entity: select.ha_fitness_active_exercise
           - entity: number.ha_fitness_weight
           - entity: number.ha_fitness_reps
@@ -126,3 +127,9 @@ views:
         entities:
           - entity: sensor.ha_fitness_exercise_catalog
           - entity: sensor.ha_fitness_exercise_statistics
+
+      - type: entities
+        title: Equipment Catalog / Statistics
+        entities:
+          - entity: sensor.ha_fitness_equipment_catalog
+          - entity: sensor.ha_fitness_equipment_statistics
