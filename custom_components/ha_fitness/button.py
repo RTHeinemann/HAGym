@@ -24,7 +24,7 @@ async def async_setup_entry(
         HAFitnessSaveSetButton(coordinator, entry),
     ]
     for equipment_id in coordinator.enabled_equipment_ids:
-        entities.append(HAFitnessEquipmentSaveSetButton(coordinator, entry, equipment_id))
+        entities.append(HAFitnessEquipmentSelectButton(coordinator, entry, equipment_id))
     async_add_entities(entities)
 
 
@@ -91,18 +91,18 @@ class HAFitnessSaveSetButton(_HAFitnessButtonBase):
         await self._coordinator.save_current_set(context_user_id=self._context.user_id)
 
 
-class HAFitnessEquipmentSaveSetButton(ButtonEntity):
-    """Button to save a set using equipment-specific runtime state."""
+class HAFitnessEquipmentSelectButton(ButtonEntity):
+    """Button to set this equipment as the active equipment."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "save_set"
+    _attr_translation_key = "select_equipment"
 
     def __init__(
         self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
     ) -> None:
         self._coordinator = coordinator
         self._equipment_id = equipment_id
-        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_save_set"
+        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_select_equipment"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, equipment_id)},
             name=coordinator.equipment_display_name(equipment_id),
@@ -127,6 +127,4 @@ class HAFitnessEquipmentSaveSetButton(ButtonEntity):
         return self._coordinator.equipment_enabled(self._equipment_id)
 
     async def async_press(self) -> None:
-        await self._coordinator.save_current_set_for_equipment(
-            self._equipment_id, context_user_id=self._context.user_id
-        )
+        self._coordinator.set_active_equipment(self._equipment_id)

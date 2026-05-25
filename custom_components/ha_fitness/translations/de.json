@@ -417,6 +417,9 @@
       },
       "save_set": {
         "name": "Satz speichern"
+      },
+      "select_equipment": {
+        "name": "Equipment auswählen"
       }
     },
     "select": {

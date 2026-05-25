@@ -22,8 +22,6 @@ async def async_setup_entry(
         HAFitnessActiveEquipmentSelect(coordinator, entry),
         HAFitnessActiveExerciseSelect(coordinator, entry),
     ]
-    for equipment_id in coordinator.enabled_equipment_ids:
-        entities.append(HAFitnessEquipmentExerciseSelect(coordinator, entry, equipment_id))
     async_add_entities(entities)
 
 
@@ -107,51 +105,3 @@ class HAFitnessActiveExerciseSelect(SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Handle option selection."""
         self._coordinator.set_active_exercise_option(option)
-
-
-class HAFitnessEquipmentExerciseSelect(SelectEntity):
-    """Select entity for choosing one equipment-specific active exercise."""
-
-    _attr_has_entity_name = True
-    _attr_translation_key = "active_exercise"
-
-    def __init__(
-        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, equipment_id: str
-    ) -> None:
-        self._coordinator = coordinator
-        self._equipment_id = equipment_id
-        self._attr_unique_id = f"{entry.entry_id}_{equipment_id}_active_exercise"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id, equipment_id)},
-            name=coordinator.equipment_display_name(equipment_id),
-            manufacturer="HA Fitness",
-            model="Fitness Equipment",
-            suggested_area=coordinator.equipment_location(equipment_id),
-            entry_type="service",
-        )
-
-    async def async_added_to_hass(self) -> None:
-        """Subscribe to coordinator updates."""
-        self.async_on_remove(
-            self._coordinator.async_add_listener(self._handle_coordinator_update)
-        )
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self.async_write_ha_state()
-
-    @property
-    def available(self) -> bool:
-        return self._coordinator.equipment_enabled(self._equipment_id)
-
-    @property
-    def current_option(self) -> str | None:
-        return self._coordinator.get_equipment_active_exercise_display(self._equipment_id)
-
-    @property
-    def options(self) -> list[str]:
-        return self._coordinator.get_equipment_exercise_options(self._equipment_id)
-
-    async def async_select_option(self, option: str) -> None:
-        """Handle option selection."""
-        self._coordinator.set_equipment_active_exercise_option(self._equipment_id, option)

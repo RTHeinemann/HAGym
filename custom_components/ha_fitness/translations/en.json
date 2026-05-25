@@ -417,6 +417,9 @@
       },
       "save_set": {
         "name": "Save Set"
+      },
+      "select_equipment": {
+        "name": "Select Equipment"
       }
     },
     "select": {

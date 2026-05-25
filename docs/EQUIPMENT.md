@@ -13,6 +13,8 @@ HA Fitness now supports an equipment catalog that links:
 - Equipment catalog/statistics sensors:
   - `sensor.ha_fitness_equipment_catalog`
   - `sensor.ha_fitness_equipment_statistics`
+- Equipment as Home Assistant devices with per-equipment statistics sensors
+- Optional per-equipment action button: `button.<equipment>_select_equipment`
 
 ## Default equipment
 
@@ -43,6 +45,27 @@ In **Settings -> Devices & Services -> HA Fitness -> Configure**:
 - `location`
 - `enabled`
 - `sort_order`
+
+New equipment is stored globally and appears as a Home Assistant device with equipment sensors after integration reload (or immediately if Home Assistant reloads entities).
+
+## Hybrid UX (global input + equipment devices)
+
+Primary workout input remains global:
+
+1. `select.ha_fitness_active_equipment`
+2. `select.ha_fitness_active_exercise`
+3. `number.ha_fitness_weight`
+4. `number.ha_fitness_reps`
+5. `text.ha_fitness_notes`
+6. `button.ha_fitness_save_set`
+7. `button.ha_fitness_start_workout` / `button.ha_fitness_finish_workout`
+
+Equipment devices are primarily used for:
+
+- identity and dashboards
+- statistics sensors
+- optional "select this equipment" action button
+- future NFC/QR and area/device organization
 
 ## Exercise filtering
 
