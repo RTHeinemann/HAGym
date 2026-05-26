@@ -1,4 +1,4 @@
-"""Select platform for HA Fitness Tracker."""
+"""Select platform for HAGym."""
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
@@ -16,7 +16,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up HA Fitness select entities from a config entry."""
+    """Set up HAGym select entities from a config entry."""
     coordinator: HAFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[SelectEntity] = [
         HAFitnessActiveEquipmentSelect(coordinator, entry),
@@ -37,8 +37,8 @@ class HAFitnessActiveEquipmentSelect(SelectEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=coordinator.display_name,
-            manufacturer="HA Fitness",
-            model="Fitness Tracker",
+            manufacturer="HAGym",
+            model="HAGym Tracker",
             entry_type="service",
         )
 
@@ -79,8 +79,8 @@ class HAFitnessActiveExerciseSelect(SelectEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=coordinator.display_name,
-            manufacturer="HA Fitness",
-            model="Fitness Tracker",
+            manufacturer="HAGym",
+            model="HAGym Tracker",
             entry_type="service",
         )
 

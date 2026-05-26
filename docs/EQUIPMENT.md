@@ -1,6 +1,6 @@
 # Equipment Catalog (Phase 2.4)
 
-HA Fitness now supports an equipment catalog that links:
+HAGym now supports an equipment catalog that links:
 
 `Equipment -> Exercises -> Sets -> Statistics`
 
@@ -28,7 +28,7 @@ Default exercises are backfilled to these devices where known.
 
 ## Options UI
 
-In **Settings -> Devices & Services -> HA Fitness -> Configure**:
+In **Settings -> Devices & Services -> HAGym -> Configure**:
 
 - Manage Equipment
 - Add Equipment
@@ -69,7 +69,7 @@ Equipment devices are primarily used for:
 
 ## Device assignment cleanup (Phase 2.7)
 
-Main integration device (`HA Fitness Tracker`) is reserved for global entities, for example:
+Main integration device (`HAGym`) is reserved for global entities, for example:
 
 - central workout controls (`active_equipment`, `active_exercise`, `weight`, `reps`, `notes`)
 - workout action buttons (`start_workout`, `save_set`, `finish_workout`)

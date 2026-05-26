@@ -1,11 +1,11 @@
-"""Constants for the HA Fitness Tracker integration."""
+"""Constants for the HAGym integration."""
 
 DOMAIN = "ha_fitness"
 
 # Config entry keys
 CONF_DISPLAY_NAME = "display_name"
 CONF_INCLUDED_USER_IDS = "included_user_ids"
-DEFAULT_DISPLAY_NAME = "HA Fitness Tracker"
+DEFAULT_DISPLAY_NAME = "HAGym"
 
 # Workout states
 STATE_READY = "ready"

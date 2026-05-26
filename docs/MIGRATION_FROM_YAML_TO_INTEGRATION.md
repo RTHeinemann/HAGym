@@ -90,4 +90,4 @@ Once all features have been migrated to the native integration, you can safely:
 - Existing v1 data is preserved and backfilled to legacy user id `legacy`.
 - Service calls use `call.context.user_id` for per-user attribution.
 - Personal vs household statistics are exposed via dedicated sensors.
-- Household inclusion can be configured in integration options using known HA Fitness users.
+- Household inclusion can be configured in integration options using known HAGym users.

@@ -1,4 +1,4 @@
-"""Number platform for HA Fitness Tracker."""
+"""Number platform for HAGym."""
 from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity, NumberMode
@@ -17,7 +17,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up HA Fitness number entities from a config entry."""
+    """Set up HAGym number entities from a config entry."""
     coordinator: HAFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[NumberEntity] = [
         HAFitnessWeightNumber(coordinator, entry),
@@ -27,7 +27,7 @@ async def async_setup_entry(
 
 
 class _HAFitnessNumberBase(NumberEntity):
-    """Base class for HA Fitness number entities."""
+    """Base class for HAGym number entities."""
 
     _attr_has_entity_name = True
     _attr_mode = NumberMode.BOX
@@ -39,8 +39,8 @@ class _HAFitnessNumberBase(NumberEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=coordinator.display_name,
-            manufacturer="HA Fitness",
-            model="Fitness Tracker",
+            manufacturer="HAGym",
+            model="HAGym Tracker",
             entry_type="service",
         )
 

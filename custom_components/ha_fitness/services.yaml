@@ -56,14 +56,14 @@ select_user:
   fields:
     user_id:
       name: User ID
-      description: Optional stored HA Fitness user id. If omitted, selected user fallback is reset.
+      description: Optional stored HAGym user id. If omitted, selected user fallback is reset.
       required: false
       selector:
         text:
 
 refresh_users:
   name: Refresh Users
-  description: Refreshes known users from the HA Fitness users table and refreshes statistics.
+  description: Refreshes known users from the HAGym users table and refreshes statistics.
 
 select_equipment:
   name: Select Equipment

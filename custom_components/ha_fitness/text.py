@@ -1,4 +1,4 @@
-"""Text platform for HA Fitness Tracker."""
+"""Text platform for HAGym."""
 from __future__ import annotations
 
 from homeassistant.components.text import TextEntity
@@ -16,7 +16,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up HA Fitness text entities from a config entry."""
+    """Set up HAGym text entities from a config entry."""
     coordinator: HAFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[TextEntity] = [HAFitnessNotesText(coordinator, entry)]
     async_add_entities(entities)
@@ -37,8 +37,8 @@ class HAFitnessNotesText(TextEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=coordinator.display_name,
-            manufacturer="HA Fitness",
-            model="Fitness Tracker",
+            manufacturer="HAGym",
+            model="HAGym Tracker",
             entry_type="service",
         )
 

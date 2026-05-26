@@ -1,8 +1,8 @@
-# HA Fitness Multi-User Tracking
+# HAGym Multi-User Tracking
 
 ## Overview
 
-HA Fitness supports Home Assistant user-aware workout attribution.
+HAGym supports Home Assistant user-aware workout attribution.
 
 - Attribution source: `call.context.user_id`
 - No parsing or mutation of `/config/.storage/auth`
@@ -10,7 +10,7 @@ HA Fitness supports Home Assistant user-aware workout attribution.
 
 ## Data Model
 
-- `users` table stores known HA Fitness users.
+- `users` table stores known HAGym users.
 - `workouts.user_id` links workouts to users.
 - `set_logs.user_id` links saved sets to users.
 

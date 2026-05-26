@@ -1,7 +1,7 @@
 {
-  "name": "HA Fitness Tracker",
+  "name": "HAGym",
   "domains": ["ha_fitness"],
-  "documentation": "https://github.com/RTHeinemann/HAFitness",
+  "documentation": "https://github.com/RTHeinemann/HAGym",
   "codeowners": ["@RTHeinemann"],
   "iot_class": "local_push",
   "homeassistant": "2024.1.0"

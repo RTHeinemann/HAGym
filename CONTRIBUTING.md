@@ -1,4 +1,4 @@
-# Contributing to HA Fitness Tracker
+# Contributing to HAGym
 
 ## Scope
 

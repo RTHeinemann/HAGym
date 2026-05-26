@@ -1,6 +1,6 @@
 # Exercise Catalog and Translations
 
-HA Fitness uses a SQLite-backed exercise catalog with stable IDs.
+HAGym uses a SQLite-backed exercise catalog with stable IDs.
 
 ## Why IDs
 
@@ -46,7 +46,7 @@ Table: `exercises`
 You can manage exercises directly in Home Assistant:
 
 1. Open **Settings → Devices & Services**
-2. Open **HA Fitness Tracker**
+2. Open **HAGym**
 3. Click **Configure / Options**
 4. Use:
    - **Manage exercises**

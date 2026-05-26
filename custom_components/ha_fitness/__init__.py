@@ -1,4 +1,4 @@
-"""HA Fitness Tracker integration."""
+"""HAGym integration."""
 from __future__ import annotations
 
 import logging
@@ -55,7 +55,7 @@ PLATFORMS = ["sensor", "button", "select", "number", "text"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up HA Fitness Tracker from a config entry."""
+    """Set up HAGym from a config entry."""
     display_name: str = entry.data.get(CONF_DISPLAY_NAME, DEFAULT_DISPLAY_NAME)
     included_user_ids: list[str] | None = entry.options.get(CONF_INCLUDED_USER_IDS)
 
@@ -65,7 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator = HAFitnessCoordinator(hass, display_name, store, included_user_ids)
         await coordinator.async_initialize()
     except (HomeAssistantError, sqlite3.Error, OSError) as err:
-        _LOGGER.error("HA Fitness setup failed: %s", err)
+        _LOGGER.error("HAGym setup failed: %s", err)
         return False
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
@@ -144,7 +144,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
         if errors:
             message = " ".join(errors)
-            _LOGGER.warning("HA Fitness save_set service validation failed: %s", message)
+            _LOGGER.warning("HAGym save_set service validation failed: %s", message)
             raise HomeAssistantError(message)
 
         for coordinator in _all_coordinators():

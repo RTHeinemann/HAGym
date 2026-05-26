@@ -1,4 +1,4 @@
-"""Config flow for HA Fitness Tracker."""
+"""Config flow for HAGym."""
 from __future__ import annotations
 
 import logging
@@ -67,7 +67,7 @@ _EQUIPMENT_OPTIONS = [
 
 
 class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for HA Fitness Tracker."""
+    """Handle a config flow for HAGym."""
 
     VERSION = 1
 
@@ -76,7 +76,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step.
 
-        If HA Fitness is already configured, redirect to adding equipment
+        If HAGym is already configured, redirect to adding equipment
         instead of creating a second independent entry.
         """
         try:
@@ -84,7 +84,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if existing:
                 return await self.async_step_add_equipment(None)
         except Exception:
-            _LOGGER.exception("HA Fitness config flow user step failed")
+            _LOGGER.exception("HAGym config flow user step failed")
             return self.async_abort(reason="unknown")
 
         if user_input is not None:
@@ -107,7 +107,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_add_equipment(
         self, user_input: dict | None = None
     ) -> FlowResult:
-        """Add a fitness equipment device when HA Fitness is already configured.
+        """Add a fitness equipment device when HAGym is already configured.
 
         This step acts as the "Add Device" flow for the integration.
         Equipment is global / shared across all HA users.
@@ -178,7 +178,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                     return self.async_abort(reason="equipment_added_reload_required")
             except Exception:
-                _LOGGER.exception("HA Fitness add_equipment config flow step failed")
+                _LOGGER.exception("HAGym add_equipment config flow step failed")
                 errors["base"] = "unknown_error"
 
         return self.async_show_form(
@@ -235,7 +235,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "HAFitnessOptionsFlow":
-        """Return options flow for HA Fitness."""
+        """Return options flow for HAGym."""
         return HAFitnessOptionsFlow()
 
 
@@ -269,7 +269,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 ],
             )
         except Exception:
-            _LOGGER.exception("HA Fitness options flow init failed")
+            _LOGGER.exception("HAGym options flow init failed")
             return self.async_abort(reason="options_flow_error")
 
     async def async_step_manage_exercises(

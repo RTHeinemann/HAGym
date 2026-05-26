@@ -1,4 +1,4 @@
-"""HA Fitness Tracker coordinator."""
+"""HAGym coordinator."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HAFitnessCoordinator:
-    """Manages runtime state for the HA Fitness integration."""
+    """Manages runtime state for the HAGym integration."""
 
     def __init__(
         self,
@@ -306,26 +306,26 @@ class HAFitnessCoordinator:
     def set_active_exercise(self, exercise_id: str) -> None:
         """Update the currently selected exercise by stable id."""
         if exercise_id not in self._exercise_by_id:
-            _LOGGER.warning("HA Fitness: unknown exercise_id '%s' ignored", exercise_id)
+            _LOGGER.warning("HAGym: unknown exercise_id '%s' ignored", exercise_id)
             return
         self._active_exercise_id = exercise_id
         if self._active_equipment_id is not None:
             state = self._ensure_equipment_runtime_state(self._active_equipment_id)
             state["active_exercise_id"] = exercise_id
-        _LOGGER.debug("HA Fitness: active exercise set to %s", exercise_id)
+        _LOGGER.debug("HAGym: active exercise set to %s", exercise_id)
         self._notify_listeners()
 
     def set_active_exercise_option(self, option: str) -> None:
         """Set active exercise using localized select option label."""
         exercise_id = self._exercise_display_to_id.get(option)
         if exercise_id is None:
-            _LOGGER.warning("HA Fitness: unknown exercise option '%s' ignored", option)
+            _LOGGER.warning("HAGym: unknown exercise option '%s' ignored", option)
             return
         self._active_exercise_id = exercise_id
         if self._active_equipment_id is not None:
             state = self._ensure_equipment_runtime_state(self._active_equipment_id)
             state["active_exercise_id"] = exercise_id
-        _LOGGER.debug("HA Fitness: active exercise option set to %s -> %s", option, exercise_id)
+        _LOGGER.debug("HAGym: active exercise option set to %s -> %s", option, exercise_id)
         self._notify_listeners()
 
     def set_active_equipment(self, equipment_id: str | None) -> None:
@@ -333,10 +333,10 @@ class HAFitnessCoordinator:
         if equipment_id is not None:
             row = self._equipment_by_id.get(equipment_id)
             if row is None:
-                _LOGGER.warning("HA Fitness: unknown equipment_id '%s' ignored", equipment_id)
+                _LOGGER.warning("HAGym: unknown equipment_id '%s' ignored", equipment_id)
                 return
             if int(row.get("enabled", 1)) != 1:
-                _LOGGER.warning("HA Fitness: disabled equipment_id '%s' ignored", equipment_id)
+                _LOGGER.warning("HAGym: disabled equipment_id '%s' ignored", equipment_id)
                 return
         self._active_equipment_id = equipment_id
         self._rebuild_exercise_options()
@@ -350,7 +350,7 @@ class HAFitnessCoordinator:
             return
         equipment_id = self._equipment_display_to_id.get(option)
         if equipment_id is None:
-            _LOGGER.warning("HA Fitness: unknown equipment option '%s' ignored", option)
+            _LOGGER.warning("HAGym: unknown equipment option '%s' ignored", option)
             return
         self.set_active_equipment(equipment_id)
 
@@ -360,7 +360,7 @@ class HAFitnessCoordinator:
         if self._active_equipment_id is not None:
             state = self._ensure_equipment_runtime_state(self._active_equipment_id)
             state["weight"] = float(weight)
-        _LOGGER.debug("HA Fitness: weight set to %s", weight)
+        _LOGGER.debug("HAGym: weight set to %s", weight)
         self._notify_listeners()
 
     def set_reps(self, reps: int) -> None:
@@ -369,7 +369,7 @@ class HAFitnessCoordinator:
         if self._active_equipment_id is not None:
             state = self._ensure_equipment_runtime_state(self._active_equipment_id)
             state["reps"] = int(reps)
-        _LOGGER.debug("HA Fitness: reps set to %s", reps)
+        _LOGGER.debug("HAGym: reps set to %s", reps)
         self._notify_listeners()
 
     def set_notes(self, notes: str) -> None:
@@ -378,7 +378,7 @@ class HAFitnessCoordinator:
         if self._active_equipment_id is not None:
             state = self._ensure_equipment_runtime_state(self._active_equipment_id)
             state["notes"] = notes
-        _LOGGER.debug("HA Fitness: notes updated")
+        _LOGGER.debug("HAGym: notes updated")
         self._notify_listeners()
 
     def equipment_display_name(self, equipment_id: str) -> str:
@@ -436,7 +436,7 @@ class HAFitnessCoordinator:
         }
         if exercise_id not in valid_ids:
             _LOGGER.warning(
-                "HA Fitness: invalid equipment exercise assignment '%s' for equipment '%s'",
+                "HAGym: invalid equipment exercise assignment '%s' for equipment '%s'",
                 exercise_id,
                 equipment_id,
             )
@@ -457,7 +457,7 @@ class HAFitnessCoordinator:
                 self.set_equipment_active_exercise(equipment_id, exercise_id)
                 return
         _LOGGER.warning(
-            "HA Fitness: unknown equipment exercise option '%s' for equipment '%s'",
+            "HAGym: unknown equipment exercise option '%s' for equipment '%s'",
             option,
             equipment_id,
         )
@@ -541,7 +541,7 @@ class HAFitnessCoordinator:
         try:
             rows = await self._store.async_get_exercises(enabled_only=False)
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to refresh exercises")
+            _LOGGER.exception("HAGym: failed to refresh exercises")
             raise HomeAssistantError("Failed to refresh exercises") from err
 
         self._exercises = rows
@@ -557,7 +557,7 @@ class HAFitnessCoordinator:
         try:
             rows = await self._store.async_get_all_equipment()
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to refresh equipment")
+            _LOGGER.exception("HAGym: failed to refresh equipment")
             raise HomeAssistantError("Failed to refresh equipment") from err
 
         self._equipment = rows
@@ -931,8 +931,8 @@ class HAFitnessCoordinator:
 
             await self.async_refresh_statistics(notify=False)
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to initialize coordinator from SQLite")
-            raise HomeAssistantError("Failed to initialize HA Fitness storage") from err
+            _LOGGER.exception("HAGym: failed to initialize coordinator from SQLite")
+            raise HomeAssistantError("Failed to initialize HAGym storage") from err
 
         self._notify_listeners()
 
@@ -1123,7 +1123,7 @@ class HAFitnessCoordinator:
                     self.exercise_display_name(exercise_id) if exercise_id else "Unknown"
                 )
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to refresh statistics")
+            _LOGGER.exception("HAGym: failed to refresh statistics")
             raise HomeAssistantError("Failed to refresh statistics") from err
 
         if notify:
@@ -1170,9 +1170,9 @@ class HAFitnessCoordinator:
         try:
             await self.hass.async_add_executor_job(_write_json, export_path, payload)
         except OSError as err:
-            _LOGGER.exception("HA Fitness: failed to export data to %s", export_path)
+            _LOGGER.exception("HAGym: failed to export data to %s", export_path)
             raise HomeAssistantError("Failed to export data") from err
-        _LOGGER.info("HA Fitness: exported data to %s", export_path)
+        _LOGGER.info("HAGym: exported data to %s", export_path)
         return export_path
 
     # ------------------------------------------------------------------
@@ -1188,7 +1188,7 @@ class HAFitnessCoordinator:
             and self._current_workout_id is not None
             and self._current_workout_user_id == user_id
         ):
-            _LOGGER.debug("HA Fitness: start_workout ignored (already active for %s)", user_id)
+            _LOGGER.debug("HAGym: start_workout ignored (already active for %s)", user_id)
             return
 
         started_at = _now_utc()
@@ -1207,7 +1207,7 @@ class HAFitnessCoordinator:
                 self._current_workout_user_id = user_id
                 self._current_set_number = 0
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to start workout in SQLite")
+            _LOGGER.exception("HAGym: failed to start workout in SQLite")
             raise HomeAssistantError("Failed to start workout") from err
 
         self._workout_state = STATE_ACTIVE
@@ -1237,7 +1237,7 @@ class HAFitnessCoordinator:
             if workout_id_to_finish is not None:
                 await self._store.async_finish_workout(workout_id_to_finish, _now_utc())
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to finish workout in SQLite")
+            _LOGGER.exception("HAGym: failed to finish workout in SQLite")
             raise HomeAssistantError("Failed to finish workout") from err
 
         if self._current_workout_user_id == user_id:
@@ -1282,11 +1282,11 @@ class HAFitnessCoordinator:
         )
         if errors:
             message = " ".join(errors)
-            _LOGGER.warning("HA Fitness save_current_set validation failed: %s", message)
+            _LOGGER.warning("HAGym save_current_set validation failed: %s", message)
             self.hass.async_create_task(
                 self.hass.components.persistent_notification.async_create(
                     message=f"Cannot save set: {message}",
-                    title="HA Fitness – Save Set",
+                    title="HAGym – Save Set",
                     notification_id="ha_fitness_save_set_error",
                 )
             )
@@ -1346,11 +1346,11 @@ class HAFitnessCoordinator:
         )
         if errors:
             message = " ".join(errors)
-            _LOGGER.warning("HA Fitness save_current_set_for_equipment validation failed: %s", message)
+            _LOGGER.warning("HAGym save_current_set_for_equipment validation failed: %s", message)
             self.hass.async_create_task(
                 self.hass.components.persistent_notification.async_create(
                     message=f"Cannot save set: {message}",
-                    title="HA Fitness – Save Set",
+                    title="HAGym – Save Set",
                     notification_id="ha_fitness_save_set_error",
                 )
             )
@@ -1396,11 +1396,11 @@ class HAFitnessCoordinator:
         )
         if errors:
             message = " ".join(errors)
-            _LOGGER.warning("HA Fitness save_set validation failed: %s", message)
+            _LOGGER.warning("HAGym save_set validation failed: %s", message)
             self.hass.async_create_task(
                 self.hass.components.persistent_notification.async_create(
                     message=f"Cannot save set: {message}",
-                    title="HA Fitness – Save Set",
+                    title="HAGym – Save Set",
                     notification_id="ha_fitness_save_set_error",
                 )
             )
@@ -1458,7 +1458,7 @@ class HAFitnessCoordinator:
 
             await self.async_refresh_statistics(notify=False)
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to save set via implicit workout")
+            _LOGGER.exception("HAGym: failed to save set via implicit workout")
             raise HomeAssistantError("Failed to save set") from err
 
         self._notify_listeners()
@@ -1524,7 +1524,7 @@ class HAFitnessCoordinator:
                 created_at=created_at,
             )
         except sqlite3.Error as err:
-            _LOGGER.exception("HA Fitness: failed to write set to SQLite")
+            _LOGGER.exception("HAGym: failed to write set to SQLite")
             raise HomeAssistantError("Failed to save set") from err
 
         self._last_set_summary = self._format_set_summary(
@@ -1547,7 +1547,7 @@ class HAFitnessCoordinator:
             "notes": notes,
             "created_at": created_at.isoformat(),
         }
-        _LOGGER.info("HA Fitness: %s (user=%s, notes=%s)", self._last_set_summary, user_id, notes)
+        _LOGGER.info("HAGym: %s (user=%s, notes=%s)", self._last_set_summary, user_id, notes)
 
         if refresh_stats:
             await self.async_refresh_statistics(notify=False)

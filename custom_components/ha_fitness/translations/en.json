@@ -2,15 +2,15 @@
   "config": {
     "step": {
       "user": {
-        "title": "HA Fitness Tracker Setup",
-        "description": "Configure your HA Fitness Tracker integration.",
+        "title": "HAGym Setup",
+        "description": "Configure your HAGym integration.",
         "data": {
           "display_name": "Display Name"
         }
       },
       "add_equipment": {
         "title": "Add Fitness Equipment",
-        "description": "Add a global fitness equipment device to HA Fitness. Equipment is shared across all household users. After saving, the integration will reload to create the new HA device and entities.",
+        "description": "Add a global fitness equipment device to HAGym. Equipment is shared across all household users. After saving, the integration will reload to create the new HA device and entities.",
         "data": {
           "equipment_id": "Equipment ID",
           "name": "Name",
@@ -30,14 +30,14 @@
       "unknown_error": "An unexpected error occurred. Please check the integration logs."
     },
     "abort": {
-      "equipment_added_reload_required": "Fitness equipment was added successfully. HA Fitness is reloading — the new device and entities will appear shortly.",
+      "equipment_added_reload_required": "Fitness equipment was added successfully. HAGym is reloading — the new device and entities will appear shortly.",
       "unknown": "An unexpected error occurred loading the config flow."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "HA Fitness Options",
+        "title": "HAGym Options",
         "description": "Choose what you want to configure.",
         "menu_options": {
           "configure_household_users": "Configure household users",
@@ -517,7 +517,7 @@
       "fields": {
         "user_id": {
           "name": "User ID",
-          "description": "Optional known HA Fitness user id."
+          "description": "Optional known HAGym user id."
         }
       }
     },

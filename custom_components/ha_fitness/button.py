@@ -1,4 +1,4 @@
-"""Button platform for HA Fitness Tracker."""
+"""Button platform for HAGym."""
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
@@ -16,7 +16,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up HA Fitness buttons from a config entry."""
+    """Set up HAGym buttons from a config entry."""
     coordinator: HAFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[ButtonEntity] = [
         HAFitnessStartWorkoutButton(coordinator, entry),
@@ -29,7 +29,7 @@ async def async_setup_entry(
 
 
 class _HAFitnessButtonBase(ButtonEntity):
-    """Base class for HA Fitness buttons."""
+    """Base class for HAGym buttons."""
 
     _attr_has_entity_name = True
 
@@ -40,8 +40,8 @@ class _HAFitnessButtonBase(ButtonEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=coordinator.display_name,
-            manufacturer="HA Fitness",
-            model="Fitness Tracker",
+            manufacturer="HAGym",
+            model="HAGym Tracker",
             entry_type="service",
         )
 
@@ -106,8 +106,8 @@ class HAFitnessEquipmentSelectButton(ButtonEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, equipment_id)},
             name=coordinator.equipment_display_name(equipment_id),
-            manufacturer="HA Fitness",
-            model="Fitness Equipment",
+            manufacturer="HAGym",
+            model="HAGym Equipment",
             suggested_area=coordinator.equipment_location(equipment_id),
             entry_type="service",
         )

@@ -1,8 +1,8 @@
-# HA Fitness Storage
+# HAGym Storage
 
 ## Database Path
 
-HA Fitness stores training data in:
+HAGym stores training data in:
 
 - `/config/ha_fitness/ha_fitness.db`
 
@@ -35,8 +35,8 @@ In integration code this is resolved with:
 
 ## Recorder and Cloud
 
-- HA Fitness does **not** write directly to Home Assistant recorder DB tables.
-- HA Fitness has no cloud storage dependency.
+- HAGym does **not** write directly to Home Assistant recorder DB tables.
+- HAGym has no cloud storage dependency.
 
 ## Multi-User Schema (v2)
 

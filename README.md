@@ -1,4 +1,4 @@
-# HA Fitness Tracker
+# HAGym
 
 Home Assistant-native fitness and workout tracking inspired by the Energy Dashboard.
 
@@ -29,10 +29,10 @@ Build a local-first, privacy-first fitness subsystem for Home Assistant with:
 
 1. Add this repository as a custom HACS repository (category: **Integration**):
    ```
-   https://github.com/RTHeinemann/HAFitness
+   https://github.com/RTHeinemann/HAGym
    ```
-2. Download **HA Fitness Tracker** from HACS and restart Home Assistant.
-3. Go to **Settings → Devices & Services → Add Integration** and search for **HA Fitness Tracker**.
+2. Download **HAGym** from HACS and restart Home Assistant.
+3. Go to **Settings → Devices & Services → Add Integration** and search for **HAGym**.
 
 > ✅ The HACS integration now includes SQLite-backed persistence (Phase 2).
 > Data is stored locally at `/config/ha_fitness/ha_fitness.db` and survives restart/update.
@@ -81,7 +81,7 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 
 ### Device model (Phase 2.7)
 
-- Main device (**HA Fitness Tracker**) contains global controls and overview sensors.
+- Main device (**HAGym**) contains global controls and overview sensors.
 - Equipment-specific entities are assigned only to their equipment devices.
 - Integration entity count can still be high because Home Assistant counts entities across all devices.
 - Older duplicate entities from previous versions can remain in the entity registry as unavailable entries.

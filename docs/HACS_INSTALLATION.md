@@ -12,18 +12,18 @@
 3. Click the three-dot menu (⋮) in the top-right corner and select **Custom repositories**.
 4. Enter the repository URL:
    ```
-   https://github.com/RTHeinemann/HAFitness
+   https://github.com/RTHeinemann/HAGym
    ```
    and select **Integration** as the category.
 5. Click **Add**.
-6. Find **HA Fitness Tracker** in the HACS integration list and click **Download**.
+6. Find **HAGym** in the HACS integration list and click **Download**.
 7. Restart Home Assistant.
 
 ## Add the Integration
 
 1. Go to **Settings → Devices & Services → Add Integration**.
-2. Search for **HA Fitness Tracker**.
-3. Enter a display name (default: `HA Fitness Tracker`) and click **Submit**.
+2. Search for **HAGym**.
+3. Enter a display name (default: `HAGym`) and click **Submit**.
 
 ## What Gets Created
 
@@ -88,7 +88,7 @@ Call these from **Developer Tools → Services**:
 
 You can manage exercises without manually calling services:
 
-1. Go to **Settings → Devices & Services → HA Fitness Tracker → Configure / Options**
+1. Go to **Settings → Devices & Services → HAGym → Configure / Options**
 2. Use:
    - **Manage exercises**
    - **Add exercise**

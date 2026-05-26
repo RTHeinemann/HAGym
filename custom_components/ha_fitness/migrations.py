@@ -1,4 +1,4 @@
-"""SQLite schema migrations for HA Fitness Tracker."""
+"""SQLite schema migrations for HAGym."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

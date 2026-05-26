@@ -1,4 +1,4 @@
-"""Sensor platform for HA Fitness Tracker."""
+"""Sensor platform for HAGym."""
 from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
@@ -19,7 +19,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up HA Fitness sensors from a config entry."""
+    """Set up HAGym sensors from a config entry."""
     coordinator: HAFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[SensorEntity] = [
         HAFitnessStatusSensor(coordinator, entry),
@@ -66,7 +66,7 @@ async def async_setup_entry(
 
 
 class _HAFitnessSensorBase(SensorEntity):
-    """Base class for HA Fitness sensors."""
+    """Base class for HAGym sensors."""
 
     _attr_has_entity_name = True
 
@@ -77,8 +77,8 @@ class _HAFitnessSensorBase(SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=coordinator.display_name,
-            manufacturer="HA Fitness",
-            model="Fitness Tracker",
+            manufacturer="HAGym",
+            model="HAGym Tracker",
             entry_type="service",
         )
 
@@ -556,8 +556,8 @@ class _HAFitnessEquipmentSensorBase(SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, equipment_id)},
             name=coordinator.equipment_display_name(equipment_id),
-            manufacturer="HA Fitness",
-            model="Fitness Equipment",
+            manufacturer="HAGym",
+            model="HAGym Equipment",
             suggested_area=coordinator.equipment_location(equipment_id),
             entry_type="service",
         )

@@ -1,4 +1,4 @@
-"""SQLite storage layer for HA Fitness Tracker."""
+"""SQLite storage layer for HAGym."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HAFitnessStore:
-    """SQLite-backed persistence helper for HA Fitness."""
+    """SQLite-backed persistence helper for HAGym."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
@@ -1190,7 +1190,7 @@ class HAFitnessStore:
         ]
         if not resolved:
             _LOGGER.debug(
-                "HA Fitness: no enabled users found in users table, falling back to legacy user"
+                "HAGym: no enabled users found in users table, falling back to legacy user"
             )
             return [LEGACY_USER_ID]
         return resolved
@@ -1247,7 +1247,7 @@ class HAFitnessStore:
         except sqlite3.Error:
             if conn is not None:
                 conn.close()
-            _LOGGER.exception("HA Fitness: failed to open sqlite database at %s", self._db_path)
+            _LOGGER.exception("HAGym: failed to open sqlite database at %s", self._db_path)
             raise
 
 
