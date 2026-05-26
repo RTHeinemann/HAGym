@@ -206,6 +206,173 @@ refresh_exercises:
   name: Refresh Exercises
   description: Re-seeds default built-in exercises in SQLite and refreshes runtime exercise options/statistics.
 
+add_muscle_group:
+  name: Add Muscle Group
+  description: Adds or reactivates a muscle group in the SQLite catalog and refreshes muscle group statistics.
+  fields:
+    muscle_group_id:
+      name: Muscle Group ID
+      description: Stable unique ID (lowercase/underscore recommended), for example hamstrings.
+      required: true
+      selector:
+        text:
+    name_en:
+      name: English Name
+      description: English display name.
+      required: true
+      selector:
+        text:
+    name_de:
+      name: German Name
+      description: Optional German display name.
+      required: false
+      selector:
+        text:
+    description:
+      name: Description
+      description: Optional catalog description.
+      required: false
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: Optional MDI icon, for example mdi:arm-flex.
+      required: false
+      selector:
+        text:
+    body_region:
+      name: Body Region
+      description: Optional body region label, for example upper_body.
+      required: false
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      description: Whether this muscle group appears in active options/device list.
+      required: false
+      default: true
+      selector:
+        boolean:
+    sort_order:
+      name: Sort Order
+      description: Lower values appear first.
+      required: false
+      selector:
+        number:
+          min: -10000
+          max: 10000
+          step: 1
+          mode: box
+
+update_muscle_group:
+  name: Update Muscle Group
+  description: Updates muscle group metadata by muscle_group_id and refreshes muscle group statistics.
+  fields:
+    muscle_group_id:
+      name: Muscle Group ID
+      description: Existing muscle group ID to update.
+      required: true
+      selector:
+        text:
+    name_en:
+      name: English Name
+      description: Optional new English display name.
+      required: false
+      selector:
+        text:
+    name_de:
+      name: German Name
+      description: Optional new German display name.
+      required: false
+      selector:
+        text:
+    description:
+      name: Description
+      description: Optional new description.
+      required: false
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: Optional new icon.
+      required: false
+      selector:
+        text:
+    body_region:
+      name: Body Region
+      description: Optional new body region.
+      required: false
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      description: Optional enabled flag.
+      required: false
+      selector:
+        boolean:
+    sort_order:
+      name: Sort Order
+      description: Optional new sort order.
+      required: false
+      selector:
+        number:
+          min: -10000
+          max: 10000
+          step: 1
+          mode: box
+
+disable_muscle_group:
+  name: Disable Muscle Group
+  description: Disables a muscle group by muscle_group_id so it no longer appears in active muscle group options.
+  fields:
+    muscle_group_id:
+      name: Muscle Group ID
+      description: Existing muscle group ID to disable.
+      required: true
+      selector:
+        text:
+
+assign_muscle_group_to_exercise:
+  name: Assign Muscle Group To Exercise
+  description: Assigns one muscle group to one exercise with role and weight factor.
+  fields:
+    exercise_id:
+      name: Exercise ID
+      description: Existing exercise ID.
+      required: true
+      selector:
+        text:
+    muscle_group_id:
+      name: Muscle Group ID
+      description: Existing muscle group ID.
+      required: true
+      selector:
+        text:
+    role:
+      name: Role
+      description: Mapping role. Allowed values are primary, secondary, stabilizer.
+      required: false
+      selector:
+        select:
+          options:
+            - primary
+            - secondary
+            - stabilizer
+    weight_factor:
+      name: Weight Factor
+      description: Weighted share of logged set volume attributed to this muscle group.
+      required: false
+      selector:
+        number:
+          min: 0.01
+          max: 2.0
+          step: 0.05
+          mode: box
+
+refresh_muscle_groups:
+  name: Refresh Muscle Groups
+  description: Refreshes muscle group catalog and derived muscle group statistics.
+
 refresh_statistics:
   name: Refresh Statistics
   description: Refreshes cached global, personal, and household statistics from the SQLite database.

@@ -60,6 +60,10 @@ class HAFitnessCoordinator:
         self._equipment_statistics: list[dict[str, Any]] = []
         self._equipment_statistics_by_id: dict[str, dict[str, Any]] = {}
         self._equipment_runtime_state: dict[str, dict[str, Any]] = {}
+        self._muscle_groups: list[dict[str, Any]] = []
+        self._muscle_group_by_id: dict[str, dict[str, Any]] = {}
+        self._muscle_group_statistics: list[dict[str, Any]] = []
+        self._muscle_group_statistics_by_id: dict[str, dict[str, Any]] = {}
         self._locale: str = str(hass.config.language or "en")
 
         self._pr_by_exercise: dict[str, float] = {exercise_id: 0.0 for exercise_id in EXERCISE_IDS}
@@ -214,6 +218,14 @@ class HAFitnessCoordinator:
         return self._equipment_statistics
 
     @property
+    def muscle_groups(self) -> list[dict[str, Any]]:
+        return self._muscle_groups
+
+    @property
+    def muscle_group_statistics(self) -> list[dict[str, Any]]:
+        return self._muscle_group_statistics
+
+    @property
     def enabled_equipment_ids(self) -> list[str]:
         rows = [
             row
@@ -224,6 +236,22 @@ class HAFitnessCoordinator:
             key=lambda row: (
                 int(row.get("sort_order", 100)),
                 str(row.get("name") or row.get("id") or ""),
+                str(row.get("id") or ""),
+            )
+        )
+        return [str(row["id"]) for row in rows]
+
+    @property
+    def enabled_muscle_group_ids(self) -> list[str]:
+        rows = [
+            row
+            for row in self._muscle_groups
+            if row.get("id") is not None and int(row.get("enabled", 1)) == 1
+        ]
+        rows.sort(
+            key=lambda row: (
+                int(row.get("sort_order", 100)),
+                str(row.get("name_en") or row.get("id") or ""),
                 str(row.get("id") or ""),
             )
         )
@@ -532,6 +560,50 @@ class HAFitnessCoordinator:
         row = self._equipment_statistics_by_id.get(equipment_id, {})
         return float(row.get("household_volume", 0.0))
 
+    def muscle_group_display_name(self, muscle_group_id: str) -> str:
+        """Return localized muscle group display name for one id."""
+        row = self._muscle_group_by_id.get(muscle_group_id)
+        if row is None:
+            return muscle_group_id
+        locale = self._locale.lower()
+        if locale.startswith("de"):
+            return str(row.get("name_de") or row.get("name_en") or muscle_group_id)
+        return str(row.get("name_en") or row.get("name_de") or muscle_group_id)
+
+    def get_muscle_group(self, muscle_group_id: str) -> dict[str, Any] | None:
+        """Return one muscle group row from cached catalog."""
+        return self._muscle_group_by_id.get(muscle_group_id)
+
+    def get_muscle_group_statistics(self, muscle_group_id: str) -> dict[str, Any]:
+        """Return one muscle group statistics row from cache."""
+        return self._muscle_group_statistics_by_id.get(muscle_group_id, {})
+
+    def muscle_group_options_for_options_flow(
+        self, include_disabled: bool = True
+    ) -> list[dict[str, str]]:
+        """Return SelectSelector options for muscle groups in options flow."""
+        rows = self._muscle_groups
+        if not include_disabled:
+            rows = [row for row in rows if int(row.get("enabled", 1)) == 1]
+        rows = sorted(
+            rows,
+            key=lambda row: (
+                int(row.get("sort_order", 100)),
+                str(row.get("name_en") or row.get("id") or ""),
+                str(row.get("id") or ""),
+            ),
+        )
+        options: list[dict[str, str]] = []
+        for row in rows:
+            muscle_group_id = str(row.get("id") or "")
+            if not muscle_group_id:
+                continue
+            label = f"{self.muscle_group_display_name(muscle_group_id)} ({muscle_group_id})"
+            if int(row.get("enabled", 1)) != 1:
+                label += " [disabled]"
+            options.append({"value": muscle_group_id, "label": label})
+        return options
+
     async def set_selected_user(self, user_id: str | None) -> None:
         """Set selected user for personal dashboard statistics."""
         if user_id:
@@ -592,6 +664,51 @@ class HAFitnessCoordinator:
             self._active_equipment_id = None
         self._rebuild_exercise_options()
 
+        if notify:
+            self._notify_listeners()
+
+    async def async_refresh_muscle_groups(self, notify: bool = True) -> None:
+        """Refresh muscle group catalog from storage."""
+        try:
+            rows = await self._store.async_get_muscle_groups(enabled_only=False)
+        except sqlite3.Error as err:
+            _LOGGER.exception("HAGym: failed to refresh muscle groups")
+            raise HomeAssistantError("Failed to refresh muscle groups") from err
+
+        self._muscle_groups = rows
+        self._muscle_group_by_id = {
+            str(row["id"]): row for row in rows if row.get("id") is not None
+        }
+        if notify:
+            self._notify_listeners()
+
+    async def async_refresh_muscle_statistics(
+        self,
+        notify: bool = True,
+        *,
+        personal_user_id: str | None = None,
+        household_user_ids: list[str] | None = None,
+    ) -> None:
+        """Refresh muscle-group statistics for global/personal/household scopes."""
+        effective_personal_user_id = personal_user_id or self._resolve_personal_user_id()
+        _LOGGER.debug(
+            "HAGym personal statistics user_id resolved to %s",
+            effective_personal_user_id,
+        )
+        try:
+            rows = await self._store.async_get_muscle_group_statistics(
+                effective_personal_user_id, household_user_ids
+            )
+        except sqlite3.Error as err:
+            _LOGGER.exception("HAGym: failed to refresh muscle group statistics")
+            raise HomeAssistantError("Failed to refresh muscle group statistics") from err
+
+        self._muscle_group_statistics = rows
+        self._muscle_group_statistics_by_id = {
+            str(row.get("muscle_group_id") or ""): row
+            for row in rows
+            if row.get("muscle_group_id")
+        }
         if notify:
             self._notify_listeners()
 
@@ -662,6 +779,116 @@ class HAFitnessCoordinator:
         """Re-seed defaults and refresh runtime exercise/stat caches."""
         await self._store.async_refresh_exercises()
         await self.async_refresh_exercises(notify=False)
+        await self.async_refresh_statistics(notify=False)
+        self._notify_listeners()
+
+    async def async_add_muscle_group(
+        self,
+        muscle_group_id: str,
+        name_en: str,
+        name_de: str | None = None,
+        description: str | None = None,
+        icon: str | None = None,
+        body_region: str | None = None,
+        enabled: bool = True,
+        sort_order: int = 100,
+    ) -> None:
+        """Add one muscle group and refresh runtime caches."""
+        await self._store.async_add_muscle_group(
+            muscle_group_id=muscle_group_id,
+            name_en=name_en,
+            name_de=name_de,
+            description=description,
+            icon=icon,
+            body_region=body_region,
+            enabled=enabled,
+            sort_order=sort_order,
+        )
+        await self.async_refresh_muscle_groups(notify=False)
+        await self.async_refresh_statistics(notify=False)
+        self._notify_listeners()
+
+    async def async_update_muscle_group(
+        self,
+        muscle_group_id: str,
+        name_en: str | None = None,
+        name_de: str | None = None,
+        description: str | None = None,
+        icon: str | None = None,
+        body_region: str | None = None,
+        enabled: bool | None = None,
+        sort_order: int | None = None,
+    ) -> bool:
+        """Update one muscle group and refresh runtime caches if changed."""
+        updated = await self._store.async_update_muscle_group(
+            muscle_group_id=muscle_group_id,
+            name_en=name_en,
+            name_de=name_de,
+            description=description,
+            icon=icon,
+            body_region=body_region,
+            enabled=enabled,
+            sort_order=sort_order,
+        )
+        if updated:
+            await self.async_refresh_muscle_groups(notify=False)
+            await self.async_refresh_statistics(notify=False)
+            self._notify_listeners()
+        return updated
+
+    async def async_disable_muscle_group(self, muscle_group_id: str) -> bool:
+        """Disable one muscle group and refresh runtime caches if changed."""
+        updated = await self._store.async_disable_muscle_group(muscle_group_id)
+        if updated:
+            await self.async_refresh_muscle_groups(notify=False)
+            await self.async_refresh_statistics(notify=False)
+            self._notify_listeners()
+        return updated
+
+    async def async_assign_muscle_group_to_exercise(
+        self,
+        exercise_id: str,
+        muscle_group_id: str,
+        role: str,
+        weight_factor: float,
+    ) -> None:
+        """Assign one muscle group to one exercise and refresh caches."""
+        await self._store.async_assign_muscle_group_to_exercise(
+            exercise_id=exercise_id,
+            muscle_group_id=muscle_group_id,
+            role=role,
+            weight_factor=weight_factor,
+        )
+        await self.async_refresh_statistics(notify=False)
+        self._notify_listeners()
+
+    async def async_remove_muscle_group_from_exercise(
+        self, exercise_id: str, muscle_group_id: str
+    ) -> bool:
+        """Remove one muscle-group mapping from one exercise."""
+        removed = await self._store.async_remove_muscle_group_from_exercise(
+            exercise_id=exercise_id,
+            muscle_group_id=muscle_group_id,
+        )
+        if removed:
+            await self.async_refresh_statistics(notify=False)
+            self._notify_listeners()
+        return removed
+
+    async def async_replace_muscle_groups_for_exercise(
+        self,
+        exercise_id: str,
+        primary_ids: list[str],
+        secondary_ids: list[str],
+        stabilizer_ids: list[str],
+    ) -> None:
+        """Replace all muscle-group mappings for one exercise."""
+        await self._store.async_replace_muscle_groups_for_exercise(
+            exercise_id=exercise_id,
+            primary_ids=primary_ids,
+            secondary_ids=secondary_ids,
+            stabilizer_ids=stabilizer_ids,
+        )
         await self.async_refresh_statistics(notify=False)
         self._notify_listeners()
 
@@ -809,6 +1036,18 @@ class HAFitnessCoordinator:
             return rows
         return [row for row in rows if str(row.get("equipment_id") or "") == equipment_id]
 
+    async def async_get_muscle_groups_for_exercise(
+        self, exercise_id: str
+    ) -> list[dict[str, Any]]:
+        """Return mapped muscle groups for one exercise from storage."""
+        return await self._store.async_get_muscle_groups_for_exercise(exercise_id)
+
+    async def async_get_exercises_for_muscle_group(
+        self, muscle_group_id: str
+    ) -> list[dict[str, Any]]:
+        """Return mapped exercises for one muscle group from storage."""
+        return await self._store.async_get_exercises_for_muscle_group(muscle_group_id)
+
     def exercise_display_name(self, exercise_id: str | None) -> str:
         """Return localized exercise display name for one id."""
         if not exercise_id:
@@ -893,6 +1132,7 @@ class HAFitnessCoordinator:
             await self.async_refresh_users()
             await self.async_refresh_equipment(notify=False)
             await self.async_refresh_exercises(notify=False)
+            await self.async_refresh_muscle_groups(notify=False)
 
             last_set = await self._store.async_get_last_set()
             if last_set is not None:
@@ -989,6 +1229,7 @@ class HAFitnessCoordinator:
         try:
             await self.async_refresh_users()
             await self.async_refresh_equipment(notify=False)
+            await self.async_refresh_muscle_groups(notify=False)
             personal_user_id = self._resolve_personal_user_id()
             _LOGGER.debug(
                 "HAGym personal statistics user_id resolved to %s",
@@ -1158,6 +1399,12 @@ class HAFitnessCoordinator:
                 row["display_name"] = (
                     self.exercise_display_name(exercise_id) if exercise_id else "Unknown"
                 )
+
+            await self.async_refresh_muscle_statistics(
+                notify=False,
+                personal_user_id=personal_user_id,
+                household_user_ids=household_user_ids,
+            )
         except sqlite3.Error as err:
             _LOGGER.exception("HAGym: failed to refresh statistics")
             raise HomeAssistantError("Failed to refresh statistics") from err
@@ -1182,6 +1429,7 @@ class HAFitnessCoordinator:
                 "volume_by_exercise": self._volume_by_exercise,
                 "recent_sets": self._recent_sets,
                 "equipment_statistics": self._equipment_statistics,
+                "muscle_group_statistics": self._muscle_group_statistics,
             },
             "personal": {
                 "user_id": self._resolve_personal_user_id(),

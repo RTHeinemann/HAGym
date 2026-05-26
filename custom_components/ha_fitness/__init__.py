@@ -18,23 +18,33 @@ from .const import (
     ATTR_EXERCISE,
     ATTR_EXERCISE_ID,
     ATTR_ENABLED,
+    ATTR_DESCRIPTION,
     ATTR_EQUIPMENT,
     ATTR_EQUIPMENT_ID,
     ATTR_MUSCLE_GROUP,
+    ATTR_MUSCLE_GROUP_ID,
     ATTR_NAME_DE,
     ATTR_NAME_EN,
     ATTR_NOTES,
+    ATTR_ROLE,
     ATTR_REPS,
     ATTR_SORT_ORDER,
     ATTR_USER_ID,
     ATTR_WEIGHT,
+    ATTR_WEIGHT_FACTOR,
+    ATTR_BODY_REGION,
+    ATTR_ICON,
     CONF_DISPLAY_NAME,
     CONF_INCLUDED_USER_IDS,
     SERVICE_ADD_EXERCISE,
+    SERVICE_ADD_MUSCLE_GROUP,
+    SERVICE_ASSIGN_MUSCLE_GROUP_TO_EXERCISE,
+    SERVICE_DISABLE_MUSCLE_GROUP,
     SERVICE_DISABLE_EXERCISE,
     DEFAULT_DISPLAY_NAME,
     DOMAIN,
     SERVICE_REFRESH_EXERCISES,
+    SERVICE_REFRESH_MUSCLE_GROUPS,
     SERVICE_EXPORT_DATA,
     SERVICE_FINISH_WORKOUT,
     SERVICE_REFRESH_STATISTICS,
@@ -45,6 +55,7 @@ from .const import (
     SERVICE_SELECT_EQUIPMENT,
     SERVICE_START_WORKOUT,
     SERVICE_UPDATE_EXERCISE,
+    SERVICE_UPDATE_MUSCLE_GROUP,
 )
 from .coordinator import HAFitnessCoordinator
 from .storage import HAFitnessStore
@@ -116,6 +127,11 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_UPDATE_EXERCISE,
         SERVICE_DISABLE_EXERCISE,
         SERVICE_REFRESH_EXERCISES,
+        SERVICE_ADD_MUSCLE_GROUP,
+        SERVICE_UPDATE_MUSCLE_GROUP,
+        SERVICE_DISABLE_MUSCLE_GROUP,
+        SERVICE_ASSIGN_MUSCLE_GROUP_TO_EXERCISE,
+        SERVICE_REFRESH_MUSCLE_GROUPS,
     )
     if all(hass.services.has_service(DOMAIN, service) for service in required_services):
         return
@@ -277,6 +293,109 @@ def _register_services(hass: HomeAssistant) -> None:
         for coordinator in _all_coordinators():
             await coordinator.async_reload_exercise_catalog()
 
+    async def handle_add_muscle_group(call: ServiceCall) -> None:
+        muscle_group_id: str = call.data[ATTR_MUSCLE_GROUP_ID].strip().lower()
+        name_en: str = call.data[ATTR_NAME_EN].strip()
+        name_de: str | None = _optional_str(call.data.get(ATTR_NAME_DE))
+        description: str | None = _optional_str(call.data.get(ATTR_DESCRIPTION))
+        icon: str | None = _optional_str(call.data.get(ATTR_ICON))
+        body_region: str | None = _optional_str(call.data.get(ATTR_BODY_REGION))
+        enabled: bool = bool(call.data.get(ATTR_ENABLED, True))
+        sort_order: int = int(call.data.get(ATTR_SORT_ORDER, 100))
+
+        if not muscle_group_id:
+            raise HomeAssistantError("muscle_group_id must not be empty.")
+        if not name_en:
+            raise HomeAssistantError("name_en must not be empty.")
+
+        for coordinator in _all_coordinators():
+            await coordinator.async_add_muscle_group(
+                muscle_group_id=muscle_group_id,
+                name_en=name_en,
+                name_de=name_de,
+                description=description,
+                icon=icon,
+                body_region=body_region,
+                enabled=enabled,
+                sort_order=sort_order,
+            )
+
+    async def handle_update_muscle_group(call: ServiceCall) -> None:
+        muscle_group_id: str = call.data[ATTR_MUSCLE_GROUP_ID].strip().lower()
+        if not muscle_group_id:
+            raise HomeAssistantError("muscle_group_id must not be empty.")
+
+        raw_name_en = call.data.get(ATTR_NAME_EN)
+        name_en = raw_name_en.strip() if isinstance(raw_name_en, str) else None
+        raw_name_de = call.data.get(ATTR_NAME_DE)
+        name_de = raw_name_de.strip() if isinstance(raw_name_de, str) else None
+        raw_description = call.data.get(ATTR_DESCRIPTION)
+        description = raw_description.strip() if isinstance(raw_description, str) else None
+        raw_icon = call.data.get(ATTR_ICON)
+        icon = raw_icon.strip() if isinstance(raw_icon, str) else None
+        raw_body_region = call.data.get(ATTR_BODY_REGION)
+        body_region = raw_body_region.strip() if isinstance(raw_body_region, str) else None
+        enabled = call.data.get(ATTR_ENABLED)
+        sort_order = call.data.get(ATTR_SORT_ORDER)
+
+        if (
+            name_en is None
+            and name_de is None
+            and description is None
+            and icon is None
+            and body_region is None
+            and enabled is None
+            and sort_order is None
+        ):
+            raise HomeAssistantError("No update fields provided for update_muscle_group.")
+
+        for coordinator in _all_coordinators():
+            updated = await coordinator.async_update_muscle_group(
+                muscle_group_id=muscle_group_id,
+                name_en=name_en,
+                name_de=name_de,
+                description=description,
+                icon=icon,
+                body_region=body_region,
+                enabled=bool(enabled) if enabled is not None else None,
+                sort_order=int(sort_order) if sort_order is not None else None,
+            )
+            if not updated:
+                raise HomeAssistantError(
+                    f"Muscle group '{muscle_group_id}' not found or unchanged."
+                )
+
+    async def handle_disable_muscle_group(call: ServiceCall) -> None:
+        muscle_group_id: str = call.data[ATTR_MUSCLE_GROUP_ID].strip().lower()
+        if not muscle_group_id:
+            raise HomeAssistantError("muscle_group_id must not be empty.")
+        for coordinator in _all_coordinators():
+            updated = await coordinator.async_disable_muscle_group(muscle_group_id)
+            if not updated:
+                raise HomeAssistantError(f"Muscle group '{muscle_group_id}' not found.")
+
+    async def handle_assign_muscle_group_to_exercise(call: ServiceCall) -> None:
+        exercise_id: str = call.data[ATTR_EXERCISE_ID].strip().lower()
+        muscle_group_id: str = call.data[ATTR_MUSCLE_GROUP_ID].strip().lower()
+        role: str = str(call.data.get(ATTR_ROLE, "primary")).strip().lower()
+        weight_factor: float = float(call.data.get(ATTR_WEIGHT_FACTOR, 1.0))
+        if not exercise_id:
+            raise HomeAssistantError("exercise_id must not be empty.")
+        if not muscle_group_id:
+            raise HomeAssistantError("muscle_group_id must not be empty.")
+        for coordinator in _all_coordinators():
+            await coordinator.async_assign_muscle_group_to_exercise(
+                exercise_id=exercise_id,
+                muscle_group_id=muscle_group_id,
+                role=role,
+                weight_factor=weight_factor,
+            )
+
+    async def handle_refresh_muscle_groups(call: ServiceCall) -> None:
+        for coordinator in _all_coordinators():
+            await coordinator.async_refresh_muscle_groups(notify=False)
+            await coordinator.async_refresh_statistics()
+
     hass.services.async_register(DOMAIN, SERVICE_START_WORKOUT, handle_start_workout)
     hass.services.async_register(DOMAIN, SERVICE_FINISH_WORKOUT, handle_finish_workout)
     hass.services.async_register(
@@ -361,6 +480,64 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_REFRESH_EXERCISES,
         handle_refresh_exercises,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_MUSCLE_GROUP,
+        handle_add_muscle_group,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_MUSCLE_GROUP_ID): cv.string,
+                vol.Required(ATTR_NAME_EN): cv.string,
+                vol.Optional(ATTR_NAME_DE): cv.string,
+                vol.Optional(ATTR_DESCRIPTION): cv.string,
+                vol.Optional(ATTR_ICON): cv.string,
+                vol.Optional(ATTR_BODY_REGION): cv.string,
+                vol.Optional(ATTR_ENABLED): cv.boolean,
+                vol.Optional(ATTR_SORT_ORDER): vol.Coerce(int),
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_MUSCLE_GROUP,
+        handle_update_muscle_group,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_MUSCLE_GROUP_ID): cv.string,
+                vol.Optional(ATTR_NAME_EN): cv.string,
+                vol.Optional(ATTR_NAME_DE): cv.string,
+                vol.Optional(ATTR_DESCRIPTION): cv.string,
+                vol.Optional(ATTR_ICON): cv.string,
+                vol.Optional(ATTR_BODY_REGION): cv.string,
+                vol.Optional(ATTR_ENABLED): cv.boolean,
+                vol.Optional(ATTR_SORT_ORDER): vol.Coerce(int),
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DISABLE_MUSCLE_GROUP,
+        handle_disable_muscle_group,
+        schema=vol.Schema({vol.Required(ATTR_MUSCLE_GROUP_ID): cv.string}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ASSIGN_MUSCLE_GROUP_TO_EXERCISE,
+        handle_assign_muscle_group_to_exercise,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_EXERCISE_ID): cv.string,
+                vol.Required(ATTR_MUSCLE_GROUP_ID): cv.string,
+                vol.Optional(ATTR_ROLE): cv.string,
+                vol.Optional(ATTR_WEIGHT_FACTOR): vol.Coerce(float),
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REFRESH_MUSCLE_GROUPS,
+        handle_refresh_muscle_groups,
+    )
 
 
 def _unregister_services(hass: HomeAssistant) -> None:
@@ -379,6 +556,11 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_UPDATE_EXERCISE,
         SERVICE_DISABLE_EXERCISE,
         SERVICE_REFRESH_EXERCISES,
+        SERVICE_ADD_MUSCLE_GROUP,
+        SERVICE_UPDATE_MUSCLE_GROUP,
+        SERVICE_DISABLE_MUSCLE_GROUP,
+        SERVICE_ASSIGN_MUSCLE_GROUP_TO_EXERCISE,
+        SERVICE_REFRESH_MUSCLE_GROUPS,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

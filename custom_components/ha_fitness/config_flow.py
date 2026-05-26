@@ -27,8 +27,10 @@ from .const import (
     ATTR_ICON,
     ATTR_LOCATION,
     ATTR_MUSCLE_GROUP,
+    ATTR_MUSCLE_GROUP_ID,
     ATTR_NAME_DE,
     ATTR_NAME_EN,
+    ATTR_BODY_REGION,
     ATTR_SORT_ORDER,
     CONF_DISPLAY_NAME,
     CONF_INCLUDED_USER_IDS,
@@ -41,6 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _EXERCISE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _EQUIPMENT_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
+_MUSCLE_GROUP_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _DEFAULT_SORT_ORDER = 100
 _MUSCLE_GROUP_OPTIONS = [
     "chest",
@@ -427,6 +430,11 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     def __init__(self) -> None:
         self._selected_exercise_id: str | None = None
         self._selected_equipment_id: str | None = None
+        self._selected_muscle_group_id: str | None = None
+        self._assign_muscle_exercise_id: str | None = None
+        self._assign_primary_muscle_group_ids: list[str] = []
+        self._assign_secondary_muscle_group_ids: list[str] = []
+        self._assign_stabilizer_muscle_group_ids: list[str] = []
 
     @property
     def _coordinator(self):
@@ -441,6 +449,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     "configure_household_users",
                     "manage_exercises",
                     "manage_equipment",
+                    "manage_muscle_groups",
                     "add_exercise",
                     "edit_exercise_select",
                     "toggle_exercise_select",
@@ -448,6 +457,10 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     "edit_equipment_select",
                     "toggle_equipment_select",
                     "assign_exercises_select_equipment",
+                    "add_muscle_group",
+                    "edit_muscle_group_select",
+                    "toggle_muscle_group_select",
+                    "assign_muscle_groups_select_exercise",
                 ],
             )
         except Exception:
@@ -466,6 +479,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 "toggle_exercise_select",
                 "assign_exercises_select_equipment",
                 "manage_equipment",
+                "manage_muscle_groups",
                 "init",
             ],
         )
@@ -482,6 +496,24 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 "toggle_equipment_select",
                 "assign_exercises_select_equipment",
                 "manage_exercises",
+                "manage_muscle_groups",
+                "init",
+            ],
+        )
+
+    async def async_step_manage_muscle_groups(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Show muscle group management submenu."""
+        return self.async_show_menu(
+            step_id="manage_muscle_groups",
+            menu_options=[
+                "add_muscle_group",
+                "edit_muscle_group_select",
+                "toggle_muscle_group_select",
+                "assign_muscle_groups_select_exercise",
+                "manage_exercises",
+                "manage_equipment",
                 "init",
             ],
         )
@@ -1245,6 +1277,476 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={"equipment_id": equipment_id},
         )
 
+    async def async_step_add_muscle_group(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Add one muscle group entry."""
+        errors: dict[str, str] = {}
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+
+        if user_input is not None:
+            muscle_group_id = _normalize_muscle_group_id(
+                str(user_input.get(ATTR_MUSCLE_GROUP_ID, ""))
+            )
+            name_en = str(user_input.get(ATTR_NAME_EN, "")).strip()
+            name_de = _optional_str(user_input.get(ATTR_NAME_DE))
+            description = _optional_str(user_input.get(ATTR_DESCRIPTION))
+            icon = _optional_str(user_input.get(ATTR_ICON))
+            body_region = _optional_str(user_input.get(ATTR_BODY_REGION))
+            enabled = bool(user_input.get(ATTR_ENABLED, True))
+            sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+            sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
+
+            if not muscle_group_id:
+                errors[ATTR_MUSCLE_GROUP_ID] = "invalid_muscle_group_id"
+            elif coordinator.get_muscle_group(muscle_group_id):
+                errors[ATTR_MUSCLE_GROUP_ID] = "muscle_group_exists"
+            if not name_en:
+                errors[ATTR_NAME_EN] = "name_required"
+            if not _is_valid_sort_order_input(sort_order_raw):
+                errors[ATTR_SORT_ORDER] = "invalid_sort_order"
+
+            if not errors and muscle_group_id is not None:
+                await coordinator.async_add_muscle_group(
+                    muscle_group_id=muscle_group_id,
+                    name_en=name_en,
+                    name_de=name_de,
+                    description=description,
+                    icon=icon,
+                    body_region=body_region,
+                    enabled=enabled,
+                    sort_order=sort_order,
+                )
+                return await self.async_step_manage_muscle_groups()
+
+        return self.async_show_form(
+            step_id="add_muscle_group",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        ATTR_MUSCLE_GROUP_ID,
+                        default=str(user_input.get(ATTR_MUSCLE_GROUP_ID, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Required(
+                        ATTR_NAME_EN,
+                        default=str(user_input.get(ATTR_NAME_EN, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_NAME_DE,
+                        default=str(user_input.get(ATTR_NAME_DE, "")) if user_input else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_DESCRIPTION,
+                        default=str(user_input.get(ATTR_DESCRIPTION, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_ICON,
+                        default=str(user_input.get(ATTR_ICON, "mdi:arm-flex"))
+                        if user_input
+                        else "mdi:arm-flex",
+                    ): str,
+                    vol.Optional(
+                        ATTR_BODY_REGION,
+                        default=str(user_input.get(ATTR_BODY_REGION, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_SORT_ORDER,
+                        default=user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+                        if user_input
+                        else _DEFAULT_SORT_ORDER,
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=0, max=9999, step=1, mode="box")
+                    ),
+                    vol.Optional(
+                        ATTR_ENABLED,
+                        default=bool(user_input.get(ATTR_ENABLED, True))
+                        if user_input
+                        else True,
+                    ): bool,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_edit_muscle_group_select(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select one muscle group to edit."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        options = coordinator.muscle_group_options_for_options_flow(include_disabled=True)
+        if not options:
+            return self.async_abort(reason="muscle_group_catalog_empty")
+        if user_input is not None:
+            self._selected_muscle_group_id = str(user_input[ATTR_MUSCLE_GROUP_ID])
+            return await self.async_step_edit_muscle_group()
+        return self.async_show_form(
+            step_id="edit_muscle_group_select",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(ATTR_MUSCLE_GROUP_ID): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=False,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_edit_muscle_group(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Edit one muscle group."""
+        errors: dict[str, str] = {}
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+
+        muscle_group_id = self._selected_muscle_group_id
+        if not muscle_group_id:
+            return await self.async_step_edit_muscle_group_select()
+        muscle_group = coordinator.get_muscle_group(muscle_group_id)
+        if muscle_group is None:
+            return self.async_abort(reason="muscle_group_not_found")
+
+        if user_input is not None:
+            name_en = str(user_input.get(ATTR_NAME_EN, "")).strip()
+            name_de = _optional_str(user_input.get(ATTR_NAME_DE))
+            description = _optional_str(user_input.get(ATTR_DESCRIPTION))
+            icon = _optional_str(user_input.get(ATTR_ICON))
+            body_region = _optional_str(user_input.get(ATTR_BODY_REGION))
+            enabled = bool(user_input.get(ATTR_ENABLED, True))
+            sort_order_raw = user_input.get(
+                ATTR_SORT_ORDER, int(muscle_group.get(ATTR_SORT_ORDER, 100))
+            )
+            sort_order = _coerce_int(
+                sort_order_raw, int(muscle_group.get(ATTR_SORT_ORDER, 100))
+            )
+            if not name_en:
+                errors[ATTR_NAME_EN] = "name_required"
+            if not _is_valid_sort_order_input(sort_order_raw):
+                errors[ATTR_SORT_ORDER] = "invalid_sort_order"
+            if not errors:
+                await coordinator.async_update_muscle_group(
+                    muscle_group_id=muscle_group_id,
+                    name_en=name_en,
+                    name_de=name_de,
+                    description=description,
+                    icon=icon,
+                    body_region=body_region,
+                    enabled=enabled,
+                    sort_order=sort_order,
+                )
+                return await self.async_step_manage_muscle_groups()
+
+        return self.async_show_form(
+            step_id="edit_muscle_group",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        ATTR_NAME_EN,
+                        default=str(
+                            user_input.get(ATTR_NAME_EN, muscle_group.get(ATTR_NAME_EN, ""))
+                        )
+                        if user_input
+                        else str(muscle_group.get(ATTR_NAME_EN, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_NAME_DE,
+                        default=str(
+                            user_input.get(ATTR_NAME_DE, muscle_group.get(ATTR_NAME_DE, ""))
+                        )
+                        if user_input
+                        else str(muscle_group.get(ATTR_NAME_DE, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_DESCRIPTION,
+                        default=str(
+                            user_input.get(
+                                ATTR_DESCRIPTION, muscle_group.get(ATTR_DESCRIPTION, "")
+                            )
+                        )
+                        if user_input
+                        else str(muscle_group.get(ATTR_DESCRIPTION, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_ICON,
+                        default=str(user_input.get(ATTR_ICON, muscle_group.get(ATTR_ICON, "")))
+                        if user_input
+                        else str(muscle_group.get(ATTR_ICON, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_BODY_REGION,
+                        default=str(
+                            user_input.get(
+                                ATTR_BODY_REGION, muscle_group.get(ATTR_BODY_REGION, "")
+                            )
+                        )
+                        if user_input
+                        else str(muscle_group.get(ATTR_BODY_REGION, "")),
+                    ): str,
+                    vol.Optional(
+                        ATTR_SORT_ORDER,
+                        default=user_input.get(
+                            ATTR_SORT_ORDER, int(muscle_group.get(ATTR_SORT_ORDER, 100))
+                        )
+                        if user_input
+                        else int(muscle_group.get(ATTR_SORT_ORDER, 100)),
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=0, max=9999, step=1, mode="box")
+                    ),
+                    vol.Optional(
+                        ATTR_ENABLED,
+                        default=bool(user_input.get(ATTR_ENABLED, True))
+                        if user_input
+                        else bool(muscle_group.get(ATTR_ENABLED, 1)),
+                    ): bool,
+                }
+            ),
+            errors=errors,
+            description_placeholders={"muscle_group_id": muscle_group_id},
+        )
+
+    async def async_step_toggle_muscle_group_select(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select one muscle group for disable/enable toggle."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        options = coordinator.muscle_group_options_for_options_flow(include_disabled=True)
+        if not options:
+            return self.async_abort(reason="muscle_group_catalog_empty")
+        if user_input is not None:
+            self._selected_muscle_group_id = str(user_input[ATTR_MUSCLE_GROUP_ID])
+            return await self.async_step_toggle_muscle_group_confirm()
+        return self.async_show_form(
+            step_id="toggle_muscle_group_select",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(ATTR_MUSCLE_GROUP_ID): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=False,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_toggle_muscle_group_confirm(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Toggle one muscle group between enabled and disabled."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+
+        muscle_group_id = self._selected_muscle_group_id
+        if not muscle_group_id:
+            return await self.async_step_toggle_muscle_group_select()
+        muscle_group = coordinator.get_muscle_group(muscle_group_id)
+        if muscle_group is None:
+            return self.async_abort(reason="muscle_group_not_found")
+
+        is_enabled = int(muscle_group.get("enabled", 1)) == 1
+        if user_input is not None and bool(user_input.get("confirm", True)):
+            if is_enabled:
+                await coordinator.async_disable_muscle_group(muscle_group_id)
+            else:
+                await coordinator.async_update_muscle_group(
+                    muscle_group_id=muscle_group_id, enabled=True
+                )
+            return await self.async_step_manage_muscle_groups()
+
+        action = "disable" if is_enabled else "enable"
+        status = "enabled" if is_enabled else "disabled"
+        return self.async_show_form(
+            step_id="toggle_muscle_group_confirm",
+            data_schema=vol.Schema({vol.Required("confirm", default=True): bool}),
+            description_placeholders={
+                "muscle_group_id": muscle_group_id,
+                "muscle_group_name": coordinator.muscle_group_display_name(muscle_group_id),
+                "status": status,
+                "action": action,
+            },
+        )
+
+    async def async_step_assign_muscle_groups_select_exercise(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select one exercise for muscle-group assignment."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        options = _selector_options_from_rows(
+            coordinator.exercise_options_for_options_flow(include_disabled=True)
+        )
+        if not options:
+            return self.async_abort(reason="exercise_catalog_empty")
+        if user_input is not None:
+            self._assign_muscle_exercise_id = str(user_input[ATTR_EXERCISE_ID])
+            rows = await coordinator.async_get_muscle_groups_for_exercise(
+                self._assign_muscle_exercise_id
+            )
+            self._assign_primary_muscle_group_ids = [
+                str(row.get("muscle_group_id"))
+                for row in rows
+                if str(row.get("role") or "") == "primary" and row.get("muscle_group_id")
+            ]
+            self._assign_secondary_muscle_group_ids = [
+                str(row.get("muscle_group_id"))
+                for row in rows
+                if str(row.get("role") or "") == "secondary" and row.get("muscle_group_id")
+            ]
+            self._assign_stabilizer_muscle_group_ids = [
+                str(row.get("muscle_group_id"))
+                for row in rows
+                if str(row.get("role") or "") == "stabilizer"
+                and row.get("muscle_group_id")
+            ]
+            return await self.async_step_assign_muscle_groups_select_primary()
+        return self.async_show_form(
+            step_id="assign_muscle_groups_select_exercise",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(ATTR_EXERCISE_ID): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=False,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_assign_muscle_groups_select_primary(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select primary muscle groups for selected exercise."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        if not self._assign_muscle_exercise_id:
+            return await self.async_step_assign_muscle_groups_select_exercise()
+        options = coordinator.muscle_group_options_for_options_flow(include_disabled=False)
+        if not options:
+            return self.async_abort(reason="muscle_group_catalog_empty")
+        defaults = self._assign_primary_muscle_group_ids
+        if user_input is not None:
+            self._assign_primary_muscle_group_ids = [
+                str(item) for item in user_input.get(ATTR_MUSCLE_GROUP_ID, [])
+            ]
+            return await self.async_step_assign_muscle_groups_select_secondary()
+        return self.async_show_form(
+            step_id="assign_muscle_groups_select_primary",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(ATTR_MUSCLE_GROUP_ID, default=defaults): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=True,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+            description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+        )
+
+    async def async_step_assign_muscle_groups_select_secondary(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select secondary muscle groups for selected exercise."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        if not self._assign_muscle_exercise_id:
+            return await self.async_step_assign_muscle_groups_select_exercise()
+        options = coordinator.muscle_group_options_for_options_flow(include_disabled=False)
+        if not options:
+            return self.async_abort(reason="muscle_group_catalog_empty")
+        defaults = self._assign_secondary_muscle_group_ids
+        if user_input is not None:
+            self._assign_secondary_muscle_group_ids = [
+                str(item) for item in user_input.get(ATTR_MUSCLE_GROUP_ID, [])
+            ]
+            return await self.async_step_assign_muscle_groups_select_stabilizer()
+        return self.async_show_form(
+            step_id="assign_muscle_groups_select_secondary",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(ATTR_MUSCLE_GROUP_ID, default=defaults): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=True,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+            description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+        )
+
+    async def async_step_assign_muscle_groups_select_stabilizer(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Select stabilizer muscle groups and save exercise assignments."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        if not self._assign_muscle_exercise_id:
+            return await self.async_step_assign_muscle_groups_select_exercise()
+        options = coordinator.muscle_group_options_for_options_flow(include_disabled=False)
+        if not options:
+            return self.async_abort(reason="muscle_group_catalog_empty")
+        defaults = self._assign_stabilizer_muscle_group_ids
+        if user_input is not None:
+            stabilizer_ids = [str(item) for item in user_input.get(ATTR_MUSCLE_GROUP_ID, [])]
+            await coordinator.async_replace_muscle_groups_for_exercise(
+                exercise_id=self._assign_muscle_exercise_id,
+                primary_ids=self._assign_primary_muscle_group_ids,
+                secondary_ids=self._assign_secondary_muscle_group_ids,
+                stabilizer_ids=stabilizer_ids,
+            )
+            return await self.async_step_manage_muscle_groups()
+        return self.async_show_form(
+            step_id="assign_muscle_groups_select_stabilizer",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(ATTR_MUSCLE_GROUP_ID, default=defaults): SelectSelector(
+                        SelectSelectorConfig(
+                            options=options,
+                            multiple=True,
+                            custom_value=False,
+                            mode="dropdown",
+                        )
+                    )
+                }
+            ),
+            description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+        )
+
 
 def _optional_str(value: Any) -> str | None:
     """Return stripped string value or None for non-strings/empty strings."""
@@ -1270,6 +1772,16 @@ def _normalize_equipment_id(raw_equipment_id: str) -> str | None:
     if not normalized:
         return None
     if not _EQUIPMENT_ID_PATTERN.match(normalized):
+        return None
+    return normalized
+
+
+def _normalize_muscle_group_id(raw_muscle_group_id: str) -> str | None:
+    """Normalize raw muscle group id and validate allowed characters."""
+    normalized = raw_muscle_group_id.strip().lower().replace("-", "_").replace(" ", "_")
+    if not normalized:
+        return None
+    if not _MUSCLE_GROUP_ID_PATTERN.match(normalized):
         return None
     return normalized
 

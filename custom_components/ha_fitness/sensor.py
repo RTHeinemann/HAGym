@@ -45,6 +45,7 @@ async def async_setup_entry(
         HAFitnessExerciseStatisticsSensor(coordinator, entry),
         HAFitnessEquipmentCatalogSensor(coordinator, entry),
         HAFitnessEquipmentStatisticsSensor(coordinator, entry),
+        HAFitnessMuscleGroupStatisticsSensor(coordinator, entry),
     ]
 
     for exercise_id in EXERCISE_IDS:
@@ -61,6 +62,14 @@ async def async_setup_entry(
         entities.append(HAFitnessEquipmentHouseholdVolumeSensor(coordinator, entry, equipment_id))
         entities.append(HAFitnessEquipmentTotalVolumeSensor(coordinator, entry, equipment_id))
         entities.append(HAFitnessEquipmentTotalSetsSensor(coordinator, entry, equipment_id))
+
+    for muscle_group_id in coordinator.enabled_muscle_group_ids:
+        entities.append(HAFitnessMuscleGroupTotalVolumeSensor(coordinator, entry, muscle_group_id))
+        entities.append(HAFitnessMuscleGroupPersonalVolumeSensor(coordinator, entry, muscle_group_id))
+        entities.append(HAFitnessMuscleGroupHouseholdVolumeSensor(coordinator, entry, muscle_group_id))
+        entities.append(HAFitnessMuscleGroupTotalSetsSensor(coordinator, entry, muscle_group_id))
+        entities.append(HAFitnessMuscleGroupLastUsedSensor(coordinator, entry, muscle_group_id))
+        entities.append(HAFitnessMuscleGroupTopExerciseSensor(coordinator, entry, muscle_group_id))
 
     async_add_entities(entities)
 
@@ -541,6 +550,160 @@ class HAFitnessEquipmentStatisticsSensor(_HAFitnessSensorBase):
     @property
     def extra_state_attributes(self) -> dict:
         return {"by_equipment": self._coordinator.equipment_statistics}
+
+
+class HAFitnessMuscleGroupStatisticsSensor(_HAFitnessSensorBase):
+    """Sensor exposing grouped per-muscle-group global/personal/household stats."""
+
+    _attr_translation_key = "muscle_group_statistics"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_muscle_group_statistics"
+
+    @property
+    def native_value(self) -> int:
+        return len(
+            [
+                row
+                for row in self._coordinator.muscle_group_statistics
+                if float(row.get("total_volume", 0.0)) > 0.0
+            ]
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"by_muscle_group": self._coordinator.muscle_group_statistics}
+
+
+class _HAFitnessMuscleGroupSensorBase(SensorEntity):
+    """Base class for muscle-group-specific sensors."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str
+    ) -> None:
+        self._coordinator = coordinator
+        self._muscle_group_id = muscle_group_id
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id, "muscle_group", muscle_group_id)},
+            name=coordinator.muscle_group_display_name(muscle_group_id),
+            manufacturer="HAGym",
+            model="HAGym Muscle Group",
+            via_device=(DOMAIN, entry.entry_id),
+            entry_type="service",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        row = self._coordinator.get_muscle_group(self._muscle_group_id)
+        if row is None:
+            return False
+        return int(row.get("enabled", 1)) == 1
+
+    def _stats(self) -> dict[str, Any]:
+        return self._coordinator.get_muscle_group_statistics(self._muscle_group_id)
+
+
+class HAFitnessMuscleGroupTotalVolumeSensor(_HAFitnessMuscleGroupSensorBase):
+    _attr_translation_key = "total_volume"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str) -> None:
+        super().__init__(coordinator, entry, muscle_group_id)
+        self._attr_unique_id = f"{entry.entry_id}_{muscle_group_id}_total_volume"
+
+    @property
+    def native_value(self) -> float:
+        return float(self._stats().get("total_volume", 0.0))
+
+
+class HAFitnessMuscleGroupPersonalVolumeSensor(_HAFitnessMuscleGroupSensorBase):
+    _attr_translation_key = "personal_total_volume"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str) -> None:
+        super().__init__(coordinator, entry, muscle_group_id)
+        self._attr_unique_id = f"{entry.entry_id}_{muscle_group_id}_personal_total_volume"
+
+    @property
+    def native_value(self) -> float:
+        return float(self._stats().get("personal_volume", 0.0))
+
+
+class HAFitnessMuscleGroupHouseholdVolumeSensor(_HAFitnessMuscleGroupSensorBase):
+    _attr_translation_key = "household_total_volume"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str) -> None:
+        super().__init__(coordinator, entry, muscle_group_id)
+        self._attr_unique_id = f"{entry.entry_id}_{muscle_group_id}_household_total_volume"
+
+    @property
+    def native_value(self) -> float:
+        return float(self._stats().get("household_volume", 0.0))
+
+
+class HAFitnessMuscleGroupTotalSetsSensor(_HAFitnessMuscleGroupSensorBase):
+    _attr_translation_key = "total_sets"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str) -> None:
+        super().__init__(coordinator, entry, muscle_group_id)
+        self._attr_unique_id = f"{entry.entry_id}_{muscle_group_id}_total_sets"
+
+    @property
+    def native_value(self) -> int:
+        return int(self._stats().get("total_sets", 0))
+
+
+class HAFitnessMuscleGroupLastUsedSensor(_HAFitnessMuscleGroupSensorBase):
+    _attr_translation_key = "last_used"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str) -> None:
+        super().__init__(coordinator, entry, muscle_group_id)
+        self._attr_unique_id = f"{entry.entry_id}_{muscle_group_id}_last_used"
+
+    @property
+    def native_value(self) -> str | None:
+        value = self._stats().get("last_used")
+        return str(value) if value else None
+
+
+class HAFitnessMuscleGroupTopExerciseSensor(_HAFitnessMuscleGroupSensorBase):
+    _attr_translation_key = "top_exercise"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, muscle_group_id: str) -> None:
+        super().__init__(coordinator, entry, muscle_group_id)
+        self._attr_unique_id = f"{entry.entry_id}_{muscle_group_id}_top_exercise"
+
+    @property
+    def native_value(self) -> str:
+        top_exercise = self._stats().get("top_exercise")
+        if not isinstance(top_exercise, dict):
+            return "none"
+        exercise_id = str(top_exercise.get("exercise_id") or "")
+        if not exercise_id:
+            return "none"
+        return self._coordinator.exercise_display_name(exercise_id)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        top_exercise = self._stats().get("top_exercise")
+        return {"top_exercise": top_exercise} if isinstance(top_exercise, dict) else {}
 
 
 class _HAFitnessEquipmentSensorBase(SensorEntity):

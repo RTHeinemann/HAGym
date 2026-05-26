@@ -32,6 +32,7 @@ In integration code this is resolved with:
 
 - Schema migrations are tracked in `schema_migrations`.
 - Current version is applied automatically during startup.
+- Current schema version: `5`
 
 ## Recorder and Cloud
 
@@ -79,3 +80,38 @@ Runtime behavior:
 - `select.ha_fitness_active_exercise` now displays localized names from the catalog.
 - The integration internally tracks stable `exercise_id`.
 - Existing sensors remain available; per-exercise metrics are computed by ID with legacy fallback matching.
+
+## Equipment Catalog Schema (v4)
+
+Schema migration v4 adds:
+
+- `equipment` table for first-class Home Assistant devices.
+- `exercises.equipment_id` for exercise-to-equipment mapping.
+- `set_logs.equipment_id` for persisted equipment attribution per logged set.
+
+Runtime behavior:
+
+- Equipment can be managed in options flow and linked to exercises.
+- Equipment statistics can be computed globally, personally, and for household scope.
+
+## Muscle Group Schema (v5)
+
+Schema migration v5 adds:
+
+- `muscle_groups`
+  - `id`, `name_en`, `name_de`, `description`, `icon`, `body_region`
+  - `enabled`, `sort_order`, `created_at`, `updated_at`
+- `exercise_muscle_groups`
+  - `exercise_id`, `muscle_group_id`
+  - `role` (`primary`, `secondary`, `stabilizer`)
+  - `weight_factor`
+  - `created_at`, `updated_at`
+
+Derivation model:
+
+- No direct equipment-to-muscle-group relation exists.
+- Logged set volume is attributed to muscle groups via:
+  - `set_logs.exercise_id` -> `exercise_muscle_groups.exercise_id`
+  - weighted by `exercise_muscle_groups.weight_factor`
+
+Muscle-group statistics are approximate training-load indicators and not medical or biomechanical measurements.

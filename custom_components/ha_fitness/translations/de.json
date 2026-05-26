@@ -67,14 +67,19 @@
         "menu_options": {
           "configure_household_users": "Haushaltsbenutzer konfigurieren",
           "manage_exercises": "Übungen verwalten",
+          "manage_equipment": "Equipment verwalten",
+          "manage_muscle_groups": "Muskelgruppen verwalten",
           "add_exercise": "Übung hinzufügen",
           "edit_exercise_select": "Übung bearbeiten",
           "toggle_exercise_select": "Übung deaktivieren / aktivieren",
-          "manage_equipment": "Equipment verwalten",
           "add_equipment": "Equipment hinzufügen",
           "edit_equipment_select": "Equipment bearbeiten",
           "toggle_equipment_select": "Equipment deaktivieren / aktivieren",
-          "assign_exercises_select_equipment": "Übungen zuweisen"
+          "assign_exercises_select_equipment": "Übungen zuweisen",
+          "add_muscle_group": "Muskelgruppe hinzufügen",
+          "edit_muscle_group_select": "Muskelgruppe bearbeiten",
+          "toggle_muscle_group_select": "Muskelgruppe deaktivieren / aktivieren",
+          "assign_muscle_groups_select_exercise": "Muskelgruppen zu Übung zuweisen"
         }
       },
       "manage_exercises": {
@@ -84,9 +89,10 @@
           "add_exercise": "Übung hinzufügen",
           "edit_exercise_select": "Übung bearbeiten",
           "toggle_exercise_select": "Übung deaktivieren / aktivieren",
-          "init": "Zurück zum Optionsmenü",
           "assign_exercises_select_equipment": "Übungen zuweisen",
-          "manage_equipment": "Equipment verwalten"
+          "manage_equipment": "Equipment verwalten",
+          "manage_muscle_groups": "Muskelgruppen verwalten",
+          "init": "Zurück zum Optionsmenü"
         }
       },
       "configure_household_users": {
@@ -153,6 +159,20 @@
           "toggle_equipment_select": "Equipment deaktivieren / aktivieren",
           "assign_exercises_select_equipment": "Übungen zuweisen",
           "manage_exercises": "Übungen verwalten",
+          "manage_muscle_groups": "Muskelgruppen verwalten",
+          "init": "Zurück zum Optionsmenü"
+        }
+      },
+      "manage_muscle_groups": {
+        "title": "Muskelgruppen verwalten",
+        "description": "Füge Muskelgruppen hinzu, bearbeite sie, de-/aktiviere sie oder ordne sie Übungen zu.",
+        "menu_options": {
+          "add_muscle_group": "Muskelgruppe hinzufügen",
+          "edit_muscle_group_select": "Muskelgruppe bearbeiten",
+          "toggle_muscle_group_select": "Muskelgruppe deaktivieren / aktivieren",
+          "assign_muscle_groups_select_exercise": "Muskelgruppen zu Übung zuweisen",
+          "manage_exercises": "Übungen verwalten",
+          "manage_equipment": "Equipment verwalten",
           "init": "Zurück zum Optionsmenü"
         }
       },
@@ -215,6 +235,82 @@
         "data": {
           "exercise_id": "Übungen"
         }
+      },
+      "add_muscle_group": {
+        "title": "Muskelgruppe hinzufügen",
+        "description": "Lege eine neue Muskelgruppen-ID an. IDs werden kleingeschrieben und '-' wird zu '_' umgewandelt.",
+        "data": {
+          "muscle_group_id": "Muskelgruppen-ID",
+          "name_en": "Name (Englisch)",
+          "name_de": "Name (Deutsch)",
+          "description": "Beschreibung",
+          "icon": "Icon",
+          "body_region": "Körperregion",
+          "sort_order": "Sortierreihenfolge",
+          "enabled": "Aktiv"
+        }
+      },
+      "edit_muscle_group_select": {
+        "title": "Muskelgruppe zum Bearbeiten auswählen",
+        "description": "Wähle eine Muskelgruppe aus dem Katalog (inklusive deaktivierter Einträge).",
+        "data": {
+          "muscle_group_id": "Muskelgruppe"
+        }
+      },
+      "edit_muscle_group": {
+        "title": "Muskelgruppe bearbeiten",
+        "description": "Bearbeite Muskelgruppe: {muscle_group_id}",
+        "data": {
+          "name_en": "Name (Englisch)",
+          "name_de": "Name (Deutsch)",
+          "description": "Beschreibung",
+          "icon": "Icon",
+          "body_region": "Körperregion",
+          "sort_order": "Sortierreihenfolge",
+          "enabled": "Aktiv"
+        }
+      },
+      "toggle_muscle_group_select": {
+        "title": "Muskelgruppe zum Umschalten auswählen",
+        "description": "Wähle eine Muskelgruppe zum Deaktivieren oder Reaktivieren.",
+        "data": {
+          "muscle_group_id": "Muskelgruppe"
+        }
+      },
+      "toggle_muscle_group_confirm": {
+        "title": "Muskelgruppen-Umschaltung bestätigen",
+        "description": "{muscle_group_name} ({muscle_group_id}) ist aktuell {status}. Bestätige, um diese Muskelgruppe zu {action}.",
+        "data": {
+          "confirm": "Bestätigen"
+        }
+      },
+      "assign_muscle_groups_select_exercise": {
+        "title": "Übung auswählen",
+        "description": "Wähle eine Übung für die Muskelgruppen-Zuweisung.",
+        "data": {
+          "exercise_id": "Übung"
+        }
+      },
+      "assign_muscle_groups_select_primary": {
+        "title": "Primäre Muskelgruppen wählen",
+        "description": "Wähle primäre Muskelgruppen für Übung {exercise_id}.",
+        "data": {
+          "muscle_group_id": "Primäre Muskelgruppen"
+        }
+      },
+      "assign_muscle_groups_select_secondary": {
+        "title": "Sekundäre Muskelgruppen wählen",
+        "description": "Wähle sekundäre Muskelgruppen für Übung {exercise_id}.",
+        "data": {
+          "muscle_group_id": "Sekundäre Muskelgruppen"
+        }
+      },
+      "assign_muscle_groups_select_stabilizer": {
+        "title": "Stabilisierende Muskelgruppen wählen",
+        "description": "Wähle stabilisierende Muskelgruppen für Übung {exercise_id}.",
+        "data": {
+          "muscle_group_id": "Stabilisierende Muskelgruppen"
+        }
       }
     },
     "error": {
@@ -226,14 +322,19 @@
       "coordinator_unavailable": "Integrationsdaten sind noch nicht bereit. Bitte erneut versuchen.",
       "invalid_equipment_id": "Die Equipment-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten.",
       "equipment_exists": "Das Equipment existiert bereits.",
-      "equipment_not_found": "Equipment nicht gefunden."
+      "equipment_not_found": "Equipment nicht gefunden.",
+      "invalid_muscle_group_id": "Die Muskelgruppen-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten.",
+      "muscle_group_exists": "Die Muskelgruppe existiert bereits.",
+      "muscle_group_not_found": "Muskelgruppe nicht gefunden."
     },
     "abort": {
       "exercise_not_found": "Übung nicht gefunden.",
       "coordinator_unavailable": "Integrationsdaten sind noch nicht bereit. Bitte erneut versuchen.",
       "equipment_not_found": "Equipment nicht gefunden.",
+      "muscle_group_not_found": "Muskelgruppe nicht gefunden.",
       "exercise_catalog_empty": "Im Katalog sind noch keine Übungen verfügbar.",
       "equipment_catalog_empty": "Im Katalog ist noch kein Equipment verfügbar.",
+      "muscle_group_catalog_empty": "Im Katalog sind noch keine Muskelgruppen verfügbar.",
       "options_flow_error": "Der Optionsfluss konnte nicht geladen werden. Bitte Integrationsprotokolle prüfen."
     }
   },
@@ -473,6 +574,15 @@
       },
       "equipment_statistics": {
         "name": "Equipment-Statistiken"
+      },
+      "muscle_group_statistics": {
+        "name": "Muskelgruppen-Statistiken"
+      },
+      "last_used": {
+        "name": "Zuletzt verwendet"
+      },
+      "top_exercise": {
+        "name": "Top-Übung"
       }
     },
     "button": {
@@ -593,6 +703,26 @@
           "description": "Optionale Equipment-ID. Leer = alle Übungen."
         }
       }
+    },
+    "add_muscle_group": {
+      "name": "Muskelgruppe hinzufügen",
+      "description": "Fügt eine Muskelgruppe im SQLite-Katalog hinzu oder reaktiviert sie und aktualisiert Muskelgruppen-Statistiken."
+    },
+    "update_muscle_group": {
+      "name": "Muskelgruppe aktualisieren",
+      "description": "Aktualisiert Muskelgruppen-Metadaten per muscle_group_id und aktualisiert Muskelgruppen-Statistiken."
+    },
+    "disable_muscle_group": {
+      "name": "Muskelgruppe deaktivieren",
+      "description": "Deaktiviert eine Muskelgruppe per muscle_group_id, sodass sie nicht mehr in aktiven Optionen erscheint."
+    },
+    "assign_muscle_group_to_exercise": {
+      "name": "Muskelgruppe einer Übung zuweisen",
+      "description": "Weist einer Übung eine Muskelgruppe mit Rolle und Gewichtungsfaktor zu."
+    },
+    "refresh_muscle_groups": {
+      "name": "Muskelgruppen aktualisieren",
+      "description": "Aktualisiert Muskelgruppen-Katalog und abgeleitete Muskelgruppen-Statistiken."
     }
   }
 }

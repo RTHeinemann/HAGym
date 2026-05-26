@@ -11,8 +11,14 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     DEFAULT_EQUIPMENT,
+    DEFAULT_EXERCISE_MUSCLE_GROUP_MAP,
     DEFAULT_EXERCISE_EQUIPMENT_MAP,
     DEFAULT_EXERCISES,
+    DEFAULT_MUSCLE_GROUPS,
+    DEFAULT_MUSCLE_ROLE_WEIGHT_FACTORS,
+    MUSCLE_ROLE_PRIMARY,
+    MUSCLE_ROLE_SECONDARY,
+    MUSCLE_ROLE_STABILIZER,
     LEGACY_USER_ID,
 )
 from .migrations import apply_migrations
@@ -273,6 +279,130 @@ class HAFitnessStore:
         """Return grouped exercise stats for global/personal/household scopes."""
         return await self._hass.async_add_executor_job(
             self._get_exercise_statistics, user_id, household_user_ids
+        )
+
+    async def async_get_muscle_groups(self, enabled_only: bool = False) -> list[dict[str, Any]]:
+        """Return muscle group catalog rows."""
+        return await self._hass.async_add_executor_job(self._get_muscle_groups, enabled_only)
+
+    async def async_get_muscle_group(self, muscle_group_id: str) -> dict[str, Any] | None:
+        """Return one muscle group row by id."""
+        return await self._hass.async_add_executor_job(self._get_muscle_group, muscle_group_id)
+
+    async def async_add_muscle_group(
+        self,
+        muscle_group_id: str,
+        name_en: str,
+        name_de: str | None = None,
+        description: str | None = None,
+        icon: str | None = None,
+        body_region: str | None = None,
+        enabled: bool = True,
+        sort_order: int = 100,
+    ) -> None:
+        """Insert one muscle group row or reactivate/update if it exists."""
+        await self._hass.async_add_executor_job(
+            self._add_muscle_group,
+            muscle_group_id,
+            name_en,
+            name_de,
+            description,
+            icon,
+            body_region,
+            enabled,
+            sort_order,
+        )
+
+    async def async_update_muscle_group(
+        self,
+        muscle_group_id: str,
+        name_en: str | None = None,
+        name_de: str | None = None,
+        description: str | None = None,
+        icon: str | None = None,
+        body_region: str | None = None,
+        enabled: bool | None = None,
+        sort_order: int | None = None,
+    ) -> bool:
+        """Update one muscle group row and return whether modified."""
+        return await self._hass.async_add_executor_job(
+            self._update_muscle_group,
+            muscle_group_id,
+            name_en,
+            name_de,
+            description,
+            icon,
+            body_region,
+            enabled,
+            sort_order,
+        )
+
+    async def async_disable_muscle_group(self, muscle_group_id: str) -> bool:
+        """Disable one muscle group by id."""
+        return await self._hass.async_add_executor_job(
+            self._disable_muscle_group, muscle_group_id
+        )
+
+    async def async_assign_muscle_group_to_exercise(
+        self,
+        exercise_id: str,
+        muscle_group_id: str,
+        role: str = MUSCLE_ROLE_PRIMARY,
+        weight_factor: float = 1.0,
+    ) -> None:
+        """Create or update one exercise-to-muscle-group mapping."""
+        await self._hass.async_add_executor_job(
+            self._assign_muscle_group_to_exercise,
+            exercise_id,
+            muscle_group_id,
+            role,
+            weight_factor,
+        )
+
+    async def async_remove_muscle_group_from_exercise(
+        self, exercise_id: str, muscle_group_id: str
+    ) -> bool:
+        """Delete one exercise-to-muscle-group mapping."""
+        return await self._hass.async_add_executor_job(
+            self._remove_muscle_group_from_exercise, exercise_id, muscle_group_id
+        )
+
+    async def async_replace_muscle_groups_for_exercise(
+        self,
+        exercise_id: str,
+        primary_ids: list[str],
+        secondary_ids: list[str],
+        stabilizer_ids: list[str],
+    ) -> None:
+        """Replace all muscle mappings for one exercise from role buckets."""
+        await self._hass.async_add_executor_job(
+            self._replace_muscle_groups_for_exercise,
+            exercise_id,
+            primary_ids,
+            secondary_ids,
+            stabilizer_ids,
+        )
+
+    async def async_get_muscle_groups_for_exercise(self, exercise_id: str) -> list[dict[str, Any]]:
+        """Return mapped muscle groups for one exercise."""
+        return await self._hass.async_add_executor_job(
+            self._get_muscle_groups_for_exercise, exercise_id
+        )
+
+    async def async_get_exercises_for_muscle_group(
+        self, muscle_group_id: str
+    ) -> list[dict[str, Any]]:
+        """Return exercises mapped to one muscle group."""
+        return await self._hass.async_add_executor_job(
+            self._get_exercises_for_muscle_group, muscle_group_id
+        )
+
+    async def async_get_muscle_group_statistics(
+        self, user_id: str | None = None, household_user_ids: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Return grouped muscle-group stats for global/personal/household scopes."""
+        return await self._hass.async_add_executor_job(
+            self._get_muscle_group_statistics, user_id, household_user_ids
         )
 
     async def async_get_equipment_statistics(self) -> list[dict[str, Any]]:
@@ -854,6 +984,350 @@ class HAFitnessStore:
             rows = conn.execute(sql, params).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
 
+    def _get_muscle_groups(self, enabled_only: bool) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            self._seed_default_muscle_groups(conn)
+            sql = """
+                SELECT
+                    id, name_en, name_de, description, icon, body_region,
+                    enabled, sort_order, created_at, updated_at
+                FROM muscle_groups
+            """
+            if enabled_only:
+                sql += " WHERE enabled = 1"
+            sql += " ORDER BY enabled DESC, sort_order ASC, name_en COLLATE NOCASE ASC, id ASC"
+            rows = conn.execute(sql).fetchall()
+            return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _get_muscle_group(self, muscle_group_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    id, name_en, name_de, description, icon, body_region,
+                    enabled, sort_order, created_at, updated_at
+                FROM muscle_groups
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (muscle_group_id,),
+            ).fetchone()
+            return _row_to_dict(row)
+
+    def _add_muscle_group(
+        self,
+        muscle_group_id: str,
+        name_en: str,
+        name_de: str | None,
+        description: str | None,
+        icon: str | None,
+        body_region: str | None,
+        enabled: bool,
+        sort_order: int,
+    ) -> None:
+        now = _isoformat(datetime.now(timezone.utc))
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO muscle_groups(
+                    id, name_en, name_de, description, icon, body_region,
+                    enabled, sort_order, created_at, updated_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name_en = excluded.name_en,
+                    name_de = excluded.name_de,
+                    description = excluded.description,
+                    icon = excluded.icon,
+                    body_region = excluded.body_region,
+                    enabled = excluded.enabled,
+                    sort_order = excluded.sort_order,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    muscle_group_id,
+                    name_en,
+                    name_de,
+                    description,
+                    icon,
+                    body_region,
+                    1 if enabled else 0,
+                    sort_order,
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def _update_muscle_group(
+        self,
+        muscle_group_id: str,
+        name_en: str | None,
+        name_de: str | None,
+        description: str | None,
+        icon: str | None,
+        body_region: str | None,
+        enabled: bool | None,
+        sort_order: int | None,
+    ) -> bool:
+        updates: list[str] = []
+        params: list[Any] = []
+        if name_en is not None:
+            updates.append("name_en = ?")
+            params.append(name_en)
+        if name_de is not None:
+            updates.append("name_de = ?")
+            params.append(name_de)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        if icon is not None:
+            updates.append("icon = ?")
+            params.append(icon)
+        if body_region is not None:
+            updates.append("body_region = ?")
+            params.append(body_region)
+        if enabled is not None:
+            updates.append("enabled = ?")
+            params.append(1 if enabled else 0)
+        if sort_order is not None:
+            updates.append("sort_order = ?")
+            params.append(sort_order)
+        if not updates:
+            return False
+
+        updates.append("updated_at = ?")
+        params.append(_isoformat(datetime.now(timezone.utc)))
+        params.append(muscle_group_id)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                f"UPDATE muscle_groups SET {', '.join(updates)} WHERE id = ?",
+                tuple(params),
+            )
+            conn.commit()
+            return int(cursor.rowcount) > 0
+
+    def _disable_muscle_group(self, muscle_group_id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE muscle_groups
+                SET enabled = 0, updated_at = ?
+                WHERE id = ?
+                """,
+                (_isoformat(datetime.now(timezone.utc)), muscle_group_id),
+            )
+            conn.commit()
+            return int(cursor.rowcount) > 0
+
+    def _assign_muscle_group_to_exercise(
+        self,
+        exercise_id: str,
+        muscle_group_id: str,
+        role: str,
+        weight_factor: float,
+    ) -> None:
+        normalized_role = _normalize_muscle_role(role)
+        resolved_factor = _resolve_weight_factor(normalized_role, weight_factor)
+        now = _isoformat(datetime.now(timezone.utc))
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO exercise_muscle_groups(
+                    exercise_id, muscle_group_id, role, weight_factor, created_at, updated_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?)
+                ON CONFLICT(exercise_id, muscle_group_id) DO UPDATE SET
+                    role = excluded.role,
+                    weight_factor = excluded.weight_factor,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    exercise_id,
+                    muscle_group_id,
+                    normalized_role,
+                    resolved_factor,
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def _remove_muscle_group_from_exercise(
+        self, exercise_id: str, muscle_group_id: str
+    ) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM exercise_muscle_groups
+                WHERE exercise_id = ? AND muscle_group_id = ?
+                """,
+                (exercise_id, muscle_group_id),
+            )
+            conn.commit()
+            return int(cursor.rowcount) > 0
+
+    def _replace_muscle_groups_for_exercise(
+        self,
+        exercise_id: str,
+        primary_ids: list[str],
+        secondary_ids: list[str],
+        stabilizer_ids: list[str],
+    ) -> None:
+        now = _isoformat(datetime.now(timezone.utc))
+        rows: list[tuple[str, str, float]] = []
+        for muscle_group_id in primary_ids:
+            rows.append((muscle_group_id, MUSCLE_ROLE_PRIMARY, DEFAULT_MUSCLE_ROLE_WEIGHT_FACTORS[MUSCLE_ROLE_PRIMARY]))
+        for muscle_group_id in secondary_ids:
+            rows.append((muscle_group_id, MUSCLE_ROLE_SECONDARY, DEFAULT_MUSCLE_ROLE_WEIGHT_FACTORS[MUSCLE_ROLE_SECONDARY]))
+        for muscle_group_id in stabilizer_ids:
+            rows.append((muscle_group_id, MUSCLE_ROLE_STABILIZER, DEFAULT_MUSCLE_ROLE_WEIGHT_FACTORS[MUSCLE_ROLE_STABILIZER]))
+
+        dedup: dict[str, tuple[str, float]] = {}
+        for muscle_group_id, role, factor in rows:
+            normalized_id = str(muscle_group_id).strip()
+            if not normalized_id:
+                continue
+            dedup[normalized_id] = (role, factor)
+
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM exercise_muscle_groups WHERE exercise_id = ?",
+                (exercise_id,),
+            )
+            for muscle_group_id, (role, factor) in dedup.items():
+                conn.execute(
+                    """
+                    INSERT INTO exercise_muscle_groups(
+                        exercise_id, muscle_group_id, role, weight_factor, created_at, updated_at
+                    )
+                    VALUES(?, ?, ?, ?, ?, ?)
+                    """,
+                    (exercise_id, muscle_group_id, role, factor, now, now),
+                )
+            conn.commit()
+
+    def _get_muscle_groups_for_exercise(self, exercise_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    emg.exercise_id,
+                    emg.muscle_group_id,
+                    emg.role,
+                    emg.weight_factor,
+                    emg.created_at,
+                    emg.updated_at,
+                    mg.name_en,
+                    mg.name_de,
+                    mg.icon,
+                    mg.body_region,
+                    mg.enabled
+                FROM exercise_muscle_groups emg
+                LEFT JOIN muscle_groups mg ON mg.id = emg.muscle_group_id
+                WHERE emg.exercise_id = ?
+                ORDER BY
+                    CASE emg.role
+                        WHEN 'primary' THEN 1
+                        WHEN 'secondary' THEN 2
+                        ELSE 3
+                    END,
+                    emg.weight_factor DESC,
+                    emg.muscle_group_id ASC
+                """,
+                (exercise_id,),
+            ).fetchall()
+            return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _get_exercises_for_muscle_group(self, muscle_group_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    emg.exercise_id,
+                    emg.role,
+                    emg.weight_factor,
+                    ex.name_en,
+                    ex.name_de,
+                    ex.enabled,
+                    ex.equipment_id
+                FROM exercise_muscle_groups emg
+                LEFT JOIN exercises ex ON ex.id = emg.exercise_id
+                WHERE emg.muscle_group_id = ?
+                ORDER BY
+                    CASE emg.role
+                        WHEN 'primary' THEN 1
+                        WHEN 'secondary' THEN 2
+                        ELSE 3
+                    END,
+                    emg.weight_factor DESC,
+                    emg.exercise_id ASC
+                """,
+                (muscle_group_id,),
+            ).fetchall()
+            return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _get_muscle_group_statistics(
+        self, user_id: str | None, household_user_ids: list[str] | None
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            self._seed_default_muscle_groups(conn)
+            global_stats = self._weighted_muscle_group_aggregates(conn, None)
+            personal_stats = (
+                self._weighted_muscle_group_aggregates(conn, [user_id]) if user_id else {}
+            )
+            resolved_household_user_ids = self._resolve_household_user_ids(
+                conn, household_user_ids
+            )
+            household_stats = self._weighted_muscle_group_aggregates(
+                conn, resolved_household_user_ids
+            )
+
+            rows = conn.execute(
+                """
+                SELECT
+                    id, name_en, name_de, description, icon, body_region,
+                    enabled, sort_order, created_at, updated_at
+                FROM muscle_groups
+                ORDER BY enabled DESC, sort_order ASC, name_en COLLATE NOCASE ASC, id ASC
+                """
+            ).fetchall()
+            result: list[dict[str, Any]] = []
+            for row in rows:
+                if row is None:
+                    continue
+                muscle_group_id = str(row["id"])
+                global_row = global_stats.get(muscle_group_id, _empty_weighted_muscle_aggregate())
+                personal_row = personal_stats.get(muscle_group_id, _empty_weighted_muscle_aggregate())
+                household_row = household_stats.get(muscle_group_id, _empty_weighted_muscle_aggregate())
+                result.append(
+                    {
+                        "muscle_group_id": muscle_group_id,
+                        "name_en": row["name_en"],
+                        "name_de": row["name_de"],
+                        "description": row["description"],
+                        "icon": row["icon"],
+                        "body_region": row["body_region"],
+                        "enabled": int(row["enabled"]) == 1,
+                        "sort_order": int(row["sort_order"]),
+                        "created_at": row["created_at"],
+                        "updated_at": row["updated_at"],
+                        "total_volume": float(global_row["total_volume"]),
+                        "total_sets": int(global_row["total_sets"]),
+                        "last_used": global_row["last_used"],
+                        "top_exercise": global_row["top_exercise"],
+                        "personal_volume": float(personal_row["total_volume"]),
+                        "personal_sets": int(personal_row["total_sets"]),
+                        "personal_last_used": personal_row["last_used"],
+                        "personal_top_exercise": personal_row["top_exercise"],
+                        "household_volume": float(household_row["total_volume"]),
+                        "household_sets": int(household_row["total_sets"]),
+                        "household_last_used": household_row["last_used"],
+                        "household_top_exercise": household_row["top_exercise"],
+                    }
+                )
+            return result
+
     def _get_household_total_volume(self, user_ids: list[str] | None) -> float:
         with self._connect() as conn:
             resolved = self._resolve_household_user_ids(conn, user_ids)
@@ -1174,6 +1648,135 @@ class HAFitnessStore:
             )
         conn.commit()
 
+    def _seed_default_muscle_groups(self, conn: sqlite3.Connection) -> None:
+        now = _isoformat(datetime.now(timezone.utc))
+        for item in DEFAULT_MUSCLE_GROUPS:
+            conn.execute(
+                """
+                INSERT INTO muscle_groups(
+                    id, name_en, name_de, description, icon, body_region,
+                    enabled, sort_order, created_at, updated_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO NOTHING
+                """,
+                (
+                    str(item["id"]),
+                    str(item["name_en"]),
+                    item.get("name_de"),
+                    item.get("description"),
+                    item.get("icon"),
+                    item.get("body_region"),
+                    1 if bool(item.get("enabled", True)) else 0,
+                    int(item.get("sort_order", 100)),
+                    now,
+                    now,
+                ),
+            )
+        self._seed_default_exercise_muscle_groups(conn, now)
+        conn.commit()
+
+    def _seed_default_exercise_muscle_groups(
+        self, conn: sqlite3.Connection, now: str
+    ) -> None:
+        for exercise_id, mappings in DEFAULT_EXERCISE_MUSCLE_GROUP_MAP.items():
+            for mapping in mappings:
+                role = _normalize_muscle_role(str(mapping.get("role") or MUSCLE_ROLE_PRIMARY))
+                weight_factor = _resolve_weight_factor(
+                    role, float(mapping.get("weight_factor", 1.0))
+                )
+                conn.execute(
+                    """
+                    INSERT INTO exercise_muscle_groups(
+                        exercise_id, muscle_group_id, role, weight_factor, created_at, updated_at
+                    )
+                    VALUES(?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(exercise_id, muscle_group_id) DO NOTHING
+                    """,
+                    (
+                        exercise_id,
+                        str(mapping["muscle_group_id"]),
+                        role,
+                        weight_factor,
+                        now,
+                        now,
+                    ),
+                )
+
+    def _weighted_muscle_group_aggregates(
+        self, conn: sqlite3.Connection, user_ids: list[str] | None
+    ) -> dict[str, dict[str, Any]]:
+        sql = """
+            SELECT
+                emg.muscle_group_id AS muscle_group_id,
+                COALESCE(SUM(sl.volume * emg.weight_factor), 0) AS total_volume,
+                COUNT(sl.id) AS total_sets,
+                MAX(sl.created_at) AS last_used
+            FROM exercise_muscle_groups emg
+            LEFT JOIN set_logs sl ON sl.exercise_id = emg.exercise_id
+        """
+        params: tuple[Any, ...] = ()
+        if user_ids is not None:
+            if not user_ids:
+                return {}
+            placeholders = ",".join("?" for _ in user_ids)
+            sql += f" AND sl.user_id IN ({placeholders})"
+            params = tuple(user_ids)
+        sql += " GROUP BY emg.muscle_group_id"
+        rows = conn.execute(sql, params).fetchall()
+
+        result: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            if row is None or row["muscle_group_id"] is None:
+                continue
+            muscle_group_id = str(row["muscle_group_id"])
+            result[muscle_group_id] = {
+                "total_volume": float(row["total_volume"]),
+                "total_sets": int(row["total_sets"]),
+                "last_used": row["last_used"],
+                "top_exercise": self._top_exercise_for_muscle_group(
+                    conn, muscle_group_id, user_ids
+                ),
+            }
+        return result
+
+    def _top_exercise_for_muscle_group(
+        self, conn: sqlite3.Connection, muscle_group_id: str, user_ids: list[str] | None
+    ) -> dict[str, Any] | None:
+        sql = """
+            SELECT
+                emg.exercise_id AS exercise_id,
+                ex.name_en AS name_en,
+                ex.name_de AS name_de,
+                COALESCE(SUM(sl.volume * emg.weight_factor), 0) AS weighted_volume
+            FROM exercise_muscle_groups emg
+            LEFT JOIN set_logs sl ON sl.exercise_id = emg.exercise_id
+            LEFT JOIN exercises ex ON ex.id = emg.exercise_id
+            WHERE emg.muscle_group_id = ?
+        """
+        params: list[Any] = [muscle_group_id]
+        if user_ids is not None:
+            if not user_ids:
+                return None
+            placeholders = ",".join("?" for _ in user_ids)
+            sql += f" AND sl.user_id IN ({placeholders})"
+            params.extend(user_ids)
+        sql += """
+            GROUP BY emg.exercise_id, ex.name_en, ex.name_de
+            HAVING COALESCE(SUM(sl.volume * emg.weight_factor), 0) > 0
+            ORDER BY weighted_volume DESC, emg.exercise_id ASC
+            LIMIT 1
+        """
+        row = conn.execute(sql, tuple(params)).fetchone()
+        if row is None or row["exercise_id"] is None:
+            return None
+        return {
+            "exercise_id": row["exercise_id"],
+            "name_en": row["name_en"],
+            "name_de": row["name_de"],
+            "weighted_volume": float(row["weighted_volume"]),
+        }
+
     def _resolve_household_user_ids(
         self, conn: sqlite3.Connection, user_ids: list[str] | None
     ) -> list[str]:
@@ -1280,6 +1883,35 @@ def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
 def _empty_exercise_aggregate() -> dict[str, float | int]:
     """Return zero-valued aggregate metrics for exercises without logged sets."""
     return {"total_volume": 0.0, "total_sets": 0, "pr": 0.0}
+
+
+def _empty_weighted_muscle_aggregate() -> dict[str, Any]:
+    """Return zero-valued aggregate metrics for muscle groups without logged sets."""
+    return {
+        "total_volume": 0.0,
+        "total_sets": 0,
+        "last_used": None,
+        "top_exercise": None,
+    }
+
+
+def _normalize_muscle_role(role: str) -> str:
+    """Normalize mapping role to one of the supported role values."""
+    normalized = role.strip().lower()
+    if normalized in (MUSCLE_ROLE_PRIMARY, MUSCLE_ROLE_SECONDARY, MUSCLE_ROLE_STABILIZER):
+        return normalized
+    return MUSCLE_ROLE_PRIMARY
+
+
+def _resolve_weight_factor(role: str, weight_factor: float) -> float:
+    """Normalize mapping weight factor and apply role defaults for invalid values."""
+    try:
+        resolved = float(weight_factor)
+    except (TypeError, ValueError):
+        resolved = DEFAULT_MUSCLE_ROLE_WEIGHT_FACTORS.get(role, 1.0)
+    if resolved <= 0:
+        return DEFAULT_MUSCLE_ROLE_WEIGHT_FACTORS.get(role, 1.0)
+    return resolved
 
 
 def _isoformat(value: datetime) -> str:

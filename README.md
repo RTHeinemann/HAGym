@@ -60,6 +60,7 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - `select.ha_fitness_active_equipment` – equipment/station selector for exercise filtering
 - integration options UI for exercise catalog management (add/edit/disable/re-enable)
 - equipment catalog options UI (add/edit/disable/assign exercises)
+- muscle group catalog options UI (add/edit/disable/assign to exercises)
 - `number.ha_fitness_weight` and `number.ha_fitness_reps` – set input controls
 - `text.ha_fitness_notes` – optional per-set notes
 - `button.ha_fitness_save_set` – saves the current set with validation
@@ -72,6 +73,9 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - generic equipment sensors:
   - `sensor.ha_fitness_equipment_catalog`
   - `sensor.ha_fitness_equipment_statistics`
+- generic muscle group statistics sensor:
+  - `sensor.ha_fitness_muscle_group_statistics`
+- per-muscle-group Home Assistant devices and sensors (enabled groups only)
 - per-exercise PR sensors and volume-total sensors
 - recent sets sensor for dashboard history attributes
 - improved `ha_fitness.save_set` service with implicit workout fallback
@@ -83,6 +87,12 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 
 - Main device (**HAGym**) contains global controls and overview sensors.
 - Equipment-specific entities are assigned only to their equipment devices.
+- Exercise-specific entities are assigned only to their exercise devices.
+- Muscle-group-specific entities are assigned only to their muscle group devices.
+- Relationship model: **Equipment -> Exercise -> Muscle Groups**
+  - Equipment filters the available exercises.
+  - Exercises define trained muscle groups via weighted mappings.
+  - Set logs remain stored on `equipment_id` + `exercise_id`; muscle stats are derived from those logs.
 - Integration entity count can still be high because Home Assistant counts entities across all devices.
 - Older duplicate entities from previous versions can remain in the entity registry as unavailable entries.
   - Remove these in the Home Assistant UI if needed.
@@ -143,6 +153,7 @@ Planned model fields:
 - [`docs/STORAGE.md`](docs/STORAGE.md)
 - [`docs/EXERCISES.md`](docs/EXERCISES.md)
 - [`docs/EQUIPMENT.md`](docs/EQUIPMENT.md)
+- [`docs/MUSCLE_GROUPS.md`](docs/MUSCLE_GROUPS.md)
 - [`docs/HACS_PREPARATION.md`](docs/HACS_PREPARATION.md)
 - [`docs/HACS_INSTALLATION.md`](docs/HACS_INSTALLATION.md)
 - [`docs/MIGRATION_FROM_YAML_TO_INTEGRATION.md`](docs/MIGRATION_FROM_YAML_TO_INTEGRATION.md)

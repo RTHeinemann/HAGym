@@ -6,13 +6,15 @@ import sqlite3
 
 from .const import (
     DEFAULT_EQUIPMENT,
+    DEFAULT_EXERCISE_MUSCLE_GROUP_MAP,
     DEFAULT_EXERCISE_EQUIPMENT_MAP,
     DEFAULT_EXERCISES,
+    DEFAULT_MUSCLE_GROUPS,
     LEGACY_USER_ID,
     LEGACY_USER_NAME,
 )
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -43,6 +45,10 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 4:
         _apply_v4(conn)
+        current_version = 4
+
+    if current_version < 5:
+        _apply_v5(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -330,9 +336,102 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
         "set_logs": "PRAGMA table_info(set_logs)",
         "exercises": "PRAGMA table_info(exercises)",
         "equipment": "PRAGMA table_info(equipment)",
+        "muscle_groups": "PRAGMA table_info(muscle_groups)",
+        "exercise_muscle_groups": "PRAGMA table_info(exercise_muscle_groups)",
     }
     pragma_sql = pragma_sql_by_table.get(table)
     if pragma_sql is None:
         raise ValueError(f"Unsupported table for schema inspection: {table}")
     rows = conn.execute(pragma_sql).fetchall()
     return any(row["name"] == column for row in rows)
+
+
+def _apply_v5(conn: sqlite3.Connection) -> None:
+    """Add muscle group catalog and exercise-to-muscle mapping relations."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS muscle_groups (
+            id TEXT PRIMARY KEY,
+            name_en TEXT NOT NULL,
+            name_de TEXT,
+            description TEXT,
+            icon TEXT,
+            body_region TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS exercise_muscle_groups (
+            exercise_id TEXT NOT NULL,
+            muscle_group_id TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'primary',
+            weight_factor REAL NOT NULL DEFAULT 1.0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (exercise_id, muscle_group_id)
+        );
+        """
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    for group in DEFAULT_MUSCLE_GROUPS:
+        conn.execute(
+            """
+            INSERT INTO muscle_groups(
+                id, name_en, name_de, description, icon, body_region, enabled, sort_order, created_at, updated_at
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO NOTHING
+            """,
+            (
+                str(group["id"]),
+                str(group["name_en"]),
+                group.get("name_de"),
+                group.get("description"),
+                group.get("icon"),
+                group.get("body_region"),
+                1 if bool(group.get("enabled", True)) else 0,
+                int(group.get("sort_order", 100)),
+                now,
+                now,
+            ),
+        )
+
+    for exercise_id, mappings in DEFAULT_EXERCISE_MUSCLE_GROUP_MAP.items():
+        for mapping in mappings:
+            conn.execute(
+                """
+                INSERT INTO exercise_muscle_groups(
+                    exercise_id, muscle_group_id, role, weight_factor, created_at, updated_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?)
+                ON CONFLICT(exercise_id, muscle_group_id) DO NOTHING
+                """,
+                (
+                    exercise_id,
+                    str(mapping["muscle_group_id"]),
+                    str(mapping.get("role") or "primary"),
+                    float(mapping.get("weight_factor", 1.0)),
+                    now,
+                    now,
+                ),
+            )
+
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_muscle_groups_enabled_sort_order
+            ON muscle_groups(enabled, sort_order, name_en);
+        CREATE INDEX IF NOT EXISTS idx_exercise_muscle_groups_exercise_id
+            ON exercise_muscle_groups(exercise_id);
+        CREATE INDEX IF NOT EXISTS idx_exercise_muscle_groups_muscle_group_id
+            ON exercise_muscle_groups(muscle_group_id);
+        """
+    )
+
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (5, now),
+    )

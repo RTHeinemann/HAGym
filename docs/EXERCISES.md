@@ -24,6 +24,19 @@ Table: `exercises`
 
 `set_logs` also contains nullable `exercise_id` for backward compatibility.
 
+## Relationship Model
+
+HAGym uses this hierarchy:
+
+- Equipment -> Exercise -> Muscle Groups
+
+Important constraints:
+
+- Equipment does not directly map to muscle groups.
+- Exercises can be mapped to one or more muscle groups with a role and weight factor.
+- Logged sets stay linked to `equipment_id` and `exercise_id`.
+- Muscle-group statistics are derived from set logs via exercise-to-muscle mappings.
+
 ## Default Exercise IDs
 
 - `bench_press` – Bench Press / Bankdrücken (`chest`)
@@ -54,6 +67,7 @@ You can manage exercises directly in Home Assistant:
    - **Edit exercise**
    - **Disable / enable exercise**
    - **Assign exercises** (equipment mapping)
+   - **Manage muscle groups** -> **Assign muscle groups to exercise**
 
 The integration still exposes services:
 

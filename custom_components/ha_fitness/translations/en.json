@@ -67,14 +67,19 @@
         "menu_options": {
           "configure_household_users": "Configure household users",
           "manage_exercises": "Manage exercises",
+          "manage_equipment": "Manage equipment",
+          "manage_muscle_groups": "Manage muscle groups",
           "add_exercise": "Add exercise",
           "edit_exercise_select": "Edit exercise",
           "toggle_exercise_select": "Disable / enable exercise",
-          "manage_equipment": "Manage equipment",
           "add_equipment": "Add equipment",
           "edit_equipment_select": "Edit equipment",
           "toggle_equipment_select": "Disable / enable equipment",
-          "assign_exercises_select_equipment": "Assign exercises"
+          "assign_exercises_select_equipment": "Assign exercises",
+          "add_muscle_group": "Add muscle group",
+          "edit_muscle_group_select": "Edit muscle group",
+          "toggle_muscle_group_select": "Disable / enable muscle group",
+          "assign_muscle_groups_select_exercise": "Assign muscle groups to exercise"
         }
       },
       "manage_exercises": {
@@ -84,9 +89,10 @@
           "add_exercise": "Add exercise",
           "edit_exercise_select": "Edit exercise",
           "toggle_exercise_select": "Disable / enable exercise",
-          "init": "Back to options menu",
           "assign_exercises_select_equipment": "Assign exercises",
-          "manage_equipment": "Manage equipment"
+          "manage_equipment": "Manage equipment",
+          "manage_muscle_groups": "Manage muscle groups",
+          "init": "Back to options menu"
         }
       },
       "configure_household_users": {
@@ -153,6 +159,20 @@
           "toggle_equipment_select": "Disable / enable equipment",
           "assign_exercises_select_equipment": "Assign exercises",
           "manage_exercises": "Manage exercises",
+          "manage_muscle_groups": "Manage muscle groups",
+          "init": "Back to options menu"
+        }
+      },
+      "manage_muscle_groups": {
+        "title": "Manage muscle groups",
+        "description": "Add, edit, disable, or assign muscle groups to exercises.",
+        "menu_options": {
+          "add_muscle_group": "Add muscle group",
+          "edit_muscle_group_select": "Edit muscle group",
+          "toggle_muscle_group_select": "Disable / enable muscle group",
+          "assign_muscle_groups_select_exercise": "Assign muscle groups to exercise",
+          "manage_exercises": "Manage exercises",
+          "manage_equipment": "Manage equipment",
           "init": "Back to options menu"
         }
       },
@@ -215,6 +235,82 @@
         "data": {
           "exercise_id": "Exercises"
         }
+      },
+      "add_muscle_group": {
+        "title": "Add muscle group",
+        "description": "Create a new muscle group id. IDs are normalized to lowercase and '-' is converted to '_'.",
+        "data": {
+          "muscle_group_id": "Muscle group ID",
+          "name_en": "Name (English)",
+          "name_de": "Name (German)",
+          "description": "Description",
+          "icon": "Icon",
+          "body_region": "Body region",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
+      },
+      "edit_muscle_group_select": {
+        "title": "Select muscle group to edit",
+        "description": "Select a muscle group from the catalog (including disabled entries).",
+        "data": {
+          "muscle_group_id": "Muscle group"
+        }
+      },
+      "edit_muscle_group": {
+        "title": "Edit muscle group",
+        "description": "Editing muscle group: {muscle_group_id}",
+        "data": {
+          "name_en": "Name (English)",
+          "name_de": "Name (German)",
+          "description": "Description",
+          "icon": "Icon",
+          "body_region": "Body region",
+          "sort_order": "Sort order",
+          "enabled": "Enabled"
+        }
+      },
+      "toggle_muscle_group_select": {
+        "title": "Select muscle group to toggle",
+        "description": "Select a muscle group to disable or re-enable.",
+        "data": {
+          "muscle_group_id": "Muscle group"
+        }
+      },
+      "toggle_muscle_group_confirm": {
+        "title": "Confirm muscle group toggle",
+        "description": "{muscle_group_name} ({muscle_group_id}) is currently {status}. Confirm to {action} this muscle group.",
+        "data": {
+          "confirm": "Confirm"
+        }
+      },
+      "assign_muscle_groups_select_exercise": {
+        "title": "Select exercise",
+        "description": "Select an exercise for muscle group assignment.",
+        "data": {
+          "exercise_id": "Exercise"
+        }
+      },
+      "assign_muscle_groups_select_primary": {
+        "title": "Select primary muscle groups",
+        "description": "Select primary muscle groups for exercise {exercise_id}.",
+        "data": {
+          "muscle_group_id": "Primary muscle groups"
+        }
+      },
+      "assign_muscle_groups_select_secondary": {
+        "title": "Select secondary muscle groups",
+        "description": "Select secondary muscle groups for exercise {exercise_id}.",
+        "data": {
+          "muscle_group_id": "Secondary muscle groups"
+        }
+      },
+      "assign_muscle_groups_select_stabilizer": {
+        "title": "Select stabilizer muscle groups",
+        "description": "Select stabilizer muscle groups for exercise {exercise_id}.",
+        "data": {
+          "muscle_group_id": "Stabilizer muscle groups"
+        }
       }
     },
     "error": {
@@ -226,14 +322,19 @@
       "coordinator_unavailable": "Integration data is not ready yet. Please try again.",
       "invalid_equipment_id": "Equipment ID must contain only lowercase letters, numbers, or underscore.",
       "equipment_exists": "Equipment already exists.",
-      "equipment_not_found": "Equipment not found."
+      "equipment_not_found": "Equipment not found.",
+      "invalid_muscle_group_id": "Muscle group ID must contain only lowercase letters, numbers, or underscore.",
+      "muscle_group_exists": "Muscle group already exists.",
+      "muscle_group_not_found": "Muscle group not found."
     },
     "abort": {
       "exercise_not_found": "Exercise not found.",
       "coordinator_unavailable": "Integration data is not ready yet. Please try again.",
       "equipment_not_found": "Equipment not found.",
+      "muscle_group_not_found": "Muscle group not found.",
       "exercise_catalog_empty": "No exercises available in the catalog yet.",
       "equipment_catalog_empty": "No equipment available in the catalog yet.",
+      "muscle_group_catalog_empty": "No muscle groups available in the catalog yet.",
       "options_flow_error": "The options flow failed to load. Please check integration logs."
     }
   },
@@ -473,6 +574,15 @@
       },
       "equipment_statistics": {
         "name": "Equipment Statistics"
+      },
+      "muscle_group_statistics": {
+        "name": "Muscle Group Statistics"
+      },
+      "last_used": {
+        "name": "Last Used"
+      },
+      "top_exercise": {
+        "name": "Top Exercise"
       }
     },
     "button": {
@@ -593,6 +703,26 @@
           "description": "Optional equipment id. Empty means show all exercises."
         }
       }
+    },
+    "add_muscle_group": {
+      "name": "Add Muscle Group",
+      "description": "Adds or reactivates a muscle group in the SQLite catalog and refreshes muscle group statistics."
+    },
+    "update_muscle_group": {
+      "name": "Update Muscle Group",
+      "description": "Updates muscle group metadata by muscle_group_id and refreshes muscle group statistics."
+    },
+    "disable_muscle_group": {
+      "name": "Disable Muscle Group",
+      "description": "Disables a muscle group by muscle_group_id so it no longer appears in active muscle group options."
+    },
+    "assign_muscle_group_to_exercise": {
+      "name": "Assign Muscle Group to Exercise",
+      "description": "Assigns one muscle group to one exercise with role and weight factor."
+    },
+    "refresh_muscle_groups": {
+      "name": "Refresh Muscle Groups",
+      "description": "Refreshes muscle group catalog and derived muscle group statistics."
     }
   }
 }

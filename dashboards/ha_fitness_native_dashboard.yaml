@@ -133,3 +133,50 @@ views:
         entities:
           - entity: sensor.ha_fitness_equipment_catalog
           - entity: sensor.ha_fitness_equipment_statistics
+
+      - type: entities
+        title: Muscle Group Statistics (Aggregate)
+        entities:
+          - entity: sensor.ha_fitness_muscle_group_statistics
+
+      - type: markdown
+        title: Muscle Group Volume Overview
+        content: >-
+          {% set rows = state_attr('sensor.ha_fitness_muscle_group_statistics',
+          'by_muscle_group') or [] %}
+          {% for row in rows | sort(attribute='total_volume', reverse=true) %}
+          - **{{ row.name_de or row.name_en or row.muscle_group_id }}**:
+          {{ (row.total_volume | float(0)) | round(1) }} kg
+          {% endfor %}
+
+      - type: markdown
+        title: Personal Muscle Group Volume
+        content: >-
+          {% set rows = state_attr('sensor.ha_fitness_muscle_group_statistics',
+          'by_muscle_group') or [] %}
+          {% for row in rows | sort(attribute='personal_volume', reverse=true) %}
+          - **{{ row.name_de or row.name_en or row.muscle_group_id }}**:
+          {{ (row.personal_volume | float(0)) | round(1) }} kg
+          {% endfor %}
+
+      - type: markdown
+        title: Household Muscle Group Volume
+        content: >-
+          {% set rows = state_attr('sensor.ha_fitness_muscle_group_statistics',
+          'by_muscle_group') or [] %}
+          {% for row in rows | sort(attribute='household_volume', reverse=true) %}
+          - **{{ row.name_de or row.name_en or row.muscle_group_id }}**:
+          {{ (row.household_volume | float(0)) | round(1) }} kg
+          {% endfor %}
+
+      - type: markdown
+        title: Top Loaded Muscle Groups
+        content: >-
+          {% set rows = state_attr('sensor.ha_fitness_muscle_group_statistics',
+          'by_muscle_group') or [] %}
+          {% for row in (rows | sort(attribute='total_volume',
+          reverse=true))[:5] %}
+          - **{{ loop.index }}. {{ row.name_de or row.name_en or
+          row.muscle_group_id }}** ({{
+          (row.total_volume | float(0)) | round(1) }} kg)
+          {% endfor %}
