@@ -8,9 +8,17 @@
           "display_name": "Display Name"
         }
       },
+      "add_shortcut": {
+        "title": "Add to HAGym",
+        "description": "Choose what you want to add.",
+        "menu_options": {
+          "add_equipment": "Add device",
+          "add_exercise": "Add exercise"
+        }
+      },
       "add_equipment": {
-        "title": "Add Fitness Equipment",
-        "description": "Add a global fitness equipment device to HAGym. Equipment is shared across all household users. After saving, the integration will reload to create the new HA device and entities.",
+        "title": "Add device",
+        "description": "Add a global fitness equipment device to HAGym. Devices are shared across all household users. After saving, the integration will reload to create the new HA device and entities.",
         "data": {
           "equipment_id": "Equipment ID",
           "name": "Name",
@@ -20,17 +28,34 @@
           "sort_order": "Sort order",
           "enabled": "Enabled"
         }
+      },
+      "add_exercise": {
+        "title": "Add exercise",
+        "description": "Create a new exercise. The ID is normalized to lowercase, with spaces and hyphens converted to underscores.",
+        "data": {
+          "exercise_id": "Exercise ID",
+          "name_en": "Name (English)",
+          "name_de": "Name (German)",
+          "muscle_group": "Muscle group",
+          "equipment": "Equipment",
+          "sort_order": "Sort order",
+          "enabled": "Enabled",
+          "equipment_id": "Equipment ID"
+        }
       }
     },
     "error": {
       "invalid_equipment_id": "Equipment ID must contain only lowercase letters, numbers, or underscores. Spaces and hyphens are converted automatically.",
       "equipment_exists": "An equipment entry with this ID already exists.",
+      "invalid_exercise_id": "Exercise ID must contain only lowercase letters, numbers, or underscores. Spaces and hyphens are converted automatically.",
+      "exercise_exists": "An exercise with this ID already exists.",
       "name_required": "Name must not be empty.",
       "invalid_sort_order": "Sort order must be a whole number.",
       "unknown_error": "An unexpected error occurred. Please check the integration logs."
     },
     "abort": {
-      "equipment_added_reload_required": "Fitness equipment was added successfully. HAGym is reloading — the new device and entities will appear shortly.",
+      "equipment_added_reload_required": "Device was added successfully. HAGym is reloading — the new device and entities will appear shortly.",
+      "exercise_added_reload_required": "Exercise was added successfully. HAGym is reloading — the new exercise device and entities will appear shortly.",
       "unknown": "An unexpected error occurred loading the config flow."
     }
   },

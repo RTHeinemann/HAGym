@@ -8,9 +8,17 @@
           "display_name": "Anzeigename"
         }
       },
+      "add_shortcut": {
+        "title": "Zu HAGym hinzufügen",
+        "description": "Wähle aus, was du hinzufügen möchtest.",
+        "menu_options": {
+          "add_equipment": "Gerät hinzufügen",
+          "add_exercise": "Übung hinzufügen"
+        }
+      },
       "add_equipment": {
-        "title": "Fitnessgerät hinzufügen",
-        "description": "Füge ein globales Trainingsgerät zur HAGym Integration hinzu. Equipment ist für alle Haushaltsbenutzer sichtbar. Nach dem Speichern wird die Integration neu geladen, um das neue HA-Gerät und die Entitäten zu erstellen.",
+        "title": "Gerät hinzufügen",
+        "description": "Füge ein globales Trainingsgerät zur HAGym Integration hinzu. Geräte sind für alle Haushaltsbenutzer sichtbar. Nach dem Speichern wird die Integration neu geladen, um das neue HA-Gerät und die Entitäten zu erstellen.",
         "data": {
           "equipment_id": "Equipment-ID",
           "name": "Name",
@@ -20,17 +28,34 @@
           "sort_order": "Sortierreihenfolge",
           "enabled": "Aktiv"
         }
+      },
+      "add_exercise": {
+        "title": "Übung hinzufügen",
+        "description": "Lege eine neue Übung an. Die ID wird kleingeschrieben, Leerzeichen und Bindestriche werden zu Unterstrichen.",
+        "data": {
+          "exercise_id": "Übungs-ID",
+          "name_en": "Name (Englisch)",
+          "name_de": "Name (Deutsch)",
+          "muscle_group": "Muskelgruppe",
+          "equipment": "Equipment",
+          "sort_order": "Sortierreihenfolge",
+          "enabled": "Aktiv",
+          "equipment_id": "Equipment-ID"
+        }
       }
     },
     "error": {
       "invalid_equipment_id": "Die Equipment-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten. Leerzeichen und Bindestriche werden automatisch umgewandelt.",
       "equipment_exists": "Ein Equipment-Eintrag mit dieser ID existiert bereits.",
+      "invalid_exercise_id": "Die Übungs-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten. Leerzeichen und Bindestriche werden automatisch umgewandelt.",
+      "exercise_exists": "Eine Übung mit dieser ID existiert bereits.",
       "name_required": "Der Name darf nicht leer sein.",
       "invalid_sort_order": "Die Sortierreihenfolge muss eine ganze Zahl sein.",
       "unknown_error": "Ein unerwarteter Fehler ist aufgetreten. Bitte die Integrationsprotokolle prüfen."
     },
     "abort": {
-      "equipment_added_reload_required": "Fitnessgerät wurde erfolgreich hinzugefügt. HAGym wird neu geladen — das neue Gerät und die Entitäten erscheinen in Kürze.",
+      "equipment_added_reload_required": "Gerät wurde erfolgreich hinzugefügt. HAGym wird neu geladen — das neue Gerät und die Entitäten erscheinen in Kürze.",
+      "exercise_added_reload_required": "Übung wurde erfolgreich hinzugefügt. HAGym wird neu geladen — das neue Übungsgerät und die Entitäten erscheinen in Kürze.",
       "unknown": "Beim Laden des Konfigurationsflusses ist ein unerwarteter Fehler aufgetreten."
     }
   },

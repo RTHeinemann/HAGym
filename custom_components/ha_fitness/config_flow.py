@@ -76,13 +76,13 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step.
 
-        If HAGym is already configured, redirect to adding equipment
-        instead of creating a second independent entry.
+        If HAGym is already configured, offer direct add shortcuts instead
+        of creating a second independent entry.
         """
         try:
             existing = self._async_current_entries()
             if existing:
-                return await self.async_step_add_equipment(None)
+                return await self.async_step_add_shortcut()
         except Exception:
             _LOGGER.exception("HAGym config flow user step failed")
             return self.async_abort(reason="unknown")
@@ -220,6 +220,188 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         else _DEFAULT_SORT_ORDER,
                     ): NumberSelector(
                         NumberSelectorConfig(min=0, max=9999, step=1, mode="box")
+                    ),
+                    vol.Optional(
+                        ATTR_ENABLED,
+                        default=bool(user_input.get(ATTR_ENABLED, True))
+                        if user_input
+                        else True,
+                    ): bool,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_add_shortcut(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Offer direct add shortcuts for an existing HAGym entry."""
+        if not self._async_current_entries():
+            return await self.async_step_user(user_input)
+
+        return self.async_show_menu(
+            step_id="add_shortcut",
+            menu_options=["add_equipment", "add_exercise"],
+        )
+
+    async def async_step_add_exercise(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Add a fitness exercise device when HAGym is already configured."""
+        errors: dict[str, str] = {}
+
+        existing_entries = self._async_current_entries()
+        if not existing_entries:
+            return await self.async_step_user(user_input)
+
+        entry = existing_entries[0]
+        coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id)
+
+        if user_input is not None:
+            try:
+                normalized_exercise_id = _normalize_exercise_id(
+                    str(user_input.get(ATTR_EXERCISE_ID, ""))
+                )
+                name_en = str(user_input.get(ATTR_NAME_EN, "")).strip()
+                name_de = _optional_str(user_input.get(ATTR_NAME_DE))
+                muscle_group = _optional_str(user_input.get(ATTR_MUSCLE_GROUP))
+                equipment = _optional_str(user_input.get(ATTR_EQUIPMENT))
+                equipment_id = _optional_str(user_input.get(ATTR_EQUIPMENT_ID))
+                enabled = bool(user_input.get(ATTR_ENABLED, True))
+                sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+                sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
+
+                if not normalized_exercise_id:
+                    errors[ATTR_EXERCISE_ID] = "invalid_exercise_id"
+                elif (
+                    coordinator is not None
+                    and coordinator.get_exercise(normalized_exercise_id)
+                ):
+                    errors[ATTR_EXERCISE_ID] = "exercise_exists"
+                elif normalized_exercise_id and coordinator is None:
+                    store_check = HAFitnessStore(self.hass)
+                    await store_check.async_initialize()
+                    if (
+                        await store_check.async_get_exercise(normalized_exercise_id)
+                        is not None
+                    ):
+                        errors[ATTR_EXERCISE_ID] = "exercise_exists"
+
+                if not name_en:
+                    errors[ATTR_NAME_EN] = "name_required"
+                if not _is_valid_sort_order_input(sort_order_raw):
+                    errors[ATTR_SORT_ORDER] = "invalid_sort_order"
+
+                if not errors:
+                    if coordinator is not None:
+                        await coordinator.async_add_exercise(
+                            exercise_id=normalized_exercise_id,
+                            name_en=name_en,
+                            name_de=name_de,
+                            muscle_group=muscle_group,
+                            equipment=equipment,
+                            equipment_id=equipment_id,
+                            enabled=enabled,
+                            sort_order=sort_order,
+                        )
+                    else:
+                        store = HAFitnessStore(self.hass)
+                        await store.async_initialize()
+                        await store.async_add_exercise(
+                            exercise_id=normalized_exercise_id,
+                            name_en=name_en,
+                            name_de=name_de,
+                            muscle_group=muscle_group,
+                            equipment=equipment,
+                            equipment_id=equipment_id,
+                            enabled=enabled,
+                            sort_order=sort_order,
+                        )
+
+                    self.hass.async_create_task(
+                        self.hass.config_entries.async_reload(entry.entry_id)
+                    )
+                    return self.async_abort(reason="exercise_added_reload_required")
+            except Exception:
+                _LOGGER.exception("HAGym add_exercise config flow step failed")
+                errors["base"] = "unknown_error"
+
+        return self.async_show_form(
+            step_id="add_exercise",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        ATTR_EXERCISE_ID,
+                        default=str(user_input.get(ATTR_EXERCISE_ID, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Required(
+                        ATTR_NAME_EN,
+                        default=str(user_input.get(ATTR_NAME_EN, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_NAME_DE,
+                        default=str(user_input.get(ATTR_NAME_DE, ""))
+                        if user_input
+                        else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_MUSCLE_GROUP,
+                        default=str(user_input.get(ATTR_MUSCLE_GROUP, ""))
+                        if user_input
+                        else "",
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=_selector_options(_MUSCLE_GROUP_OPTIONS),
+                            mode="dropdown",
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Optional(
+                        ATTR_EQUIPMENT,
+                        default=str(user_input.get(ATTR_EQUIPMENT, ""))
+                        if user_input
+                        else "",
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=_selector_options(_EQUIPMENT_OPTIONS),
+                            mode="dropdown",
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Optional(
+                        ATTR_EQUIPMENT_ID,
+                        default=str(user_input.get(ATTR_EQUIPMENT_ID, ""))
+                        if user_input
+                        else "",
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=_selector_options_from_rows(
+                                coordinator.get_equipment_options(
+                                    include_disabled=False
+                                )
+                            )
+                            if coordinator
+                            else [],
+                            mode="dropdown",
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Optional(
+                        ATTR_SORT_ORDER,
+                        default=user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
+                        if user_input
+                        else _DEFAULT_SORT_ORDER,
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0,
+                            max=9999,
+                            step=1,
+                            mode="box",
+                        )
                     ),
                     vol.Optional(
                         ATTR_ENABLED,
