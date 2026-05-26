@@ -21,6 +21,10 @@ Set logs remain stored with:
 
 Muscle-group statistics are derived from those logs using exercise mappings.
 
+Weekly muscle-group analytics follow the same derivation and compute weighted volume per mapping:
+
+- `weighted_volume = set_logs.volume * exercise_muscle_groups.weight_factor`
+
 ## Tables
 
 ### `muscle_groups`
@@ -79,3 +83,4 @@ Scopes:
 - They are not medical or biomechanical exact values.
 - Equipment, exercises, and muscle groups are global catalogs.
 - Logs and personal statistics remain user-specific.
+- Personal analytics resolve to the active/selected Home Assistant user context.

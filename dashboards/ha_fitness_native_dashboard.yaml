@@ -50,6 +50,23 @@ views:
           - entity: sensor.ha_fitness_personal_total_workouts
 
       - type: entities
+        title: Weekly Analytics
+        entities:
+          - entity: sensor.ha_fitness_personal_weekly_summary
+          - entity: sensor.ha_fitness_household_weekly_summary
+          - entity: sensor.ha_fitness_personal_training_balance
+          - entity: sensor.ha_fitness_personal_weekly_exercise_statistics
+          - entity: sensor.ha_fitness_personal_weekly_muscle_group_statistics
+
+      - type: markdown
+        title: Weekly Tops
+        content: >-
+          {% set w = state_attr('sensor.ha_fitness_personal_weekly_summary', 'top_exercise_name') %}
+          {% set m = state_attr('sensor.ha_fitness_personal_weekly_summary', 'top_muscle_group_name') %}
+          Top exercise: **{{ w or 'n/a' }}**  
+          Top muscle group: **{{ m or 'n/a' }}**
+
+      - type: entities
         title: Household / Family Stats
         entities:
           - entity: sensor.ha_fitness_household_total_volume

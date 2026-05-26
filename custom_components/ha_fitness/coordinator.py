@@ -1,13 +1,14 @@
 """HAGym coordinator."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
 import sqlite3
 from collections.abc import Callable
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -16,6 +17,26 @@ from .const import EXERCISE_IDS, LEGACY_USER_ID, STATE_ACTIVE, STATE_READY
 from .storage import HAFitnessStore
 
 _LOGGER = logging.getLogger(__name__)
+_ANALYTICS_TOP_LIMIT = 20
+_PUSH_MUSCLE_GROUP_IDS = {"chest", "shoulders", "triceps"}
+_PULL_MUSCLE_GROUP_IDS = {
+    "back",
+    "lats",
+    "rhomboids",
+    "traps",
+    "biceps",
+    "forearms",
+    "erector_spinae",
+}
+_LEGS_MUSCLE_GROUP_IDS = {
+    "quadriceps",
+    "hamstrings",
+    "glutes",
+    "calves",
+    "adductors",
+    "abductors",
+}
+_CORE_MUSCLE_GROUP_IDS = {"core", "abs", "obliques"}
 
 
 class HAFitnessCoordinator:
@@ -65,6 +86,11 @@ class HAFitnessCoordinator:
         self._exercise_muscle_group_map_by_exercise: dict[str, list[dict[str, Any]]] = {}
         self._muscle_group_statistics: list[dict[str, Any]] = []
         self._muscle_group_statistics_by_id: dict[str, dict[str, Any]] = {}
+        self._personal_weekly_summary: dict[str, Any] = {}
+        self._personal_weekly_exercise_statistics: dict[str, Any] = {}
+        self._personal_weekly_muscle_group_statistics: dict[str, Any] = {}
+        self._personal_training_balance: dict[str, Any] = {}
+        self._household_weekly_summary: dict[str, Any] = {}
         self._locale: str = str(hass.config.language or "en")
 
         self._pr_by_exercise: dict[str, float] = {exercise_id: 0.0 for exercise_id in EXERCISE_IDS}
@@ -323,6 +349,41 @@ class HAFitnessCoordinator:
 
     def get_household_volume_by_exercise(self, exercise: str) -> float:
         return self._household_volume_by_exercise.get(exercise, 0.0)
+
+    def get_personal_weekly_summary(self) -> dict[str, Any]:
+        return self._personal_weekly_summary
+
+    def get_personal_weekly_exercise_statistics(self) -> dict[str, Any]:
+        return self._personal_weekly_exercise_statistics
+
+    def get_personal_weekly_muscle_group_statistics(self) -> dict[str, Any]:
+        return self._personal_weekly_muscle_group_statistics
+
+    def get_personal_training_balance(self) -> dict[str, Any]:
+        return self._personal_training_balance
+
+    def get_household_weekly_summary(self) -> dict[str, Any]:
+        return self._household_weekly_summary
+
+    def _exercise_name_from_row(self, row: dict[str, Any] | None) -> str | None:
+        if row is None:
+            return None
+        exercise_id = str(row.get("exercise_id") or "").strip()
+        if exercise_id:
+            return self.exercise_display_name(exercise_id)
+        if self._locale.lower().startswith("de"):
+            return str(row.get("name_de") or row.get("name_en") or "") or None
+        return str(row.get("name_en") or row.get("name_de") or "") or None
+
+    def _muscle_group_name_from_row(self, row: dict[str, Any] | None) -> str | None:
+        if row is None:
+            return None
+        muscle_group_id = str(row.get("muscle_group_id") or "").strip()
+        if muscle_group_id:
+            return self.muscle_group_display_name(muscle_group_id)
+        if self._locale.lower().startswith("de"):
+            return str(row.get("name_de") or row.get("name_en") or "") or None
+        return str(row.get("name_en") or row.get("name_de") or "") or None
 
     def exercise_enabled(self, exercise_id: str) -> bool:
         row = self._exercise_by_id.get(exercise_id)
@@ -781,6 +842,273 @@ class HAFitnessCoordinator:
             for row in rows
             if row.get("muscle_group_id")
         }
+        if notify:
+            self._notify_listeners()
+
+    async def async_refresh_weekly_analytics(
+        self,
+        notify: bool = True,
+        *,
+        personal_user_id: str | None = None,
+        household_user_ids: list[str] | None = None,
+    ) -> None:
+        """Refresh current-week aggregate analytics caches."""
+        effective_personal_user_id = personal_user_id or self._resolve_personal_user_id()
+        effective_household_user_ids = household_user_ids or self._included_user_ids
+        timezone_name, week_start_local, week_end_local, week_start_utc, week_end_utc = (
+            _current_week_bounds(self.hass)
+        )
+
+        personal_summary_base = await self._store.async_get_weekly_summary(
+            week_start_utc,
+            week_end_utc,
+            user_id=effective_personal_user_id,
+        )
+        personal_exercises_rows = await self._store.async_get_weekly_exercise_statistics(
+            week_start_utc,
+            week_end_utc,
+            user_id=effective_personal_user_id,
+        )
+        personal_muscle_rows = await self._store.async_get_weekly_muscle_group_statistics(
+            week_start_utc,
+            week_end_utc,
+            user_id=effective_personal_user_id,
+        )
+
+        personal_exercises = _limit_rows(personal_exercises_rows, _ANALYTICS_TOP_LIMIT)
+        personal_muscles = _limit_rows(personal_muscle_rows, _ANALYTICS_TOP_LIMIT)
+        top_personal_exercise = personal_exercises[0] if personal_exercises else None
+        top_personal_muscle = personal_muscles[0] if personal_muscles else None
+
+        self._personal_weekly_summary = {
+            "user_id": effective_personal_user_id,
+            "week_start": week_start_local,
+            "week_end": week_end_local,
+            "timezone": timezone_name,
+            "total_volume": float(personal_summary_base.get("total_volume", 0.0)),
+            "total_sets": int(personal_summary_base.get("total_sets", 0)),
+            "workout_count": int(personal_summary_base.get("workout_count", 0)),
+            "active_days": int(personal_summary_base.get("active_days", 0)),
+            "average_volume_per_workout": _safe_div(
+                float(personal_summary_base.get("total_volume", 0.0)),
+                int(personal_summary_base.get("workout_count", 0)),
+            ),
+            "average_sets_per_workout": _safe_div(
+                int(personal_summary_base.get("total_sets", 0)),
+                int(personal_summary_base.get("workout_count", 0)),
+            ),
+            "top_exercise_id": (
+                str(top_personal_exercise.get("exercise_id"))
+                if top_personal_exercise is not None and top_personal_exercise.get("exercise_id")
+                else None
+            ),
+            "top_exercise_name": (
+                self._exercise_name_from_row(top_personal_exercise)
+                if top_personal_exercise is not None
+                else None
+            ),
+            "top_exercise_volume": float(
+                top_personal_exercise.get("volume", 0.0)
+                if top_personal_exercise is not None
+                else 0.0
+            ),
+            "top_muscle_group_id": (
+                str(top_personal_muscle.get("muscle_group_id"))
+                if top_personal_muscle is not None and top_personal_muscle.get("muscle_group_id")
+                else None
+            ),
+            "top_muscle_group_name": (
+                self._muscle_group_name_from_row(top_personal_muscle)
+                if top_personal_muscle is not None
+                else None
+            ),
+            "top_muscle_group_volume": float(
+                top_personal_muscle.get("volume", 0.0)
+                if top_personal_muscle is not None
+                else 0.0
+            ),
+            "last_set_at": personal_summary_base.get("last_set_at"),
+            "last_workout_at": personal_summary_base.get("last_workout_at"),
+        }
+
+        personal_exercises_payload = [
+            {
+                "exercise_id": row.get("exercise_id"),
+                "exercise_name": self._exercise_name_from_row(row),
+                "volume": float(row.get("volume", 0.0)),
+                "sets": int(row.get("sets", 0)),
+                "max_weight": float(row.get("max_weight", 0.0)),
+                "avg_weight": float(row.get("avg_weight", 0.0)),
+                "avg_reps": float(row.get("avg_reps", 0.0)),
+                "last_used_at": row.get("last_used_at"),
+                "equipment_ids": list(row.get("equipment_ids") or []),
+                "equipment_names": list(row.get("equipment_names") or []),
+            }
+            for row in personal_exercises
+        ]
+        self._personal_weekly_exercise_statistics = {
+            "user_id": effective_personal_user_id,
+            "week_start": week_start_local,
+            "week_end": week_end_local,
+            "timezone": timezone_name,
+            "exercise_count": len(personal_exercises_rows),
+            "exercises": personal_exercises_payload,
+        }
+
+        personal_muscles_payload = [
+            {
+                "muscle_group_id": row.get("muscle_group_id"),
+                "muscle_group_name": self._muscle_group_name_from_row(row),
+                "body_region": row.get("body_region"),
+                "volume": float(row.get("volume", 0.0)),
+                "sets": int(row.get("sets", 0)),
+                "top_exercise_id": row.get("top_exercise_id"),
+                "top_exercise_name": self._exercise_name_from_row(
+                    {
+                        "name_en": row.get("top_exercise_name_en"),
+                        "name_de": row.get("top_exercise_name_de"),
+                        "exercise_id": row.get("top_exercise_id"),
+                    }
+                ),
+                "last_used_at": row.get("last_used_at"),
+            }
+            for row in personal_muscles
+        ]
+        personal_muscle_total_volume = sum(
+            float(row.get("volume", 0.0)) for row in personal_muscle_rows
+        )
+        self._personal_weekly_muscle_group_statistics = {
+            "user_id": effective_personal_user_id,
+            "week_start": week_start_local,
+            "week_end": week_end_local,
+            "timezone": timezone_name,
+            "total_volume": float(personal_muscle_total_volume),
+            "muscle_group_count": len(personal_muscle_rows),
+            "muscle_groups": personal_muscles_payload,
+        }
+
+        self._personal_training_balance = _build_training_balance(
+            locale=self._locale,
+            user_id=effective_personal_user_id,
+            week_start=week_start_local,
+            week_end=week_end_local,
+            muscle_groups=personal_muscles_payload,
+        )
+
+        household_summary_base = await self._store.async_get_weekly_summary(
+            week_start_utc,
+            week_end_utc,
+            user_ids=effective_household_user_ids,
+        )
+        household_exercises_rows = await self._store.async_get_weekly_exercise_statistics(
+            week_start_utc,
+            week_end_utc,
+            user_ids=effective_household_user_ids,
+        )
+        household_muscle_rows = await self._store.async_get_weekly_muscle_group_statistics(
+            week_start_utc,
+            week_end_utc,
+            user_ids=effective_household_user_ids,
+        )
+        household_user_rows = await self._store.async_get_weekly_user_statistics(
+            week_start_utc,
+            week_end_utc,
+            user_ids=effective_household_user_ids,
+        )
+        household_exercises = _limit_rows(household_exercises_rows, _ANALYTICS_TOP_LIMIT)
+        household_muscles = _limit_rows(household_muscle_rows, _ANALYTICS_TOP_LIMIT)
+        household_users = _limit_rows(household_user_rows, _ANALYTICS_TOP_LIMIT)
+        top_household_exercise = household_exercises[0] if household_exercises else None
+        top_household_muscle = household_muscles[0] if household_muscles else None
+        top_household_user = household_users[0] if household_users else None
+
+        resolved_included_user_ids = (
+            list(effective_household_user_ids)
+            if effective_household_user_ids is not None
+            else [
+                str(row.get("id"))
+                for row in self._users
+                if row.get("id") and _coerce_enabled(row.get("enabled"), default=True)
+            ]
+        )
+
+        self._household_weekly_summary = {
+            "included_user_ids": (
+                resolved_included_user_ids if resolved_included_user_ids else None
+            ),
+            "week_start": week_start_local,
+            "week_end": week_end_local,
+            "timezone": timezone_name,
+            "total_volume": float(household_summary_base.get("total_volume", 0.0)),
+            "total_sets": int(household_summary_base.get("total_sets", 0)),
+            "workout_count": int(household_summary_base.get("workout_count", 0)),
+            "active_users": len(household_user_rows),
+            "active_days": int(household_summary_base.get("active_days", 0)),
+            "top_user_id": (
+                str(top_household_user.get("user_id"))
+                if top_household_user is not None and top_household_user.get("user_id")
+                else None
+            ),
+            "top_user_name": (
+                str(
+                    top_household_user.get("display_name")
+                    or top_household_user.get("user_id")
+                )
+                if top_household_user is not None
+                else None
+            ),
+            "top_user_volume": float(
+                top_household_user.get("volume", 0.0)
+                if top_household_user is not None
+                else 0.0
+            ),
+            "top_exercise_id": (
+                str(top_household_exercise.get("exercise_id"))
+                if top_household_exercise is not None
+                and top_household_exercise.get("exercise_id")
+                else None
+            ),
+            "top_exercise_name": (
+                self._exercise_name_from_row(top_household_exercise)
+                if top_household_exercise is not None
+                else None
+            ),
+            "top_exercise_volume": float(
+                top_household_exercise.get("volume", 0.0)
+                if top_household_exercise is not None
+                else 0.0
+            ),
+            "top_muscle_group_id": (
+                str(top_household_muscle.get("muscle_group_id"))
+                if top_household_muscle is not None
+                and top_household_muscle.get("muscle_group_id")
+                else None
+            ),
+            "top_muscle_group_name": (
+                self._muscle_group_name_from_row(top_household_muscle)
+                if top_household_muscle is not None
+                else None
+            ),
+            "top_muscle_group_volume": float(
+                top_household_muscle.get("volume", 0.0)
+                if top_household_muscle is not None
+                else 0.0
+            ),
+            "users": [
+                {
+                    "user_id": row.get("user_id"),
+                    "display_name": row.get("display_name") or row.get("user_id"),
+                    "volume": float(row.get("volume", 0.0)),
+                    "sets": int(row.get("sets", 0)),
+                    "workout_count": int(row.get("workout_count", 0)),
+                    "last_set_at": row.get("last_set_at"),
+                }
+                for row in household_users
+            ],
+            "last_set_at": household_summary_base.get("last_set_at"),
+            "last_workout_at": household_summary_base.get("last_workout_at"),
+        }
+
         if notify:
             self._notify_listeners()
 
@@ -1477,6 +1805,11 @@ class HAFitnessCoordinator:
                 personal_user_id=personal_user_id,
                 household_user_ids=household_user_ids,
             )
+            await self.async_refresh_weekly_analytics(
+                notify=False,
+                personal_user_id=personal_user_id,
+                household_user_ids=household_user_ids,
+            )
         except sqlite3.Error as err:
             _LOGGER.exception("HAGym: failed to refresh statistics")
             raise HomeAssistantError("Failed to refresh statistics") from err
@@ -1511,6 +1844,10 @@ class HAFitnessCoordinator:
                 "pr_by_exercise": self._personal_pr_by_exercise,
                 "volume_by_exercise": self._personal_volume_by_exercise,
                 "recent_sets": self._personal_recent_sets,
+                "weekly_summary": self._personal_weekly_summary,
+                "weekly_exercise_statistics": self._personal_weekly_exercise_statistics,
+                "weekly_muscle_group_statistics": self._personal_weekly_muscle_group_statistics,
+                "training_balance": self._personal_training_balance,
             },
             "household": {
                 "included_user_ids": self._included_user_ids,
@@ -1520,6 +1857,7 @@ class HAFitnessCoordinator:
                 "pr_by_exercise": self._household_pr_by_exercise,
                 "volume_by_exercise": self._household_volume_by_exercise,
                 "recent_sets": self._household_recent_sets,
+                "weekly_summary": self._household_weekly_summary,
             },
         }
         export_path = self.hass.config.path("ha_fitness", "export.json")
@@ -1979,3 +2317,154 @@ def _coerce_enabled(value: Any, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return default
+
+
+def _current_week_bounds(hass: HomeAssistant) -> tuple[str, str, str, str, str]:
+    timezone_name = str(hass.config.time_zone or "UTC")
+    try:
+        local_tz = ZoneInfo(timezone_name)
+    except Exception:
+        timezone_name = "UTC"
+        local_tz = ZoneInfo("UTC")
+
+    now_local = datetime.now(local_tz)
+    week_start = (now_local - timedelta(days=now_local.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    week_end = week_start + timedelta(days=7)
+    return (
+        timezone_name,
+        week_start.isoformat(),
+        week_end.isoformat(),
+        week_start.astimezone(timezone.utc).isoformat(),
+        week_end.astimezone(timezone.utc).isoformat(),
+    )
+
+
+def _safe_div(numerator: float, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return float(numerator) / float(denominator)
+
+
+def _limit_rows(rows: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    return rows[: max(0, limit)]
+
+
+def _build_training_balance(
+    *,
+    locale: str,
+    user_id: str,
+    week_start: str,
+    week_end: str,
+    muscle_groups: list[dict[str, Any]],
+) -> dict[str, Any]:
+    by_id: dict[str, float] = {
+        str(row.get("muscle_group_id") or ""): float(row.get("volume", 0.0))
+        for row in muscle_groups
+        if row.get("muscle_group_id")
+    }
+
+    push_volume = sum(by_id.get(muscle_id, 0.0) for muscle_id in _PUSH_MUSCLE_GROUP_IDS)
+    pull_volume = sum(by_id.get(muscle_id, 0.0) for muscle_id in _PULL_MUSCLE_GROUP_IDS)
+    legs_volume = sum(by_id.get(muscle_id, 0.0) for muscle_id in _LEGS_MUSCLE_GROUP_IDS)
+    core_volume = sum(by_id.get(muscle_id, 0.0) for muscle_id in _CORE_MUSCLE_GROUP_IDS)
+    upper_body_volume = push_volume + pull_volume
+    lower_body_volume = legs_volume
+    categorized_volume = push_volume + pull_volume + legs_volume + core_volume
+
+    if categorized_volume < 1.0:
+        state = "insufficient_data"
+    else:
+        push_percent = (push_volume / categorized_volume) * 100.0
+        pull_percent = (pull_volume / categorized_volume) * 100.0
+        legs_percent = (legs_volume / categorized_volume) * 100.0
+        missing_states: list[str] = []
+        if push_percent < 15.0:
+            missing_states.append("push_missing")
+        if pull_percent < 15.0:
+            missing_states.append("pull_missing")
+        if legs_percent < 15.0:
+            missing_states.append("legs_missing")
+
+        if missing_states:
+            priority = {"push_missing": 3, "pull_missing": 2, "legs_missing": 1}
+            missing_states.sort(key=lambda item: priority.get(item, 0), reverse=True)
+            state = missing_states[0]
+        elif push_percent > 50.0:
+            state = "push_heavy"
+        elif pull_percent > 50.0:
+            state = "pull_heavy"
+        elif legs_percent > 50.0:
+            state = "legs_heavy"
+        elif (
+            25.0 <= push_percent <= 45.0
+            and 25.0 <= pull_percent <= 45.0
+            and 25.0 <= legs_percent <= 45.0
+        ):
+            state = "balanced"
+        else:
+            state = "balanced"
+
+    push_percent = (push_volume / categorized_volume) * 100.0 if categorized_volume > 0 else 0.0
+    pull_percent = (pull_volume / categorized_volume) * 100.0 if categorized_volume > 0 else 0.0
+    legs_percent = (legs_volume / categorized_volume) * 100.0 if categorized_volume > 0 else 0.0
+    upper_body_percent = (
+        (upper_body_volume / categorized_volume) * 100.0 if categorized_volume > 0 else 0.0
+    )
+    lower_body_percent = (
+        (lower_body_volume / categorized_volume) * 100.0 if categorized_volume > 0 else 0.0
+    )
+
+    is_de = locale.lower().startswith("de")
+    recommendation_map_en = {
+        "insufficient_data": "Not enough training data this week yet.",
+        "push_missing": "Push volume is still low this week.",
+        "pull_missing": "Pull volume is still low this week.",
+        "legs_missing": "Leg training is still missing this week.",
+        "push_heavy": "Push volume dominates this week.",
+        "pull_heavy": "Pull volume dominates this week.",
+        "legs_heavy": "Leg volume dominates this week.",
+        "balanced": "Very balanced training week.",
+    }
+    recommendation_map_de = {
+        "insufficient_data": "Diese Woche sind noch zu wenige Trainingsdaten vorhanden.",
+        "push_missing": "Diese Woche fehlt noch Push-Training.",
+        "pull_missing": "Pull-Volumen ist diese Woche niedrig.",
+        "legs_missing": "Diese Woche fehlt noch Beintraining.",
+        "push_heavy": "Push-Volumen dominiert diese Woche.",
+        "pull_heavy": "Pull-Volumen dominiert diese Woche.",
+        "legs_heavy": "Bein-Volumen dominiert diese Woche.",
+        "balanced": "Sehr ausgewogene Trainingswoche.",
+    }
+
+    recommendation = (
+        recommendation_map_de.get(state, recommendation_map_de["balanced"])
+        if is_de
+        else recommendation_map_en.get(state, recommendation_map_en["balanced"])
+    )
+    return {
+        "user_id": user_id,
+        "week_start": week_start,
+        "week_end": week_end,
+        "push_volume": float(push_volume),
+        "pull_volume": float(pull_volume),
+        "legs_volume": float(legs_volume),
+        "upper_body_volume": float(upper_body_volume),
+        "lower_body_volume": float(lower_body_volume),
+        "core_volume": float(core_volume),
+        "push_percent": float(push_percent),
+        "pull_percent": float(pull_percent),
+        "legs_percent": float(legs_percent),
+        "upper_body_percent": float(upper_body_percent),
+        "lower_body_percent": float(lower_body_percent),
+        "recommendation": recommendation,
+        "categories": {
+            "push": sorted(_PUSH_MUSCLE_GROUP_IDS),
+            "pull": sorted(_PULL_MUSCLE_GROUP_IDS),
+            "legs": sorted(_LEGS_MUSCLE_GROUP_IDS),
+            "core": sorted(_CORE_MUSCLE_GROUP_IDS),
+        },
+        "categorized_volume_total": float(categorized_volume),
+        "state": state,
+    }

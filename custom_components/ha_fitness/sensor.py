@@ -41,6 +41,11 @@ async def async_setup_entry(
         HAFitnessHouseholdTotalSetsSensor(coordinator, entry),
         HAFitnessHouseholdTotalWorkoutsSensor(coordinator, entry),
         HAFitnessHouseholdRecentSetsSensor(coordinator, entry),
+        HAFitnessPersonalWeeklySummarySensor(coordinator, entry),
+        HAFitnessPersonalWeeklyExerciseStatisticsSensor(coordinator, entry),
+        HAFitnessPersonalWeeklyMuscleGroupStatisticsSensor(coordinator, entry),
+        HAFitnessPersonalTrainingBalanceSensor(coordinator, entry),
+        HAFitnessHouseholdWeeklySummarySensor(coordinator, entry),
         HAFitnessExerciseCatalogSensor(coordinator, entry),
         HAFitnessExerciseStatisticsSensor(coordinator, entry),
         HAFitnessEquipmentCatalogSensor(coordinator, entry),
@@ -449,6 +454,107 @@ class HAFitnessHouseholdRecentSetsSensor(_HAFitnessSensorBase):
             "included_user_ids": self._coordinator.included_user_ids,
             "recent_sets": self._coordinator.household_recent_sets,
         }
+
+
+class HAFitnessPersonalWeeklySummarySensor(_HAFitnessSensorBase):
+    _attr_translation_key = "personal_weekly_summary"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_personal_weekly_summary"
+
+    @property
+    def native_value(self) -> float:
+        return float(self._coordinator.get_personal_weekly_summary().get("total_volume", 0.0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return dict(self._coordinator.get_personal_weekly_summary())
+
+
+class HAFitnessPersonalWeeklyExerciseStatisticsSensor(_HAFitnessSensorBase):
+    _attr_translation_key = "personal_weekly_exercise_statistics"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"{entry.entry_id}_personal_weekly_exercise_statistics"
+        )
+
+    @property
+    def native_value(self) -> int:
+        payload = self._coordinator.get_personal_weekly_exercise_statistics()
+        return int(payload.get("exercise_count", len(list(payload.get("exercises", [])))))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return dict(self._coordinator.get_personal_weekly_exercise_statistics())
+
+
+class HAFitnessPersonalWeeklyMuscleGroupStatisticsSensor(_HAFitnessSensorBase):
+    _attr_translation_key = "personal_weekly_muscle_group_statistics"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = (
+            f"{entry.entry_id}_personal_weekly_muscle_group_statistics"
+        )
+
+    @property
+    def native_value(self) -> float:
+        return float(
+            self._coordinator.get_personal_weekly_muscle_group_statistics().get(
+                "total_volume", 0.0
+            )
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return dict(self._coordinator.get_personal_weekly_muscle_group_statistics())
+
+
+class HAFitnessPersonalTrainingBalanceSensor(_HAFitnessSensorBase):
+    _attr_translation_key = "personal_training_balance"
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_personal_training_balance"
+
+    @property
+    def native_value(self) -> str:
+        return str(
+            self._coordinator.get_personal_training_balance().get(
+                "state", "insufficient_data"
+            )
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        balance = dict(self._coordinator.get_personal_training_balance())
+        balance.pop("state", None)
+        return balance
+
+
+class HAFitnessHouseholdWeeklySummarySensor(_HAFitnessSensorBase):
+    _attr_translation_key = "household_weekly_summary"
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_household_weekly_summary"
+
+    @property
+    def native_value(self) -> float:
+        return float(self._coordinator.get_household_weekly_summary().get("total_volume", 0.0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return dict(self._coordinator.get_household_weekly_summary())
 
 
 class HAFitnessExerciseCatalogSensor(_HAFitnessSensorBase):

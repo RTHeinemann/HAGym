@@ -75,6 +75,12 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
   - `sensor.ha_fitness_equipment_statistics`
 - generic muscle group statistics sensor:
   - `sensor.ha_fitness_muscle_group_statistics`
+- weekly aggregate analytics sensors (attribute-rich, low-entity approach):
+  - `sensor.ha_fitness_personal_weekly_summary`
+  - `sensor.ha_fitness_personal_weekly_exercise_statistics`
+  - `sensor.ha_fitness_personal_weekly_muscle_group_statistics`
+  - `sensor.ha_fitness_personal_training_balance`
+  - `sensor.ha_fitness_household_weekly_summary`
 - per-muscle-group Home Assistant devices and sensors (enabled groups only)
 - per-exercise PR sensors and volume-total sensors
 - recent sets sensor for dashboard history attributes
@@ -151,6 +157,7 @@ Planned model fields:
 - [`docs/WORKOUT_UX.md`](docs/WORKOUT_UX.md)
 - [`docs/SQLITE_MIGRATION.md`](docs/SQLITE_MIGRATION.md)
 - [`docs/STORAGE.md`](docs/STORAGE.md)
+- [`docs/ANALYTICS.md`](docs/ANALYTICS.md)
 - [`docs/EXERCISES.md`](docs/EXERCISES.md)
 - [`docs/EQUIPMENT.md`](docs/EQUIPMENT.md)
 - [`docs/MUSCLE_GROUPS.md`](docs/MUSCLE_GROUPS.md)

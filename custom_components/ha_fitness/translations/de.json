@@ -575,6 +575,21 @@
       "equipment_statistics": {
         "name": "Equipment-Statistiken"
       },
+      "personal_weekly_summary": {
+        "name": "Persönliche Wochenübersicht"
+      },
+      "personal_weekly_exercise_statistics": {
+        "name": "Persönliche Übungsstatistik diese Woche"
+      },
+      "personal_weekly_muscle_group_statistics": {
+        "name": "Persönliche Muskelgruppen diese Woche"
+      },
+      "personal_training_balance": {
+        "name": "Persönliche Trainingsbalance"
+      },
+      "household_weekly_summary": {
+        "name": "Haushalts-Wochenübersicht"
+      },
       "muscle_group_statistics": {
         "name": "Muskelgruppen-Statistiken"
       },

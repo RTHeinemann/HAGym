@@ -115,3 +115,27 @@ Derivation model:
   - weighted by `exercise_muscle_groups.weight_factor`
 
 Muscle-group statistics are approximate training-load indicators and not medical or biomechanical measurements.
+
+## Weekly Analytics Storage
+
+HAGym weekly analytics use aggregate SQLite queries with rich attributes and a low sensor count.
+
+Design:
+
+- No per-week/per-exercise entity explosion.
+- A small set of summary sensors on the main HAGym device.
+- Detailed lists are returned via sensor attributes.
+
+Current-week handling:
+
+- Week start is Monday 00:00 in Home Assistant local timezone.
+- Query boundaries are converted to UTC ISO timestamps.
+- Filters use:
+  - `set_logs.created_at >= week_start_utc`
+  - `set_logs.created_at < week_end_utc`
+
+Scope filters:
+
+- Personal analytics use resolved Home Assistant `user_id`.
+- Household analytics use configured included user IDs (or all enabled users when not configured).
+- Legacy data remains separate unless explicitly included by scope.

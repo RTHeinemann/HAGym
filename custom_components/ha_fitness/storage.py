@@ -459,6 +459,65 @@ class HAFitnessStore:
             self._get_household_pr_by_exercise, exercise_id, user_ids
         )
 
+    async def async_get_weekly_summary(
+        self,
+        start_utc: str,
+        end_utc: str,
+        user_id: str | None = None,
+        user_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return aggregate weekly summary for one scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_weekly_summary,
+            start_utc,
+            end_utc,
+            user_id,
+            user_ids,
+        )
+
+    async def async_get_weekly_exercise_statistics(
+        self,
+        start_utc: str,
+        end_utc: str,
+        user_id: str | None = None,
+        user_ids: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return weekly exercise statistics for one scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_weekly_exercise_statistics,
+            start_utc,
+            end_utc,
+            user_id,
+            user_ids,
+        )
+
+    async def async_get_weekly_muscle_group_statistics(
+        self,
+        start_utc: str,
+        end_utc: str,
+        user_id: str | None = None,
+        user_ids: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return weekly weighted muscle-group statistics for one scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_weekly_muscle_group_statistics,
+            start_utc,
+            end_utc,
+            user_id,
+            user_ids,
+        )
+
+    async def async_get_weekly_user_statistics(
+        self, start_utc: str, end_utc: str, user_ids: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Return weekly per-user statistics for a household/global scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_weekly_user_statistics,
+            start_utc,
+            end_utc,
+            user_ids,
+        )
+
     # ------------------------------------------------------------------
     # Sync implementation (executor only)
     # ------------------------------------------------------------------
@@ -1328,6 +1387,265 @@ class HAFitnessStore:
                 )
             return result
 
+    def _get_weekly_summary(
+        self,
+        start_utc: str,
+        end_utc: str,
+        user_id: str | None,
+        user_ids: list[str] | None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            set_scope_sql, set_scope_params = _scope_filter_sql(
+                user_id, user_ids, "sl.user_id"
+            )
+            set_row = conn.execute(
+                f"""
+                SELECT
+                    COALESCE(SUM(sl.volume), 0) AS total_volume,
+                    COUNT(sl.id) AS total_sets,
+                    COUNT(DISTINCT DATE(sl.created_at)) AS active_days,
+                    MAX(sl.created_at) AS last_set_at
+                FROM set_logs sl
+                WHERE sl.created_at >= ?
+                  AND sl.created_at < ?
+                  {set_scope_sql}
+                """,
+                (start_utc, end_utc, *set_scope_params),
+            ).fetchone()
+
+            workout_scope_sql, workout_scope_params = _scope_filter_sql(
+                user_id, user_ids, "w.user_id"
+            )
+            workout_row = conn.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS workout_count,
+                    MAX(COALESCE(w.finished_at, w.started_at)) AS last_workout_at
+                FROM workouts w
+                WHERE w.started_at >= ?
+                  AND w.started_at < ?
+                  {workout_scope_sql}
+                """,
+                (start_utc, end_utc, *workout_scope_params),
+            ).fetchone()
+
+            return {
+                "total_volume": float(set_row["total_volume"] if set_row is not None else 0.0),
+                "total_sets": int(set_row["total_sets"] if set_row is not None else 0),
+                "active_days": int(set_row["active_days"] if set_row is not None else 0),
+                "last_set_at": set_row["last_set_at"] if set_row is not None else None,
+                "workout_count": int(
+                    workout_row["workout_count"] if workout_row is not None else 0
+                ),
+                "last_workout_at": (
+                    workout_row["last_workout_at"] if workout_row is not None else None
+                ),
+            }
+
+    def _get_weekly_exercise_statistics(
+        self,
+        start_utc: str,
+        end_utc: str,
+        user_id: str | None,
+        user_ids: list[str] | None,
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            scope_sql, scope_params = _scope_filter_sql(user_id, user_ids, "sl.user_id")
+            rows = conn.execute(
+                f"""
+                SELECT
+                    sl.exercise_id AS exercise_id,
+                    ex.name_en AS name_en,
+                    ex.name_de AS name_de,
+                    COALESCE(SUM(sl.volume), 0) AS volume,
+                    COUNT(sl.id) AS sets,
+                    COALESCE(MAX(sl.weight), 0) AS max_weight,
+                    COALESCE(AVG(sl.weight), 0) AS avg_weight,
+                    COALESCE(AVG(sl.reps), 0) AS avg_reps,
+                    MAX(sl.created_at) AS last_used_at
+                FROM set_logs sl
+                LEFT JOIN exercises ex ON ex.id = sl.exercise_id
+                WHERE sl.created_at >= ?
+                  AND sl.created_at < ?
+                  AND sl.exercise_id IS NOT NULL
+                  AND TRIM(sl.exercise_id) != ''
+                  {scope_sql}
+                GROUP BY sl.exercise_id, ex.name_en, ex.name_de
+                ORDER BY volume DESC, sets DESC, sl.exercise_id ASC
+                """,
+                (start_utc, end_utc, *scope_params),
+            ).fetchall()
+
+            result: list[dict[str, Any]] = []
+            for row in rows:
+                if row is None or row["exercise_id"] is None:
+                    continue
+                exercise_id = str(row["exercise_id"])
+                equipment_rows = conn.execute(
+                    f"""
+                    SELECT DISTINCT
+                        sl.equipment_id AS equipment_id,
+                        eq.name AS equipment_name
+                    FROM set_logs sl
+                    LEFT JOIN equipment eq ON eq.id = sl.equipment_id
+                    WHERE sl.created_at >= ?
+                      AND sl.created_at < ?
+                      AND sl.exercise_id = ?
+                      AND sl.equipment_id IS NOT NULL
+                      AND TRIM(sl.equipment_id) != ''
+                      {scope_sql}
+                    ORDER BY sl.equipment_id ASC
+                    """,
+                    (start_utc, end_utc, exercise_id, *scope_params),
+                ).fetchall()
+                equipment_ids = [
+                    str(item["equipment_id"])
+                    for item in equipment_rows
+                    if item is not None and item["equipment_id"] is not None
+                ]
+                equipment_names = [
+                    str(item["equipment_name"] or item["equipment_id"])
+                    for item in equipment_rows
+                    if item is not None and item["equipment_id"] is not None
+                ]
+                result.append(
+                    {
+                        "exercise_id": exercise_id,
+                        "name_en": row["name_en"],
+                        "name_de": row["name_de"],
+                        "volume": float(row["volume"]),
+                        "sets": int(row["sets"]),
+                        "max_weight": float(row["max_weight"]),
+                        "avg_weight": float(row["avg_weight"]),
+                        "avg_reps": float(row["avg_reps"]),
+                        "last_used_at": row["last_used_at"],
+                        "equipment_ids": equipment_ids,
+                        "equipment_names": equipment_names,
+                    }
+                )
+            return result
+
+    def _get_weekly_muscle_group_statistics(
+        self,
+        start_utc: str,
+        end_utc: str,
+        user_id: str | None,
+        user_ids: list[str] | None,
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            scope_sql, scope_params = _scope_filter_sql(user_id, user_ids, "sl.user_id")
+            rows = conn.execute(
+                f"""
+                SELECT
+                    emg.muscle_group_id AS muscle_group_id,
+                    mg.name_en AS name_en,
+                    mg.name_de AS name_de,
+                    mg.body_region AS body_region,
+                    COALESCE(SUM(sl.volume * emg.weight_factor), 0) AS volume,
+                    COUNT(sl.id) AS sets,
+                    MAX(sl.created_at) AS last_used_at
+                FROM exercise_muscle_groups emg
+                JOIN muscle_groups mg ON mg.id = emg.muscle_group_id
+                JOIN set_logs sl ON sl.exercise_id = emg.exercise_id
+                WHERE sl.created_at >= ?
+                  AND sl.created_at < ?
+                  {scope_sql}
+                GROUP BY emg.muscle_group_id, mg.name_en, mg.name_de, mg.body_region
+                ORDER BY volume DESC, sets DESC, emg.muscle_group_id ASC
+                """,
+                (start_utc, end_utc, *scope_params),
+            ).fetchall()
+
+            result: list[dict[str, Any]] = []
+            for row in rows:
+                if row is None or row["muscle_group_id"] is None:
+                    continue
+                muscle_group_id = str(row["muscle_group_id"])
+                top_row = conn.execute(
+                    f"""
+                    SELECT
+                        sl.exercise_id AS exercise_id,
+                        ex.name_en AS name_en,
+                        ex.name_de AS name_de,
+                        COALESCE(SUM(sl.volume * emg.weight_factor), 0) AS weighted_volume
+                    FROM exercise_muscle_groups emg
+                    JOIN set_logs sl ON sl.exercise_id = emg.exercise_id
+                    LEFT JOIN exercises ex ON ex.id = sl.exercise_id
+                    WHERE emg.muscle_group_id = ?
+                      AND sl.created_at >= ?
+                      AND sl.created_at < ?
+                      {scope_sql}
+                    GROUP BY sl.exercise_id, ex.name_en, ex.name_de
+                    HAVING COALESCE(SUM(sl.volume * emg.weight_factor), 0) > 0
+                    ORDER BY weighted_volume DESC, sl.exercise_id ASC
+                    LIMIT 1
+                    """,
+                    (muscle_group_id, start_utc, end_utc, *scope_params),
+                ).fetchone()
+                result.append(
+                    {
+                        "muscle_group_id": muscle_group_id,
+                        "name_en": row["name_en"],
+                        "name_de": row["name_de"],
+                        "body_region": row["body_region"],
+                        "volume": float(row["volume"]),
+                        "sets": int(row["sets"]),
+                        "last_used_at": row["last_used_at"],
+                        "top_exercise_id": (
+                            str(top_row["exercise_id"])
+                            if top_row is not None and top_row["exercise_id"] is not None
+                            else None
+                        ),
+                        "top_exercise_name_en": (
+                            top_row["name_en"] if top_row is not None else None
+                        ),
+                        "top_exercise_name_de": (
+                            top_row["name_de"] if top_row is not None else None
+                        ),
+                    }
+                )
+            return result
+
+    def _get_weekly_user_statistics(
+        self, start_utc: str, end_utc: str, user_ids: list[str] | None
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            scope_sql, scope_params = _scope_filter_sql(None, user_ids, "sl.user_id")
+            rows = conn.execute(
+                f"""
+                SELECT
+                    sl.user_id AS user_id,
+                    u.display_name AS display_name,
+                    COALESCE(SUM(sl.volume), 0) AS volume,
+                    COUNT(sl.id) AS sets,
+                    COUNT(DISTINCT sl.workout_id) AS workout_count,
+                    MAX(sl.created_at) AS last_set_at
+                FROM set_logs sl
+                LEFT JOIN users u ON u.id = sl.user_id
+                WHERE sl.created_at >= ?
+                  AND sl.created_at < ?
+                  {scope_sql}
+                GROUP BY sl.user_id, u.display_name
+                ORDER BY volume DESC, sets DESC, sl.user_id ASC
+                """,
+                (start_utc, end_utc, *scope_params),
+            ).fetchall()
+            result: list[dict[str, Any]] = []
+            for row in rows:
+                if row is None or row["user_id"] is None:
+                    continue
+                result.append(
+                    {
+                        "user_id": str(row["user_id"]),
+                        "display_name": row["display_name"],
+                        "volume": float(row["volume"]),
+                        "sets": int(row["sets"]),
+                        "workout_count": int(row["workout_count"]),
+                        "last_set_at": row["last_set_at"],
+                    }
+                )
+            return result
+
     def _get_household_total_volume(self, user_ids: list[str] | None) -> float:
         with self._connect() as conn:
             resolved = self._resolve_household_user_ids(conn, user_ids)
@@ -1871,6 +2189,22 @@ def _in_clause_sql(
     connector = "AND" if initial_where else "WHERE"
     sql = f"{base_sql} {connector} {column} IN ({placeholders})"
     return sql, tuple(values)
+
+
+def _scope_filter_sql(
+    user_id: str | None,
+    user_ids: list[str] | None,
+    column: str,
+) -> tuple[str, tuple[Any, ...]]:
+    """Return SQL suffix and params for one-user / multi-user / global scope."""
+    if user_id is not None:
+        return f" AND {column} = ?", (user_id,)
+    if user_ids is None:
+        return "", ()
+    if not user_ids:
+        return " AND 1 = 0", ()
+    placeholders = ",".join("?" for _ in user_ids)
+    return f" AND {column} IN ({placeholders})", tuple(user_ids)
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:

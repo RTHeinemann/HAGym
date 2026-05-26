@@ -575,6 +575,21 @@
       "equipment_statistics": {
         "name": "Equipment Statistics"
       },
+      "personal_weekly_summary": {
+        "name": "Personal Weekly Summary"
+      },
+      "personal_weekly_exercise_statistics": {
+        "name": "Personal Weekly Exercise Statistics"
+      },
+      "personal_weekly_muscle_group_statistics": {
+        "name": "Personal Weekly Muscle Group Statistics"
+      },
+      "personal_training_balance": {
+        "name": "Personal Training Balance"
+      },
+      "household_weekly_summary": {
+        "name": "Household Weekly Summary"
+      },
       "muscle_group_statistics": {
         "name": "Muscle Group Statistics"
       },
