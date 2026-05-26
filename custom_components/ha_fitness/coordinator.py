@@ -62,6 +62,7 @@ class HAFitnessCoordinator:
         self._equipment_runtime_state: dict[str, dict[str, Any]] = {}
         self._muscle_groups: list[dict[str, Any]] = []
         self._muscle_group_by_id: dict[str, dict[str, Any]] = {}
+        self._exercise_muscle_group_map_by_exercise: dict[str, list[dict[str, Any]]] = {}
         self._muscle_group_statistics: list[dict[str, Any]] = []
         self._muscle_group_statistics_by_id: dict[str, dict[str, Any]] = {}
         self._locale: str = str(hass.config.language or "en")
@@ -242,6 +243,22 @@ class HAFitnessCoordinator:
         return [str(row["id"]) for row in rows]
 
     @property
+    def enabled_exercise_ids(self) -> list[str]:
+        rows = [
+            row
+            for row in self._exercises
+            if row.get("id") is not None and int(row.get("enabled", 1)) == 1
+        ]
+        rows.sort(
+            key=lambda row: (
+                int(row.get("sort_order", 0)),
+                str(row.get("name_en") or row.get("id") or ""),
+                str(row.get("id") or ""),
+            )
+        )
+        return [str(row["id"]) for row in rows]
+
+    @property
     def enabled_muscle_group_ids(self) -> list[str]:
         rows = [
             row
@@ -306,6 +323,56 @@ class HAFitnessCoordinator:
 
     def get_household_volume_by_exercise(self, exercise: str) -> float:
         return self._household_volume_by_exercise.get(exercise, 0.0)
+
+    def exercise_enabled(self, exercise_id: str) -> bool:
+        row = self._exercise_by_id.get(exercise_id)
+        if row is None:
+            return False
+        return int(row.get("enabled", 1)) == 1
+
+    def get_exercise_muscle_group_mapping(
+        self, exercise_id: str
+    ) -> list[dict[str, Any]]:
+        return list(self._exercise_muscle_group_map_by_exercise.get(exercise_id, []))
+
+    def get_exercise_muscle_group_attributes(
+        self, exercise_id: str
+    ) -> dict[str, Any]:
+        rows = self.get_exercise_muscle_group_mapping(exercise_id)
+        primary: list[str] = []
+        secondary: list[str] = []
+        stabilizer: list[str] = []
+        mapping: list[dict[str, Any]] = []
+
+        for row in rows:
+            muscle_group_id = str(row.get("muscle_group_id") or "")
+            if not muscle_group_id:
+                continue
+            role = str(row.get("role") or "primary")
+            weight_factor = float(row.get("weight_factor") or 0.0)
+            muscle_group_name = self.muscle_group_display_name(muscle_group_id)
+
+            mapping.append(
+                {
+                    "muscle_group_id": muscle_group_id,
+                    "muscle_group_name": muscle_group_name,
+                    "role": role,
+                    "weight_factor": weight_factor,
+                }
+            )
+            if role == "primary":
+                primary.append(muscle_group_name)
+            elif role == "secondary":
+                secondary.append(muscle_group_name)
+            else:
+                stabilizer.append(muscle_group_name)
+
+        return {
+            "primary_muscle_groups": primary,
+            "secondary_muscle_groups": secondary,
+            "stabilizer_muscle_groups": stabilizer,
+            "muscle_group_mapping": mapping,
+        }
 
     # ------------------------------------------------------------------
     # Listener management
@@ -671,14 +738,19 @@ class HAFitnessCoordinator:
         """Refresh muscle group catalog from storage."""
         try:
             rows = await self._store.async_get_muscle_groups(enabled_only=False)
+            self._muscle_groups = rows
+            self._muscle_group_by_id = {
+                str(row["id"]): row for row in rows if row.get("id") is not None
+            }
+            mapping_by_exercise: dict[str, list[dict[str, Any]]] = {}
+            for exercise_id in self.enabled_exercise_ids:
+                mapping_by_exercise[exercise_id] = (
+                    await self._store.async_get_muscle_groups_for_exercise(exercise_id)
+                )
+            self._exercise_muscle_group_map_by_exercise = mapping_by_exercise
         except sqlite3.Error as err:
             _LOGGER.exception("HAGym: failed to refresh muscle groups")
             raise HomeAssistantError("Failed to refresh muscle groups") from err
-
-        self._muscle_groups = rows
-        self._muscle_group_by_id = {
-            str(row["id"]): row for row in rows if row.get("id") is not None
-        }
         if notify:
             self._notify_listeners()
 

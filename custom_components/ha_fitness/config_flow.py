@@ -1309,16 +1309,20 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 errors[ATTR_SORT_ORDER] = "invalid_sort_order"
 
             if not errors and muscle_group_id is not None:
-                await coordinator.async_add_muscle_group(
-                    muscle_group_id=muscle_group_id,
-                    name_en=name_en,
-                    name_de=name_de,
-                    description=description,
-                    icon=icon,
-                    body_region=body_region,
-                    enabled=enabled,
-                    sort_order=sort_order,
-                )
+                try:
+                    await coordinator.async_add_muscle_group(
+                        muscle_group_id=muscle_group_id,
+                        name_en=name_en,
+                        name_de=name_de,
+                        description=description,
+                        icon=icon,
+                        body_region=body_region,
+                        enabled=enabled,
+                        sort_order=sort_order,
+                    )
+                except Exception:
+                    _LOGGER.exception("HAGym options flow add_muscle_group failed")
+                    return self.async_abort(reason="options_flow_error")
                 return await self.async_step_manage_muscle_groups()
 
         return self.async_show_form(
@@ -1441,16 +1445,20 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             if not _is_valid_sort_order_input(sort_order_raw):
                 errors[ATTR_SORT_ORDER] = "invalid_sort_order"
             if not errors:
-                await coordinator.async_update_muscle_group(
-                    muscle_group_id=muscle_group_id,
-                    name_en=name_en,
-                    name_de=name_de,
-                    description=description,
-                    icon=icon,
-                    body_region=body_region,
-                    enabled=enabled,
-                    sort_order=sort_order,
-                )
+                try:
+                    await coordinator.async_update_muscle_group(
+                        muscle_group_id=muscle_group_id,
+                        name_en=name_en,
+                        name_de=name_de,
+                        description=description,
+                        icon=icon,
+                        body_region=body_region,
+                        enabled=enabled,
+                        sort_order=sort_order,
+                    )
+                except Exception:
+                    _LOGGER.exception("HAGym options flow edit_muscle_group failed")
+                    return self.async_abort(reason="options_flow_error")
                 return await self.async_step_manage_muscle_groups()
 
         return self.async_show_form(
@@ -1567,12 +1575,16 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
 
         is_enabled = int(muscle_group.get("enabled", 1)) == 1
         if user_input is not None and bool(user_input.get("confirm", True)):
-            if is_enabled:
-                await coordinator.async_disable_muscle_group(muscle_group_id)
-            else:
-                await coordinator.async_update_muscle_group(
-                    muscle_group_id=muscle_group_id, enabled=True
-                )
+            try:
+                if is_enabled:
+                    await coordinator.async_disable_muscle_group(muscle_group_id)
+                else:
+                    await coordinator.async_update_muscle_group(
+                        muscle_group_id=muscle_group_id, enabled=True
+                    )
+            except Exception:
+                _LOGGER.exception("HAGym options flow toggle_muscle_group failed")
+                return self.async_abort(reason="options_flow_error")
             return await self.async_step_manage_muscle_groups()
 
         action = "disable" if is_enabled else "enable"
@@ -1601,10 +1613,19 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         if not options:
             return self.async_abort(reason="exercise_catalog_empty")
         if user_input is not None:
-            self._assign_muscle_exercise_id = str(user_input[ATTR_EXERCISE_ID])
-            rows = await coordinator.async_get_muscle_groups_for_exercise(
-                self._assign_muscle_exercise_id
-            )
+            selected_exercise_id = str(user_input.get(ATTR_EXERCISE_ID) or "").strip()
+            if not selected_exercise_id:
+                return self.async_abort(reason="exercise_not_found")
+            self._assign_muscle_exercise_id = selected_exercise_id
+            try:
+                rows = await coordinator.async_get_muscle_groups_for_exercise(
+                    self._assign_muscle_exercise_id
+                )
+            except Exception:
+                _LOGGER.exception(
+                    "HAGym options flow assign_muscle_groups_select_exercise failed"
+                )
+                return self.async_abort(reason="options_flow_error")
             self._assign_primary_muscle_group_ids = [
                 str(row.get("muscle_group_id"))
                 for row in rows
@@ -1723,12 +1744,18 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         defaults = self._assign_stabilizer_muscle_group_ids
         if user_input is not None:
             stabilizer_ids = [str(item) for item in user_input.get(ATTR_MUSCLE_GROUP_ID, [])]
-            await coordinator.async_replace_muscle_groups_for_exercise(
-                exercise_id=self._assign_muscle_exercise_id,
-                primary_ids=self._assign_primary_muscle_group_ids,
-                secondary_ids=self._assign_secondary_muscle_group_ids,
-                stabilizer_ids=stabilizer_ids,
-            )
+            try:
+                await coordinator.async_replace_muscle_groups_for_exercise(
+                    exercise_id=self._assign_muscle_exercise_id,
+                    primary_ids=self._assign_primary_muscle_group_ids,
+                    secondary_ids=self._assign_secondary_muscle_group_ids,
+                    stabilizer_ids=stabilizer_ids,
+                )
+            except Exception:
+                _LOGGER.exception(
+                    "HAGym options flow assign_muscle_groups_select_stabilizer failed"
+                )
+                return self.async_abort(reason="options_flow_error")
             return await self.async_step_manage_muscle_groups()
         return self.async_show_form(
             step_id="assign_muscle_groups_select_stabilizer",

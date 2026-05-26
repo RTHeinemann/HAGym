@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, EXERCISE_IDS, LEGACY_USER_ID, STATE_ACTIVE
+from .const import DOMAIN, LEGACY_USER_ID, STATE_ACTIVE
 from .coordinator import HAFitnessCoordinator
 
 
@@ -48,7 +48,7 @@ async def async_setup_entry(
         HAFitnessMuscleGroupStatisticsSensor(coordinator, entry),
     ]
 
-    for exercise_id in EXERCISE_IDS:
+    for exercise_id in coordinator.enabled_exercise_ids:
         entities.append(HAFitnessPRByExerciseSensor(coordinator, entry, exercise_id))
         entities.append(HAFitnessVolumeByExerciseSensor(coordinator, entry, exercise_id))
         entities.append(HAFitnessPersonalPRByExerciseSensor(coordinator, entry, exercise_id))
@@ -867,8 +867,20 @@ class _ExerciseMetricSensor(SensorEntity):
         self.async_write_ha_state()
 
     @property
+    def available(self) -> bool:
+        return self._coordinator.exercise_enabled(self._exercise)
+
+    @property
     def native_value(self) -> float:
         return self._value_getter(self._exercise)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attributes = self._coordinator.get_exercise_muscle_group_attributes(
+            self._exercise
+        )
+        attributes["exercise_id"] = self._exercise
+        return attributes
 
 
 class HAFitnessPRByExerciseSensor(_ExerciseMetricSensor):
