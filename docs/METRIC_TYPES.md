@@ -52,6 +52,22 @@ Non-strength rows can use optional fields:
 - Non-strength rows are stored with `volume = 0` and therefore do not inflate kg volume totals.
 - PR calculations remain strength-focused.
 
+## Exercise Device Statistics (Metric-Type-Aware)
+
+Exercise devices now expose statistics based on `exercise.metric_type`.
+
+- `strength`: personal/household kg volume + personal/household kg PR + personal/household set count + last set
+- `bodyweight`: reps/best reps/load/entries + last entry
+- `duration` / `hold`: duration/best duration/load/entries + last entry
+- `distance`: distance/duration/best distance/best pace/load + last entry
+- `cardio`: duration/distance/calories/steps/heart rate/load/best pace + last entry
+- `custom`: conservative generic activity stats (entries/load/duration/distance + last entry)
+
+Deprecated:
+
+- Generic exercise sensors `Gesamtvolumen` and `PR` are no longer created.
+- Existing stale entities from older versions can be removed manually from Home Assistant.
+
 ## Service
 
 Use `ha_fitness.save_activity` for non-strength entries.

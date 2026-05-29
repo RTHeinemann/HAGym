@@ -503,6 +503,22 @@ class HAFitnessStore:
             self._get_exercise_statistics, user_id, household_user_ids
         )
 
+    async def async_get_exercise_metric_statistics(
+        self,
+        exercise_id: str,
+        metric_type: str,
+        user_id: str | None = None,
+        user_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return metric-type-aware statistics for one exercise and one scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_exercise_metric_statistics,
+            exercise_id,
+            metric_type,
+            user_id,
+            user_ids,
+        )
+
     async def async_get_muscle_groups(self, enabled_only: bool = False) -> list[dict[str, Any]]:
         """Return muscle group catalog rows."""
         return await self._hass.async_add_executor_job(self._get_muscle_groups, enabled_only)
@@ -2776,7 +2792,7 @@ class HAFitnessStore:
                 return []
 
             sql, params = _in_clause_sql(
-                "SELECT id, name_en, name_de FROM exercises",
+                "SELECT id, name_en, name_de, metric_type FROM exercises",
                 "id",
                 exercise_ids,
             )
@@ -2798,6 +2814,9 @@ class HAFitnessStore:
                         "exercise_id": exercise_id,
                         "name_en": meta.get("name_en"),
                         "name_de": meta.get("name_de"),
+                        "metric_type": _normalize_metric_type(
+                            meta.get("metric_type") or DEFAULT_METRIC_TYPE
+                        ),
                         "total_volume_global": float(global_row["total_volume"]),
                         "total_sets_global": int(global_row["total_sets"]),
                         "pr_global": float(global_row["pr"]),
@@ -2810,6 +2829,172 @@ class HAFitnessStore:
                     }
                 )
             return stats
+
+    def _get_exercise_metric_statistics(
+        self,
+        exercise_id: str,
+        metric_type: str,
+        user_id: str | None,
+        user_ids: list[str] | None,
+    ) -> dict[str, Any]:
+        """Return metric-specific aggregated statistics for one exercise."""
+        resolved_metric_type = _normalize_metric_type(metric_type)
+        payload = _empty_exercise_metric_statistics(exercise_id, resolved_metric_type)
+
+        with self._connect() as conn:
+            where_sql, where_params = self._exercise_predicate(conn, exercise_id)
+            scope_sql, scope_params = _scope_filter_sql(user_id, user_ids, "user_id")
+            filter_sql = (
+                f"{where_sql} AND COALESCE(metric_type, '{DEFAULT_METRIC_TYPE}') = ?{scope_sql}"
+            )
+            params = (*where_params, resolved_metric_type, *scope_params)
+
+            aggregate_row = conn.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS entry_count,
+                    MAX(created_at) AS last_entry_at,
+                    COALESCE(SUM(volume), 0) AS total_volume,
+                    COUNT(*) AS total_sets,
+                    COALESCE(MAX(weight), 0) AS pr_weight,
+                    COALESCE(SUM(reps), 0) AS total_reps,
+                    COALESCE(MAX(reps), 0) AS best_reps,
+                    COALESCE(SUM(COALESCE(added_weight, 0) * COALESCE(reps, 0)), 0) AS total_added_weight_volume,
+                    COALESCE(MAX(added_weight), 0) AS best_added_weight,
+                    COALESCE(SUM(duration_seconds), 0) AS total_duration_seconds,
+                    COALESCE(MAX(duration_seconds), 0) AS best_duration_seconds,
+                    COALESCE(SUM(distance_m), 0) AS total_distance_m,
+                    COALESCE(MAX(distance_m), 0) AS best_distance_m,
+                    MIN(
+                        CASE
+                            WHEN duration_seconds > 0 AND distance_m > 0
+                                THEN (duration_seconds * 1000.0) / distance_m
+                            ELSE NULL
+                        END
+                    ) AS best_pace_seconds_per_km,
+                    COALESCE(SUM(calories), 0) AS total_calories,
+                    COALESCE(SUM(steps), 0) AS total_steps,
+                    COALESCE(MAX(max_heart_rate), 0) AS max_heart_rate,
+                    AVG(avg_heart_rate) AS avg_heart_rate_simple,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN avg_heart_rate IS NOT NULL AND duration_seconds IS NOT NULL AND duration_seconds > 0
+                                    THEN avg_heart_rate * duration_seconds
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS hr_weighted_sum,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN avg_heart_rate IS NOT NULL AND duration_seconds IS NOT NULL AND duration_seconds > 0
+                                    THEN duration_seconds
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS hr_weighted_duration,
+                    AVG(avg_power_watts) AS avg_power_watts,
+                    COALESCE(MAX(max_power_watts), 0) AS max_power_watts,
+                    AVG(avg_speed_mps) AS avg_speed_mps,
+                    COALESCE(SUM(load_score), 0) AS total_load_score
+                FROM set_logs
+                WHERE {filter_sql}
+                """,
+                params,
+            ).fetchone()
+
+            if aggregate_row is not None:
+                payload["entry_count"] = int(aggregate_row["entry_count"] or 0)
+                payload["last_entry_at"] = aggregate_row["last_entry_at"]
+                payload["total_volume"] = float(aggregate_row["total_volume"] or 0.0)
+                payload["total_sets"] = int(aggregate_row["total_sets"] or 0)
+                payload["pr_weight"] = float(aggregate_row["pr_weight"] or 0.0)
+                payload["total_reps"] = int(aggregate_row["total_reps"] or 0)
+                payload["best_reps"] = int(aggregate_row["best_reps"] or 0)
+                payload["total_added_weight_volume"] = float(
+                    aggregate_row["total_added_weight_volume"] or 0.0
+                )
+                payload["best_added_weight"] = float(
+                    aggregate_row["best_added_weight"] or 0.0
+                )
+                payload["total_duration_seconds"] = int(
+                    aggregate_row["total_duration_seconds"] or 0
+                )
+                payload["best_duration_seconds"] = int(
+                    aggregate_row["best_duration_seconds"] or 0
+                )
+                payload["total_distance_m"] = float(aggregate_row["total_distance_m"] or 0.0)
+                payload["best_distance_m"] = float(aggregate_row["best_distance_m"] or 0.0)
+                pace_raw = aggregate_row["best_pace_seconds_per_km"]
+                payload["best_pace_seconds_per_km"] = (
+                    float(pace_raw) if pace_raw is not None else 0.0
+                )
+                payload["total_calories"] = float(aggregate_row["total_calories"] or 0.0)
+                payload["total_steps"] = int(aggregate_row["total_steps"] or 0)
+                payload["max_heart_rate"] = float(aggregate_row["max_heart_rate"] or 0.0)
+                hr_weighted_sum = float(aggregate_row["hr_weighted_sum"] or 0.0)
+                hr_weighted_duration = float(aggregate_row["hr_weighted_duration"] or 0.0)
+                if hr_weighted_duration > 0:
+                    payload["avg_heart_rate"] = hr_weighted_sum / hr_weighted_duration
+                else:
+                    avg_hr_simple = aggregate_row["avg_heart_rate_simple"]
+                    payload["avg_heart_rate"] = (
+                        float(avg_hr_simple) if avg_hr_simple is not None else 0.0
+                    )
+                avg_power_raw = aggregate_row["avg_power_watts"]
+                payload["avg_power_watts"] = (
+                    float(avg_power_raw) if avg_power_raw is not None else 0.0
+                )
+                payload["max_power_watts"] = float(aggregate_row["max_power_watts"] or 0.0)
+                avg_speed_raw = aggregate_row["avg_speed_mps"]
+                payload["avg_speed_mps"] = (
+                    float(avg_speed_raw) if avg_speed_raw is not None else 0.0
+                )
+                payload["total_load_score"] = float(aggregate_row["total_load_score"] or 0.0)
+
+            last_row = conn.execute(
+                f"""
+                SELECT
+                    exercise_id,
+                    exercise,
+                    metric_type,
+                    weight,
+                    reps,
+                    duration_seconds,
+                    distance_m,
+                    calories,
+                    steps,
+                    avg_heart_rate,
+                    max_heart_rate,
+                    load_score,
+                    intensity,
+                    added_weight,
+                    created_at
+                FROM set_logs
+                WHERE {filter_sql}
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                params,
+            ).fetchone()
+            if last_row is not None:
+                payload["last_entry"] = _row_to_dict(last_row) or {}
+                payload["last_entry_summary"] = _exercise_last_entry_summary(
+                    payload["last_entry"], resolved_metric_type
+                )
+
+            top_exercise_name = conn.execute(
+                "SELECT name_en, name_de FROM exercises WHERE id = ? LIMIT 1",
+                (exercise_id,),
+            ).fetchone()
+            if top_exercise_name is not None:
+                payload["name_en"] = top_exercise_name["name_en"]
+                payload["name_de"] = top_exercise_name["name_de"]
+
+        return payload
 
     def _grouped_exercise_aggregates(
         self, conn: sqlite3.Connection, user_ids: list[str] | None
@@ -3251,6 +3436,42 @@ def _empty_exercise_aggregate() -> dict[str, float | int]:
     return {"total_volume": 0.0, "total_sets": 0, "pr": 0.0}
 
 
+def _empty_exercise_metric_statistics(
+    exercise_id: str, metric_type: str
+) -> dict[str, Any]:
+    """Return zero-valued metric-aware statistics payload."""
+    return {
+        "exercise_id": exercise_id,
+        "metric_type": metric_type,
+        "entry_count": 0,
+        "last_entry_at": None,
+        "last_entry_summary": None,
+        "last_entry": None,
+        "name_en": None,
+        "name_de": None,
+        "total_volume": 0.0,
+        "total_sets": 0,
+        "pr_weight": 0.0,
+        "total_reps": 0,
+        "best_reps": 0,
+        "total_added_weight_volume": 0.0,
+        "best_added_weight": 0.0,
+        "total_duration_seconds": 0,
+        "best_duration_seconds": 0,
+        "total_distance_m": 0.0,
+        "best_distance_m": 0.0,
+        "best_pace_seconds_per_km": 0.0,
+        "total_calories": 0.0,
+        "total_steps": 0,
+        "avg_heart_rate": 0.0,
+        "max_heart_rate": 0.0,
+        "avg_power_watts": 0.0,
+        "max_power_watts": 0.0,
+        "avg_speed_mps": 0.0,
+        "total_load_score": 0.0,
+    }
+
+
 def _empty_weighted_muscle_aggregate() -> dict[str, Any]:
     """Return zero-valued aggregate metrics for muscle groups without logged sets."""
     return {
@@ -3285,6 +3506,44 @@ def _normalize_metric_type(metric_type: Any) -> str:
     if normalized in SUPPORTED_METRIC_TYPES:
         return normalized
     return DEFAULT_METRIC_TYPE
+
+
+def _exercise_last_entry_summary(last_entry: dict[str, Any], metric_type: str) -> str:
+    exercise_name = str(last_entry.get("exercise") or last_entry.get("exercise_id") or "Exercise")
+    weight = float(last_entry.get("weight") or 0.0)
+    reps = int(last_entry.get("reps") or 0)
+    duration_seconds = int(last_entry.get("duration_seconds") or 0)
+    distance_m = float(last_entry.get("distance_m") or 0.0)
+    avg_hr = float(last_entry.get("avg_heart_rate") or 0.0)
+
+    if metric_type == METRIC_TYPE_STRENGTH:
+        return f"{exercise_name} - {weight:.1f} kg x {reps}"
+    if metric_type == METRIC_TYPE_BODYWEIGHT:
+        return f"{exercise_name} - {reps} reps"
+    if metric_type in (METRIC_TYPE_DURATION, METRIC_TYPE_HOLD):
+        return f"{exercise_name} - {_format_mmss(duration_seconds)} min"
+    if metric_type == METRIC_TYPE_DISTANCE:
+        distance_km = distance_m / 1000.0
+        if duration_seconds > 0:
+            return f"{exercise_name} - {distance_km:.1f} km in {_format_mmss(duration_seconds)} min"
+        return f"{exercise_name} - {distance_km:.1f} km"
+    if metric_type == METRIC_TYPE_CARDIO:
+        distance_km = distance_m / 1000.0
+        parts = [f"{exercise_name} - {_format_mmss(duration_seconds)} min"]
+        if distance_km > 0:
+            parts.append(f"{distance_km:.1f} km")
+        if avg_hr > 0:
+            parts.append(f"Ø {avg_hr:.0f} bpm")
+        return " · ".join(parts)
+    return exercise_name
+
+
+def _format_mmss(total_seconds: int) -> str:
+    if total_seconds <= 0:
+        return "0:00"
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    return f"{minutes}:{seconds:02d}"
 
 
 def _cardio_intensity_factor(intensity: str | None) -> float:

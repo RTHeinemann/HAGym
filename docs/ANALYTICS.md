@@ -8,6 +8,12 @@ Goal:
 - Avoid per-week/per-exercise/per-muscle sensor explosion.
 - Provide rich details through attributes.
 
+Note:
+
+- This document focuses on weekly aggregate analytics.
+- Exercise device statistics are metric-type-aware and separate from weekly aggregate sensors.
+- Strength keeps kg volume/PR semantics; non-strength exercise devices use duration/distance/load/cardio metrics.
+
 ## Weekly Sensor Set
 
 - `sensor.ha_fitness_personal_weekly_summary`

@@ -6,7 +6,7 @@ HAGym uses a SQLite-backed exercise catalog with stable IDs.
 
 - IDs are stable keys (for example `bench_press`).
 - Display names can be localized without breaking stored history.
-- Statistics (PR/volume) are calculated by `exercise_id`.
+- Statistics are calculated by `exercise_id` and interpreted by `metric_type`.
 
 ## Catalog Schema
 
@@ -107,14 +107,24 @@ The integration exposes two generic sensors to make dynamic/custom exercises vis
   - attribute: `by_exercise` containing:
     - `exercise_id`
     - `display_name`
+    - `metric_type`
     - `total_volume_global`, `total_sets_global`, `pr_global`
     - `total_volume_personal`, `total_sets_personal`, `pr_personal`
     - `total_volume_household`, `total_sets_household`, `pr_household`
 
 Custom exercises appear here as soon as sets are logged for them.
-Existing fixed per-exercise PR/volume sensors still only exist for the default built-in exercise IDs.
-Those fixed per-exercise sensors are grouped under one Home Assistant device per exercise
-(`HAGym Exercise`) instead of the central `HAGym Tracker` device.
+
+## Exercise Device Sensors
+
+Each exercise device now gets metric-type-aware sensors:
+
+- Strength exercises: personal/household volume + personal/household PR + personal/household set count + last set.
+- Non-strength exercises: duration/distance/reps/load/pace/heart-rate style metrics depending on `metric_type`.
+
+Deprecated:
+
+- Generic exercise-device sensors `Gesamtvolumen` and `PR` are no longer created.
+- If legacy entities stay in the HA entity registry after update, remove them manually in the UI.
 
 ## Backward Compatibility
 

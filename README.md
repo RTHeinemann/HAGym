@@ -95,7 +95,11 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - workout management aggregate sensor:
   - `sensor.ha_fitness_personal_recent_workouts`
 - per-muscle-group Home Assistant devices and sensors (enabled groups only)
-- per-exercise PR sensors and volume-total sensors
+- per-exercise metric-type-aware sensors
+  - strength: personal/household volume, PR, set count, last set
+  - bodyweight: reps, best reps, training load, entry count
+  - duration/hold: duration, best duration, load, entries
+  - distance/cardio: distance, duration, pace, load (+ cardio fields such as calories/heart rate)
 - recent sets sensor for dashboard history attributes
 - improved `ha_fitness.save_set` service with implicit workout fallback
 - workout management services:
@@ -124,6 +128,14 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - Older duplicate entities from previous versions can remain in the entity registry as unavailable entries.
   - Remove these in the Home Assistant UI if needed.
   - Do **not** edit `/config/.storage/entity_registry` manually.
+
+### Exercise statistic migration note
+
+- Generic exercise sensors `Gesamtvolumen` / `PR` are deprecated and no longer created for exercise devices.
+- Replacement for dashboards:
+  - `Gesamtvolumen` -> `Persönliches Gesamtvolumen` or `Haushalts-Gesamtvolumen`
+  - `PR` -> `Persönlicher PR` or `Haushalts-PR`
+- Old generic entities can remain as stale registry entries and can be removed manually in Home Assistant.
 
 ### Metric types (Phase 1)
 

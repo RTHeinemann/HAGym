@@ -171,6 +171,9 @@ class HAFitnessCoordinator:
             exercise_id: 0.0 for exercise_id in EXERCISE_IDS
         }
         self._exercise_statistics: list[dict[str, Any]] = []
+        self._exercise_metric_stats_global: dict[str, dict[str, Any]] = {}
+        self._exercise_metric_stats_personal: dict[str, dict[str, Any]] = {}
+        self._exercise_metric_stats_household: dict[str, dict[str, Any]] = {}
         self._listeners: list[Callable[[], None]] = []
         self._pending_confirmation_action: str | None = None
         self._pending_confirmation_expires_at: datetime | None = None
@@ -464,6 +467,16 @@ class HAFitnessCoordinator:
 
     def get_household_volume_by_exercise(self, exercise: str) -> float:
         return self._household_volume_by_exercise.get(exercise, 0.0)
+
+    def get_exercise_metric_statistics(
+        self, exercise_id: str, scope: str = "personal"
+    ) -> dict[str, Any]:
+        """Return cached metric-type-aware statistics for one exercise and scope."""
+        if scope == "global":
+            return self._exercise_metric_stats_global.get(exercise_id, {})
+        if scope == "household":
+            return self._exercise_metric_stats_household.get(exercise_id, {})
+        return self._exercise_metric_stats_personal.get(exercise_id, {})
 
     def get_personal_weekly_summary(self) -> dict[str, Any]:
         return self._personal_weekly_summary
@@ -2479,6 +2492,11 @@ class HAFitnessCoordinator:
             self._exercise_statistics = await self._store.async_get_exercise_statistics(
                 personal_user_id, household_user_ids
             )
+            await self.async_refresh_exercise_metric_statistics(
+                notify=False,
+                personal_user_id=personal_user_id,
+                household_user_ids=household_user_ids,
+            )
             equipment_global = await self._store.async_get_equipment_statistics()
             equipment_personal = await self._store.async_get_user_equipment_statistics(personal_user_id)
             equipment_household = await self._store.async_get_household_equipment_statistics(
@@ -2599,6 +2617,64 @@ class HAFitnessCoordinator:
         if notify:
             self._notify_listeners()
 
+    async def async_refresh_exercise_metric_statistics(
+        self,
+        notify: bool = True,
+        personal_user_id: str | None = None,
+        household_user_ids: list[str] | None = None,
+    ) -> None:
+        """Refresh metric-type-aware exercise statistics caches."""
+        resolved_personal_user_id = personal_user_id or self._resolve_personal_user_id()
+        resolved_household_user_ids = (
+            household_user_ids if household_user_ids is not None else self._included_user_ids
+        )
+        if resolved_household_user_ids is None:
+            resolved_household_user_ids = [
+                str(row.get("id"))
+                for row in self._users
+                if row.get("id") is not None and int(row.get("enabled", 1)) == 1
+            ]
+            if not resolved_household_user_ids:
+                resolved_household_user_ids = [LEGACY_USER_ID]
+
+        global_stats: dict[str, dict[str, Any]] = {}
+        personal_stats: dict[str, dict[str, Any]] = {}
+        household_stats: dict[str, dict[str, Any]] = {}
+        seen_ids: set[str] = set()
+        exercise_ids: list[str] = []
+
+        for source_id in [*EXERCISE_IDS, *self.enabled_exercise_ids]:
+            if source_id in seen_ids:
+                continue
+            seen_ids.add(source_id)
+            exercise_ids.append(source_id)
+
+        for exercise_id in exercise_ids:
+            metric_type = self.exercise_metric_type(exercise_id)
+            global_stats[exercise_id] = await self._store.async_get_exercise_metric_statistics(
+                exercise_id=exercise_id,
+                metric_type=metric_type,
+            )
+            personal_stats[exercise_id] = await self._store.async_get_exercise_metric_statistics(
+                exercise_id=exercise_id,
+                metric_type=metric_type,
+                user_id=resolved_personal_user_id,
+            )
+            household_stats[
+                exercise_id
+            ] = await self._store.async_get_exercise_metric_statistics(
+                exercise_id=exercise_id,
+                metric_type=metric_type,
+                user_ids=resolved_household_user_ids,
+            )
+
+        self._exercise_metric_stats_global = global_stats
+        self._exercise_metric_stats_personal = personal_stats
+        self._exercise_metric_stats_household = household_stats
+
+        if notify:
+            self._notify_listeners()
+
     async def async_export_data(self) -> str:
         """Export global, personal, and household statistics to JSON."""
         await self.async_refresh_statistics(notify=False)
@@ -2617,6 +2693,7 @@ class HAFitnessCoordinator:
                 "recent_sets": self._recent_sets,
                 "equipment_statistics": self._equipment_statistics,
                 "muscle_group_statistics": self._muscle_group_statistics,
+                "exercise_metric_statistics": self._exercise_metric_stats_global,
             },
             "personal": {
                 "user_id": self._resolve_personal_user_id(),
@@ -2632,6 +2709,7 @@ class HAFitnessCoordinator:
                 "weekly_muscle_group_statistics": self._personal_weekly_muscle_group_statistics,
                 "weekly_volume_history": self._personal_weekly_volume_history,
                 "training_balance": self._personal_training_balance,
+                "exercise_metric_statistics": self._exercise_metric_stats_personal,
             },
             "household": {
                 "included_user_ids": self._included_user_ids,
@@ -2642,6 +2720,7 @@ class HAFitnessCoordinator:
                 "volume_by_exercise": self._household_volume_by_exercise,
                 "recent_sets": self._household_recent_sets,
                 "weekly_summary": self._household_weekly_summary,
+                "exercise_metric_statistics": self._exercise_metric_stats_household,
             },
         }
         export_path = self.hass.config.path("ha_fitness", "export.json")

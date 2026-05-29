@@ -1,16 +1,24 @@
 """Sensor platform for HAGym."""
 from __future__ import annotations
-from collections.abc import Callable
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfMass
+from homeassistant.const import UnitOfLength, UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, LEGACY_USER_ID
+from .const import (
+    DOMAIN,
+    LEGACY_USER_ID,
+    METRIC_TYPE_BODYWEIGHT,
+    METRIC_TYPE_CARDIO,
+    METRIC_TYPE_DISTANCE,
+    METRIC_TYPE_DURATION,
+    METRIC_TYPE_HOLD,
+    METRIC_TYPE_STRENGTH,
+)
 from .coordinator import HAFitnessCoordinator
 
 
@@ -56,12 +64,7 @@ async def async_setup_entry(
     ]
 
     for exercise_id in coordinator.enabled_exercise_ids:
-        entities.append(HAFitnessPRByExerciseSensor(coordinator, entry, exercise_id))
-        entities.append(HAFitnessVolumeByExerciseSensor(coordinator, entry, exercise_id))
-        entities.append(HAFitnessPersonalPRByExerciseSensor(coordinator, entry, exercise_id))
-        entities.append(HAFitnessPersonalVolumeByExerciseSensor(coordinator, entry, exercise_id))
-        entities.append(HAFitnessHouseholdPRByExerciseSensor(coordinator, entry, exercise_id))
-        entities.append(HAFitnessHouseholdVolumeByExerciseSensor(coordinator, entry, exercise_id))
+        entities.extend(_build_exercise_metric_entities(coordinator, entry, exercise_id))
 
     for equipment_id in coordinator.enabled_equipment_ids:
         entities.append(HAFitnessEquipmentLastSetSensor(coordinator, entry, equipment_id))
@@ -1010,34 +1013,35 @@ class HAFitnessEquipmentTotalSetsSensor(_HAFitnessEquipmentSensorBase):
         return self._coordinator.get_equipment_total_sets(self._equipment_id)
 
 
-class _ExerciseMetricSensor(SensorEntity):
-    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+class _ExerciseMetricBaseSensor(SensorEntity):
+    """Base class for metric-type-aware exercise sensors."""
+
     _attr_has_entity_name = True
 
     def __init__(
         self,
         coordinator: HAFitnessCoordinator,
         entry: ConfigEntry,
-        exercise: str,
+        exercise_id: str,
         *,
         translation_key: str,
-        unique_prefix: str,
-        value_getter: Callable[[str], float],
+        unique_id: str,
+        scope: str,
     ) -> None:
-        exercise_key = _exercise_key(exercise)
+        exercise_key = _exercise_key(exercise_id)
         self._coordinator = coordinator
-        self._exercise = exercise
-        self._value_getter = value_getter
+        self._exercise_id = exercise_id
+        self._scope = scope
+        self._attr_translation_key = translation_key
+        self._attr_unique_id = unique_id
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, "exercise", exercise_key)},
-            name=coordinator.exercise_display_name(exercise),
+            name=coordinator.exercise_display_name(exercise_id),
             manufacturer="HAGym",
             model="HAGym Exercise",
             via_device=(DOMAIN, entry.entry_id),
             entry_type="service",
         )
-        self._attr_translation_key = translation_key
-        self._attr_unique_id = f"{entry.entry_id}_{unique_prefix}_{exercise_key}"
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to coordinator updates."""
@@ -1051,112 +1055,799 @@ class _ExerciseMetricSensor(SensorEntity):
 
     @property
     def available(self) -> bool:
-        return self._coordinator.exercise_enabled(self._exercise)
+        return self._coordinator.exercise_enabled(self._exercise_id)
 
-    @property
-    def native_value(self) -> float:
-        return self._value_getter(self._exercise)
+    def _stats(self) -> dict[str, Any]:
+        return self._coordinator.get_exercise_metric_statistics(
+            self._exercise_id, self._scope
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         attributes = self._coordinator.get_exercise_muscle_group_attributes(
-            self._exercise
+            self._exercise_id
         )
-        attributes["exercise_id"] = self._exercise
+        attributes["exercise_id"] = self._exercise_id
+        attributes["metric_type"] = self._coordinator.exercise_metric_type(
+            self._exercise_id
+        )
+        attributes["scope"] = self._scope
         return attributes
 
 
-class HAFitnessPRByExerciseSensor(_ExerciseMetricSensor):
-    """Sensor for per-exercise PR based on max saved weight (all users)."""
+class HAFitnessExerciseMetricNumericSensor(_ExerciseMetricBaseSensor):
+    """Numeric exercise sensor mapped to one stats field."""
 
-    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, exercise: str) -> None:
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        exercise_id: str,
+        *,
+        translation_key: str,
+        unique_id: str,
+        scope: str,
+        field: str,
+        unit: str | None = None,
+        state_class: SensorStateClass | None = SensorStateClass.MEASUREMENT,
+        multiplier: float = 1.0,
+    ) -> None:
         super().__init__(
             coordinator,
             entry,
-            exercise,
-            translation_key="exercise_pr",
-            unique_prefix="pr",
-            value_getter=coordinator.get_pr_by_exercise,
+            exercise_id,
+            translation_key=translation_key,
+            unique_id=unique_id,
+            scope=scope,
         )
+        self._field = field
+        self._multiplier = float(multiplier)
+        if unit is not None:
+            self._attr_native_unit_of_measurement = unit
+        if state_class is not None:
+            self._attr_state_class = state_class
+
+    @property
+    def native_value(self) -> float:
+        value = self._stats().get(self._field, 0.0)
+        try:
+            resolved = float(value)
+        except (TypeError, ValueError):
+            resolved = 0.0
+        return resolved * self._multiplier
 
 
-class HAFitnessVolumeByExerciseSensor(_ExerciseMetricSensor):
-    """Sensor for per-exercise accumulated total volume (all users)."""
+class HAFitnessExerciseMetricTextSensor(_ExerciseMetricBaseSensor):
+    """Text exercise sensor for last entry/set summaries."""
 
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-
-    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, exercise: str) -> None:
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        exercise_id: str,
+        *,
+        translation_key: str,
+        unique_id: str,
+        scope: str,
+        field: str,
+    ) -> None:
         super().__init__(
             coordinator,
             entry,
-            exercise,
-            translation_key="exercise_total_volume",
-            unique_prefix="volume",
-            value_getter=coordinator.get_volume_by_exercise,
+            exercise_id,
+            translation_key=translation_key,
+            unique_id=unique_id,
+            scope=scope,
         )
-        self._attr_unique_id = f"{entry.entry_id}_volume_{_exercise_key(exercise)}_total"
+        self._field = field
+
+    @property
+    def native_value(self) -> str:
+        value = self._stats().get(self._field)
+        if value is None:
+            return "none"
+        text = str(value).strip()
+        return text if text else "none"
 
 
-class HAFitnessPersonalPRByExerciseSensor(_ExerciseMetricSensor):
-    """Sensor for personal per-exercise PR."""
+def _build_exercise_metric_entities(
+    coordinator: HAFitnessCoordinator,
+    entry: ConfigEntry,
+    exercise_id: str,
+) -> list[SensorEntity]:
+    metric_type = coordinator.exercise_metric_type(exercise_id)
+    exercise_key = _exercise_key(exercise_id)
+    entities: list[SensorEntity] = []
 
-    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, exercise: str) -> None:
-        super().__init__(
-            coordinator,
-            entry,
-            exercise,
-            translation_key="exercise_personal_pr",
-            unique_prefix="personal_pr",
-            value_getter=coordinator.get_personal_pr_by_exercise,
+    if metric_type == METRIC_TYPE_STRENGTH:
+        entities.extend(
+            [
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_volume",
+                    unique_id=f"{entry.entry_id}_personal_volume_{exercise_key}_total",
+                    scope="personal",
+                    field="total_volume",
+                    unit=UnitOfMass.KILOGRAMS,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_volume",
+                    unique_id=f"{entry.entry_id}_household_volume_{exercise_key}_total",
+                    scope="household",
+                    field="total_volume",
+                    unit=UnitOfMass.KILOGRAMS,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_pr",
+                    unique_id=f"{entry.entry_id}_personal_pr_{exercise_key}",
+                    scope="personal",
+                    field="pr_weight",
+                    unit=UnitOfMass.KILOGRAMS,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_pr",
+                    unique_id=f"{entry.entry_id}_household_pr_{exercise_key}",
+                    scope="household",
+                    field="pr_weight",
+                    unit=UnitOfMass.KILOGRAMS,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_sets",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_sets_{exercise_key}",
+                    scope="personal",
+                    field="total_sets",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_sets",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_sets_{exercise_key}",
+                    scope="household",
+                    field="total_sets",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricTextSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_last_set",
+                    unique_id=f"{entry.entry_id}_exercise_last_set_{exercise_key}",
+                    scope="personal",
+                    field="last_entry_summary",
+                ),
+            ]
         )
+        return entities
 
-
-class HAFitnessPersonalVolumeByExerciseSensor(_ExerciseMetricSensor):
-    """Sensor for personal per-exercise volume total."""
-
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-
-    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, exercise: str) -> None:
-        super().__init__(
-            coordinator,
-            entry,
-            exercise,
-            translation_key="exercise_personal_total_volume",
-            unique_prefix="personal_volume",
-            value_getter=coordinator.get_personal_volume_by_exercise,
+    if metric_type == METRIC_TYPE_BODYWEIGHT:
+        entities.extend(
+            [
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_reps",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_reps_{exercise_key}",
+                    scope="personal",
+                    field="total_reps",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_reps",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_reps_{exercise_key}",
+                    scope="household",
+                    field="total_reps",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_reps",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_reps_{exercise_key}",
+                    scope="personal",
+                    field="best_reps",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_best_reps",
+                    unique_id=f"{entry.entry_id}_exercise_household_best_reps_{exercise_key}",
+                    scope="household",
+                    field="best_reps",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_sets",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_sets_{exercise_key}",
+                    scope="personal",
+                    field="entry_count",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_sets",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_sets_{exercise_key}",
+                    scope="household",
+                    field="entry_count",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_load_{exercise_key}",
+                    scope="personal",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_load_{exercise_key}",
+                    scope="household",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricTextSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_last_entry",
+                    unique_id=f"{entry.entry_id}_exercise_last_entry_{exercise_key}",
+                    scope="personal",
+                    field="last_entry_summary",
+                ),
+            ]
         )
-        self._attr_unique_id = f"{entry.entry_id}_personal_volume_{_exercise_key(exercise)}_total"
+        return entities
 
-
-class HAFitnessHouseholdPRByExerciseSensor(_ExerciseMetricSensor):
-    """Sensor for household per-exercise PR."""
-
-    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, exercise: str) -> None:
-        super().__init__(
-            coordinator,
-            entry,
-            exercise,
-            translation_key="exercise_household_pr",
-            unique_prefix="household_pr",
-            value_getter=coordinator.get_household_pr_by_exercise,
+    if metric_type in (METRIC_TYPE_DURATION, METRIC_TYPE_HOLD):
+        entities.extend(
+            [
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_duration",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_duration_{exercise_key}",
+                    scope="personal",
+                    field="total_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_duration",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_duration_{exercise_key}",
+                    scope="household",
+                    field="total_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_duration",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_duration_{exercise_key}",
+                    scope="personal",
+                    field="best_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_best_duration",
+                    unique_id=f"{entry.entry_id}_exercise_household_best_duration_{exercise_key}",
+                    scope="household",
+                    field="best_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_entries",
+                    unique_id=f"{entry.entry_id}_exercise_personal_entries_{exercise_key}",
+                    scope="personal",
+                    field="entry_count",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_entries",
+                    unique_id=f"{entry.entry_id}_exercise_household_entries_{exercise_key}",
+                    scope="household",
+                    field="entry_count",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_load_{exercise_key}",
+                    scope="personal",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_load_{exercise_key}",
+                    scope="household",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricTextSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_last_entry",
+                    unique_id=f"{entry.entry_id}_exercise_last_entry_{exercise_key}",
+                    scope="personal",
+                    field="last_entry_summary",
+                ),
+            ]
         )
+        return entities
 
-
-class HAFitnessHouseholdVolumeByExerciseSensor(_ExerciseMetricSensor):
-    """Sensor for household per-exercise volume total."""
-
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-
-    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry, exercise: str) -> None:
-        super().__init__(
-            coordinator,
-            entry,
-            exercise,
-            translation_key="exercise_household_total_volume",
-            unique_prefix="household_volume",
-            value_getter=coordinator.get_household_volume_by_exercise,
+    if metric_type == METRIC_TYPE_DISTANCE:
+        entities.extend(
+            [
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_distance",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_distance_{exercise_key}",
+                    scope="personal",
+                    field="total_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_distance",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_distance_{exercise_key}",
+                    scope="household",
+                    field="total_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_duration",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_duration_{exercise_key}",
+                    scope="personal",
+                    field="total_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_duration",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_duration_{exercise_key}",
+                    scope="household",
+                    field="total_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_distance",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_distance_{exercise_key}",
+                    scope="personal",
+                    field="best_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_best_distance",
+                    unique_id=f"{entry.entry_id}_exercise_household_best_distance_{exercise_key}",
+                    scope="household",
+                    field="best_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_pace",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_pace_{exercise_key}",
+                    scope="personal",
+                    field="best_pace_seconds_per_km",
+                    unit="min/km",
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_best_pace",
+                    unique_id=f"{entry.entry_id}_exercise_household_best_pace_{exercise_key}",
+                    scope="household",
+                    field="best_pace_seconds_per_km",
+                    unit="min/km",
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_load_{exercise_key}",
+                    scope="personal",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_load_{exercise_key}",
+                    scope="household",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricTextSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_last_entry",
+                    unique_id=f"{entry.entry_id}_exercise_last_entry_{exercise_key}",
+                    scope="personal",
+                    field="last_entry_summary",
+                ),
+            ]
         )
-        self._attr_unique_id = f"{entry.entry_id}_household_volume_{_exercise_key(exercise)}_total"
+        return entities
+
+    if metric_type == METRIC_TYPE_CARDIO:
+        entities.extend(
+            [
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_duration",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_duration_{exercise_key}",
+                    scope="personal",
+                    field="total_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_duration",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_duration_{exercise_key}",
+                    scope="household",
+                    field="total_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_distance",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_distance_{exercise_key}",
+                    scope="personal",
+                    field="total_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_distance",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_distance_{exercise_key}",
+                    scope="household",
+                    field="total_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_calories",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_calories_{exercise_key}",
+                    scope="personal",
+                    field="total_calories",
+                    unit="kcal",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_calories",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_calories_{exercise_key}",
+                    scope="household",
+                    field="total_calories",
+                    unit="kcal",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_steps",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_steps_{exercise_key}",
+                    scope="personal",
+                    field="total_steps",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_steps",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_steps_{exercise_key}",
+                    scope="household",
+                    field="total_steps",
+                    unit="count",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_avg_heart_rate",
+                    unique_id=f"{entry.entry_id}_exercise_personal_avg_heart_rate_{exercise_key}",
+                    scope="personal",
+                    field="avg_heart_rate",
+                    unit="bpm",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_max_heart_rate",
+                    unique_id=f"{entry.entry_id}_exercise_personal_max_heart_rate_{exercise_key}",
+                    scope="personal",
+                    field="max_heart_rate",
+                    unit="bpm",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_max_heart_rate",
+                    unique_id=f"{entry.entry_id}_exercise_household_max_heart_rate_{exercise_key}",
+                    scope="household",
+                    field="max_heart_rate",
+                    unit="bpm",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_personal_total_load_{exercise_key}",
+                    scope="personal",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_total_load",
+                    unique_id=f"{entry.entry_id}_exercise_household_total_load_{exercise_key}",
+                    scope="household",
+                    field="total_load_score",
+                    unit="load",
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_duration",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_duration_{exercise_key}",
+                    scope="personal",
+                    field="best_duration_seconds",
+                    unit=UnitOfTime.MINUTES,
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_distance",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_distance_{exercise_key}",
+                    scope="personal",
+                    field="best_distance_m",
+                    unit=UnitOfLength.KILOMETERS,
+                    multiplier=1.0 / 1000.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_personal_best_pace",
+                    unique_id=f"{entry.entry_id}_exercise_personal_best_pace_{exercise_key}",
+                    scope="personal",
+                    field="best_pace_seconds_per_km",
+                    unit="min/km",
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricNumericSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_household_best_pace",
+                    unique_id=f"{entry.entry_id}_exercise_household_best_pace_{exercise_key}",
+                    scope="household",
+                    field="best_pace_seconds_per_km",
+                    unit="min/km",
+                    multiplier=1.0 / 60.0,
+                ),
+                HAFitnessExerciseMetricTextSensor(
+                    coordinator,
+                    entry,
+                    exercise_id,
+                    translation_key="exercise_last_entry",
+                    unique_id=f"{entry.entry_id}_exercise_last_entry_{exercise_key}",
+                    scope="personal",
+                    field="last_entry_summary",
+                ),
+            ]
+        )
+        return entities
+
+    # Custom / fallback metrics
+    entities.extend(
+        [
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_personal_entries",
+                unique_id=f"{entry.entry_id}_exercise_personal_entries_{exercise_key}",
+                scope="personal",
+                field="entry_count",
+                unit="count",
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_household_entries",
+                unique_id=f"{entry.entry_id}_exercise_household_entries_{exercise_key}",
+                scope="household",
+                field="entry_count",
+                unit="count",
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_personal_total_load",
+                unique_id=f"{entry.entry_id}_exercise_personal_total_load_{exercise_key}",
+                scope="personal",
+                field="total_load_score",
+                unit="load",
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_household_total_load",
+                unique_id=f"{entry.entry_id}_exercise_household_total_load_{exercise_key}",
+                scope="household",
+                field="total_load_score",
+                unit="load",
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_personal_total_duration",
+                unique_id=f"{entry.entry_id}_exercise_personal_total_duration_{exercise_key}",
+                scope="personal",
+                field="total_duration_seconds",
+                unit=UnitOfTime.MINUTES,
+                multiplier=1.0 / 60.0,
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_household_total_duration",
+                unique_id=f"{entry.entry_id}_exercise_household_total_duration_{exercise_key}",
+                scope="household",
+                field="total_duration_seconds",
+                unit=UnitOfTime.MINUTES,
+                multiplier=1.0 / 60.0,
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_personal_total_distance",
+                unique_id=f"{entry.entry_id}_exercise_personal_total_distance_{exercise_key}",
+                scope="personal",
+                field="total_distance_m",
+                unit=UnitOfLength.KILOMETERS,
+                multiplier=1.0 / 1000.0,
+            ),
+            HAFitnessExerciseMetricNumericSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_household_total_distance",
+                unique_id=f"{entry.entry_id}_exercise_household_total_distance_{exercise_key}",
+                scope="household",
+                field="total_distance_m",
+                unit=UnitOfLength.KILOMETERS,
+                multiplier=1.0 / 1000.0,
+            ),
+            HAFitnessExerciseMetricTextSensor(
+                coordinator,
+                entry,
+                exercise_id,
+                translation_key="exercise_last_entry",
+                unique_id=f"{entry.entry_id}_exercise_last_entry_{exercise_key}",
+                scope="personal",
+                field="last_entry_summary",
+            ),
+        ]
+    )
+    return entities
 
 
 def _exercise_key(exercise: str) -> str:
@@ -1176,6 +1867,7 @@ def _exercise_row_payload(
         "muscle_group": row.get("muscle_group"),
         "equipment": row.get("equipment"),
         "equipment_id": row.get("equipment_id"),
+        "metric_type": row.get("metric_type"),
         "enabled": int(row.get("enabled", 1)) == 1,
         "sort_order": int(row.get("sort_order", 0)),
         "created_at": row.get("created_at"),

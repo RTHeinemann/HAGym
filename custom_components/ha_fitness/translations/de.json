@@ -528,6 +528,93 @@
       "exercise_household_total_volume": {
         "name": "Haushalts-Gesamtvolumen"
       },
+      "exercise_personal_total_sets": {
+        "name": "Persönliche Gesamtsätze"
+      },
+      "exercise_household_total_sets": {
+        "name": "Haushalts-Gesamtsätze"
+      },
+      "exercise_last_set": {
+        "name": "Letzter Satz"
+      },
+      "exercise_personal_total_reps": {
+        "name": "Persönliche Gesamtwiederholungen"
+      },
+      "exercise_household_total_reps": {
+        "name": "Haushalts-Gesamtwiederholungen"
+      },
+      "exercise_personal_best_reps": {
+        "name": "Persönliche Bestleistung"
+      },
+      "exercise_household_best_reps": {
+        "name": "Haushalts-Bestleistung"
+      },
+      "exercise_personal_total_load": {
+        "name": "Persönliche Trainingslast"
+      },
+      "exercise_household_total_load": {
+        "name": "Haushalts-Trainingslast"
+      },
+      "exercise_last_entry": {
+        "name": "Letzter Eintrag"
+      },
+      "exercise_personal_total_duration": {
+        "name": "Persönliche Gesamtdauer"
+      },
+      "exercise_household_total_duration": {
+        "name": "Haushalts-Gesamtdauer"
+      },
+      "exercise_personal_best_duration": {
+        "name": "Persönliche Bestdauer"
+      },
+      "exercise_household_best_duration": {
+        "name": "Haushalts-Bestdauer"
+      },
+      "exercise_personal_entries": {
+        "name": "Persönliche Einträge"
+      },
+      "exercise_household_entries": {
+        "name": "Haushalts-Einträge"
+      },
+      "exercise_personal_total_distance": {
+        "name": "Persönliche Gesamtdistanz"
+      },
+      "exercise_household_total_distance": {
+        "name": "Haushalts-Gesamtdistanz"
+      },
+      "exercise_personal_best_distance": {
+        "name": "Persönliche Bestdistanz"
+      },
+      "exercise_household_best_distance": {
+        "name": "Haushalts-Bestdistanz"
+      },
+      "exercise_personal_best_pace": {
+        "name": "Persönliche Bestpace"
+      },
+      "exercise_household_best_pace": {
+        "name": "Haushalts-Bestpace"
+      },
+      "exercise_personal_total_calories": {
+        "name": "Persönliche Kalorien"
+      },
+      "exercise_household_total_calories": {
+        "name": "Haushalts-Kalorien"
+      },
+      "exercise_personal_total_steps": {
+        "name": "Persönliche Schritte"
+      },
+      "exercise_household_total_steps": {
+        "name": "Haushalts-Schritte"
+      },
+      "exercise_personal_avg_heart_rate": {
+        "name": "Persönlicher Durchschnittspuls"
+      },
+      "exercise_personal_max_heart_rate": {
+        "name": "Persönlicher Maximalpuls"
+      },
+      "exercise_household_max_heart_rate": {
+        "name": "Haushalts-Maximalpuls"
+      },
       "pr_bench_press": {
         "name": "PR Bankdrücken"
       },

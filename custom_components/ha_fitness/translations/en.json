@@ -528,6 +528,93 @@
       "exercise_household_total_volume": {
         "name": "Household Total Volume"
       },
+      "exercise_personal_total_sets": {
+        "name": "Personal Total Sets"
+      },
+      "exercise_household_total_sets": {
+        "name": "Household Total Sets"
+      },
+      "exercise_last_set": {
+        "name": "Last Set"
+      },
+      "exercise_personal_total_reps": {
+        "name": "Personal Total Reps"
+      },
+      "exercise_household_total_reps": {
+        "name": "Household Total Reps"
+      },
+      "exercise_personal_best_reps": {
+        "name": "Personal Best Reps"
+      },
+      "exercise_household_best_reps": {
+        "name": "Household Best Reps"
+      },
+      "exercise_personal_total_load": {
+        "name": "Personal Training Load"
+      },
+      "exercise_household_total_load": {
+        "name": "Household Training Load"
+      },
+      "exercise_last_entry": {
+        "name": "Last Entry"
+      },
+      "exercise_personal_total_duration": {
+        "name": "Personal Total Duration"
+      },
+      "exercise_household_total_duration": {
+        "name": "Household Total Duration"
+      },
+      "exercise_personal_best_duration": {
+        "name": "Personal Best Duration"
+      },
+      "exercise_household_best_duration": {
+        "name": "Household Best Duration"
+      },
+      "exercise_personal_entries": {
+        "name": "Personal Entries"
+      },
+      "exercise_household_entries": {
+        "name": "Household Entries"
+      },
+      "exercise_personal_total_distance": {
+        "name": "Personal Total Distance"
+      },
+      "exercise_household_total_distance": {
+        "name": "Household Total Distance"
+      },
+      "exercise_personal_best_distance": {
+        "name": "Personal Best Distance"
+      },
+      "exercise_household_best_distance": {
+        "name": "Household Best Distance"
+      },
+      "exercise_personal_best_pace": {
+        "name": "Personal Best Pace"
+      },
+      "exercise_household_best_pace": {
+        "name": "Household Best Pace"
+      },
+      "exercise_personal_total_calories": {
+        "name": "Personal Calories"
+      },
+      "exercise_household_total_calories": {
+        "name": "Household Calories"
+      },
+      "exercise_personal_total_steps": {
+        "name": "Personal Steps"
+      },
+      "exercise_household_total_steps": {
+        "name": "Household Steps"
+      },
+      "exercise_personal_avg_heart_rate": {
+        "name": "Personal Average Heart Rate"
+      },
+      "exercise_personal_max_heart_rate": {
+        "name": "Personal Max Heart Rate"
+      },
+      "exercise_household_max_heart_rate": {
+        "name": "Household Max Heart Rate"
+      },
       "pr_bench_press": {
         "name": "PR Bench Press"
       },
