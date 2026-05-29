@@ -32,7 +32,7 @@ In integration code this is resolved with:
 
 - Schema migrations are tracked in `schema_migrations`.
 - Current version is applied automatically during startup.
-- Current schema version: `7`
+- Current schema version: `8`
 
 ## Recorder and Cloud
 
@@ -191,3 +191,25 @@ Compatibility behavior:
 - Existing strength `volume` values are unchanged.
 - Existing volume-based strength analytics remain compatible because non-strength rows are stored with `volume = 0`.
 - Legacy data is preserved.
+
+## Multilingual Equipment Naming (v8)
+
+Schema migration v8 extends `equipment` with:
+
+- `name_en`
+- `name_de`
+
+while keeping legacy `name` for compatibility.
+
+Migration behavior:
+
+1. Add `name_en` / `name_de` columns if missing.
+2. For known default equipment IDs, fill localized default values when those fields are empty.
+3. For user-created rows, backfill empty `name_en` / `name_de` from legacy `name`.
+4. Never overwrite non-empty `name_en` / `name_de`.
+5. Never change equipment IDs.
+
+Runtime behavior:
+
+- Equipment display labels now use localized fields.
+- Existing dashboards/code paths reading `equipment.name` remain valid.

@@ -18,13 +18,30 @@ HAGym now supports an equipment catalog that links:
 
 ## Default equipment
 
-- `bench_station` — Bench Station (mdi:bench)
-- `cable_tower` — Cable Tower (mdi:pulley)
-- `squat_rack` — Squat Rack (mdi:weight-lifter)
-- `dumbbell_area` — Dumbbell Area (mdi:dumbbell)
-- `rowing_station` — Row Station (mdi:rowing)
+- `bench_station` — Bankdrückstation / Bench Station (mdi:bench)
+- `cable_tower` — Kabelzugturm / Cable Tower (mdi:pulley)
+- `squat_rack` — Kniebeugenständer / Squat Rack (mdi:weight-lifter)
+- `dumbbell_area` — Kurzhantelbereich / Dumbbell Area (mdi:dumbbell)
+- `rowing_station` — Ruderstation / Row Station (mdi:rowing)
 
 Default exercises are backfilled to these devices where known.
+
+## Naming model
+
+Equipment now follows the same multilingual naming pattern as exercises and muscle groups:
+
+- `name_en`
+- `name_de`
+- legacy `name` (kept for backward compatibility)
+
+Display fallback order is:
+
+1. `name_de`
+2. `name_en`
+3. `name`
+4. `id`
+
+So in German setups, default stations render with German labels.
 
 ## Options UI
 
@@ -39,7 +56,8 @@ In **Settings -> Devices & Services -> HAGym -> Configure**:
 ### Add equipment fields
 
 - `equipment_id` (lowercase/underscore safe id)
-- `name`
+- `name_de` (required in UI)
+- `name_en` (optional)
 - `description`
 - `icon`
 - `location`

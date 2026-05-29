@@ -151,7 +151,8 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 equipment_id = _normalize_equipment_id(
                     str(user_input.get(ATTR_EQUIPMENT_ID, ""))
                 )
-                name = str(user_input.get("name", "")).strip()
+                name_de = str(user_input.get(ATTR_NAME_DE, "")).strip()
+                name_en = _optional_str(user_input.get(ATTR_NAME_EN))
                 description = _optional_str(user_input.get(ATTR_DESCRIPTION))
                 icon = _optional_str(user_input.get(ATTR_ICON))
                 location = _optional_str(user_input.get(ATTR_LOCATION))
@@ -168,16 +169,19 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await store_check.async_initialize()
                     if await store_check.async_get_equipment(equipment_id) is not None:
                         errors[ATTR_EQUIPMENT_ID] = "equipment_exists"
-                if not name:
-                    errors["name"] = "name_required"
+                if not name_de:
+                    errors[ATTR_NAME_DE] = "name_required"
                 if not _is_valid_sort_order_input(sort_order_raw):
                     errors[ATTR_SORT_ORDER] = "invalid_sort_order"
 
                 if not errors:
+                    resolved_name_en = name_en or name_de
                     if coordinator is not None:
                         await coordinator.async_add_equipment(
                             equipment_id=equipment_id,
-                            name=name,
+                            name=name_de,
+                            name_en=resolved_name_en,
+                            name_de=name_de,
                             description=description,
                             icon=icon,
                             location=location,
@@ -189,7 +193,9 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         await store.async_initialize()
                         await store.async_add_equipment(
                             equipment_id=equipment_id,
-                            name=name,
+                            name=name_de,
+                            name_en=resolved_name_en,
+                            name_de=name_de,
                             description=description,
                             icon=icon,
                             location=location,
@@ -216,8 +222,12 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         else "",
                     ): str,
                     vol.Required(
-                        "name",
-                        default=str(user_input.get("name", "")) if user_input else "",
+                        ATTR_NAME_DE,
+                        default=str(user_input.get(ATTR_NAME_DE, "")) if user_input else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_NAME_EN,
+                        default=str(user_input.get(ATTR_NAME_EN, "")) if user_input else "",
                     ): str,
                     vol.Optional(
                         ATTR_DESCRIPTION,
@@ -1744,7 +1754,8 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             equipment_id = _normalize_equipment_id(str(user_input.get(ATTR_EQUIPMENT_ID, "")))
-            name = str(user_input.get("name", "")).strip()
+            name_de = str(user_input.get(ATTR_NAME_DE, "")).strip()
+            name_en = _optional_str(user_input.get(ATTR_NAME_EN))
             description = _optional_str(user_input.get(ATTR_DESCRIPTION))
             icon = _optional_str(user_input.get(ATTR_ICON))
             location = _optional_str(user_input.get(ATTR_LOCATION))
@@ -1756,8 +1767,8 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 errors[ATTR_EQUIPMENT_ID] = "invalid_equipment_id"
             elif coordinator is not None and coordinator.get_equipment(equipment_id):
                 errors[ATTR_EQUIPMENT_ID] = "equipment_exists"
-            if not name:
-                errors["name"] = "name_required"
+            if not name_de:
+                errors[ATTR_NAME_DE] = "name_required"
             if not _is_valid_sort_order_input(sort_order_raw):
                 errors[ATTR_SORT_ORDER] = "invalid_sort_order"
             if coordinator is None:
@@ -1766,7 +1777,9 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             if not errors and coordinator is not None and equipment_id is not None:
                 await coordinator.async_add_equipment(
                     equipment_id=equipment_id,
-                    name=name,
+                    name=name_de,
+                    name_en=name_en or name_de,
+                    name_de=name_de,
                     description=description,
                     icon=icon,
                     location=location,
@@ -1783,7 +1796,14 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         ATTR_EQUIPMENT_ID,
                         default=str(user_input.get(ATTR_EQUIPMENT_ID, "")) if user_input else "",
                     ): str,
-                    vol.Required("name", default=str(user_input.get("name", "")) if user_input else ""): str,
+                    vol.Required(
+                        ATTR_NAME_DE,
+                        default=str(user_input.get(ATTR_NAME_DE, "")) if user_input else "",
+                    ): str,
+                    vol.Optional(
+                        ATTR_NAME_EN,
+                        default=str(user_input.get(ATTR_NAME_EN, "")) if user_input else "",
+                    ): str,
                     vol.Optional(
                         ATTR_DESCRIPTION,
                         default=str(user_input.get(ATTR_DESCRIPTION, "")) if user_input else "",
@@ -1858,21 +1878,24 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             return self.async_abort(reason="equipment_not_found")
 
         if user_input is not None:
-            name = str(user_input.get("name", "")).strip()
+            name_de = str(user_input.get(ATTR_NAME_DE, "")).strip()
+            name_en = _optional_str(user_input.get(ATTR_NAME_EN))
             description = _optional_str(user_input.get(ATTR_DESCRIPTION))
             icon = _optional_str(user_input.get(ATTR_ICON))
             location = _optional_str(user_input.get(ATTR_LOCATION))
             enabled = bool(user_input.get(ATTR_ENABLED, True))
             sort_order_raw = user_input.get(ATTR_SORT_ORDER, equipment.get(ATTR_SORT_ORDER, 100))
             sort_order = _coerce_int(sort_order_raw, int(equipment.get(ATTR_SORT_ORDER, 100)))
-            if not name:
-                errors["name"] = "name_required"
+            if not name_de:
+                errors[ATTR_NAME_DE] = "name_required"
             if not _is_valid_sort_order_input(sort_order_raw):
                 errors[ATTR_SORT_ORDER] = "invalid_sort_order"
             if not errors:
                 await coordinator.async_update_equipment(
                     equipment_id=equipment_id,
-                    name=name,
+                    name=name_de,
+                    name_en=name_en or name_de,
+                    name_de=name_de,
                     description=description,
                     icon=icon,
                     location=location,
@@ -1886,10 +1909,30 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        "name",
-                        default=str(user_input.get("name", equipment.get("name", "")))
+                        ATTR_NAME_DE,
+                        default=str(
+                            user_input.get(
+                                ATTR_NAME_DE,
+                                equipment.get(ATTR_NAME_DE, equipment.get("name", "")),
+                            )
+                        )
                         if user_input
-                        else str(equipment.get("name", "")),
+                        else str(equipment.get(ATTR_NAME_DE, equipment.get("name", ""))),
+                    ): str,
+                    vol.Optional(
+                        ATTR_NAME_EN,
+                        default=str(
+                            user_input.get(
+                                ATTR_NAME_EN,
+                                equipment.get(ATTR_NAME_EN, equipment.get(ATTR_NAME_DE, "")),
+                            )
+                        )
+                        if user_input
+                        else str(
+                            equipment.get(
+                                ATTR_NAME_EN, equipment.get(ATTR_NAME_DE, equipment.get("name", ""))
+                            )
+                        ),
                     ): str,
                     vol.Optional(
                         ATTR_DESCRIPTION,
@@ -1992,7 +2035,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema({vol.Required("confirm", default=True): bool}),
             description_placeholders={
                 "equipment_id": equipment_id,
-                "equipment_name": str(equipment.get("name") or equipment_id),
+                "equipment_name": coordinator.equipment_display_name(equipment_id),
                 "status": "enabled" if is_enabled else "disabled",
                 "action": "disable" if is_enabled else "enable",
             },

@@ -15,7 +15,7 @@ from .const import (
     LEGACY_USER_NAME,
 )
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -58,6 +58,10 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 7:
         _apply_v7(conn)
+        current_version = 7
+
+    if current_version < 8:
+        _apply_v8(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -560,4 +564,61 @@ def _apply_v7(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
         (7, now),
+    )
+
+
+def _apply_v8(conn: sqlite3.Connection) -> None:
+    """Add multilingual equipment names with safe backfill behavior."""
+    if not _column_exists(conn, "equipment", "name_en"):
+        conn.execute("ALTER TABLE equipment ADD COLUMN name_en TEXT")
+    if not _column_exists(conn, "equipment", "name_de"):
+        conn.execute("ALTER TABLE equipment ADD COLUMN name_de TEXT")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Fill known defaults first so German/English canonical names are present.
+    for item in DEFAULT_EQUIPMENT:
+        equipment_id = str(item["id"])
+        default_name_en = str(item.get("name_en") or item.get("name") or equipment_id)
+        default_name_de = str(item.get("name_de") or item.get("name") or default_name_en)
+        conn.execute(
+            """
+            UPDATE equipment
+            SET
+                name_en = CASE
+                    WHEN name_en IS NULL OR TRIM(name_en) = '' THEN ?
+                    ELSE name_en
+                END,
+                name_de = CASE
+                    WHEN name_de IS NULL OR TRIM(name_de) = '' THEN ?
+                    ELSE name_de
+                END
+            WHERE id = ?
+            """,
+            (default_name_en, default_name_de, equipment_id),
+        )
+
+    # Backward-compatible fill for user-created rows: copy existing legacy name.
+    conn.execute(
+        """
+        UPDATE equipment
+        SET name_en = name
+        WHERE (name_en IS NULL OR TRIM(name_en) = '')
+          AND name IS NOT NULL
+          AND TRIM(name) != ''
+        """
+    )
+    conn.execute(
+        """
+        UPDATE equipment
+        SET name_de = name
+        WHERE (name_de IS NULL OR TRIM(name_de) = '')
+          AND name IS NOT NULL
+          AND TRIM(name) != ''
+        """
+    )
+
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (8, now),
     )

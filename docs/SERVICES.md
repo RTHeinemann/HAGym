@@ -17,6 +17,14 @@ This document highlights workout-management services added in v1.
     - second call within 10 seconds finishes workout
     - `force: true` finishes immediately
 
+## Equipment Selection
+
+- `ha_fitness.select_equipment`
+  - optional: `equipment_id`
+  - expects stable equipment IDs (for example `cable_tower`)
+  - labels shown in UI are localized via equipment `name_de` / `name_en`
+  - legacy `name` is still supported internally for backward compatibility paths
+
 ## Workout CRUD
 
 - `ha_fitness.create_workout`

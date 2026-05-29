@@ -60,6 +60,7 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - `select.ha_fitness_active_equipment` – equipment/station selector for exercise filtering
 - integration options UI for exercise catalog management (add/edit/disable/re-enable)
 - equipment catalog options UI (add/edit/disable/assign exercises)
+- equipment catalog now uses multilingual naming (`name_en`, `name_de`) with backward-compatible legacy `name`
 - muscle group catalog options UI (add/edit/disable/assign to exercises)
 - `number.ha_fitness_weight` and `number.ha_fitness_reps` – set input controls
 - shared activity input entities on the main HAGym device:

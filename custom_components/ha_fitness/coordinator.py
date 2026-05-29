@@ -380,7 +380,7 @@ class HAFitnessCoordinator:
         rows.sort(
             key=lambda row: (
                 int(row.get("sort_order", 100)),
-                str(row.get("name") or row.get("id") or ""),
+                self._equipment_name_from_row(row) or str(row.get("id") or ""),
                 str(row.get("id") or ""),
             )
         )
@@ -530,6 +530,21 @@ class HAFitnessCoordinator:
         if self._locale.lower().startswith("de"):
             return str(row.get("name_de") or row.get("name_en") or "") or None
         return str(row.get("name_en") or row.get("name_de") or "") or None
+
+    def _equipment_name_from_row(self, row: dict[str, Any] | None) -> str | None:
+        if row is None:
+            return None
+        return (
+            str(
+                row.get("name_de")
+                or row.get("name_en")
+                or row.get("name")
+                or row.get("equipment_id")
+                or row.get("id")
+                or ""
+            )
+            or None
+        )
 
     def exercise_enabled(self, exercise_id: str) -> bool:
         row = self._exercise_by_id.get(exercise_id)
@@ -904,7 +919,7 @@ class HAFitnessCoordinator:
         row = self._equipment_by_id.get(equipment_id)
         if row is None:
             return equipment_id
-        return str(row.get("name") or equipment_id)
+        return self._equipment_name_from_row(row) or equipment_id
 
     def equipment_location(self, equipment_id: str) -> str | None:
         """Return equipment location if configured."""
@@ -1130,7 +1145,7 @@ class HAFitnessCoordinator:
         enabled_rows.sort(
             key=lambda row: (
                 int(row.get("sort_order", 100)),
-                str(row.get("name") or row.get("id") or ""),
+                self._equipment_name_from_row(row) or str(row.get("id") or ""),
                 str(row.get("id") or ""),
             )
         )
@@ -1138,7 +1153,7 @@ class HAFitnessCoordinator:
         options = [self._idle_equipment_label, self._all_equipment_label]
         for row in enabled_rows:
             equipment_id = str(row["id"])
-            display = str(row.get("name") or equipment_id)
+            display = self._equipment_name_from_row(row) or equipment_id
             options.append(display)
             self._equipment_display_to_id[display] = equipment_id
         self._equipment_options = options
@@ -1597,8 +1612,17 @@ class HAFitnessCoordinator:
                     else str(set_row.get("exercise") or "")
                 )
                 equipment_name = (
-                    str(set_row.get("equipment_name") or "")
-                    or str(self.get_equipment(equipment_id).get("name") if equipment_id and self.get_equipment(equipment_id) else "")
+                    str(
+                        set_row.get("equipment_name_de")
+                        or set_row.get("equipment_name_en")
+                        or set_row.get("equipment_name")
+                        or ""
+                    )
+                    or (
+                        self.equipment_display_name(equipment_id)
+                        if equipment_id and self.get_equipment(equipment_id)
+                        else ""
+                    )
                     or equipment_id
                     or None
                 )
@@ -2068,7 +2092,9 @@ class HAFitnessCoordinator:
     async def async_add_equipment(
         self,
         equipment_id: str,
-        name: str,
+        name: str | None = None,
+        name_en: str | None = None,
+        name_de: str | None = None,
         description: str | None = None,
         icon: str | None = None,
         location: str | None = None,
@@ -2079,6 +2105,8 @@ class HAFitnessCoordinator:
         await self._store.async_add_equipment(
             equipment_id=equipment_id,
             name=name,
+            name_en=name_en,
+            name_de=name_de,
             description=description,
             icon=icon,
             location=location,
@@ -2094,6 +2122,8 @@ class HAFitnessCoordinator:
         self,
         equipment_id: str,
         name: str | None = None,
+        name_en: str | None = None,
+        name_de: str | None = None,
         description: str | None = None,
         icon: str | None = None,
         location: str | None = None,
@@ -2104,6 +2134,8 @@ class HAFitnessCoordinator:
         updated = await self._store.async_update_equipment(
             equipment_id=equipment_id,
             name=name,
+            name_en=name_en,
+            name_de=name_de,
             description=description,
             icon=icon,
             location=location,
@@ -2174,7 +2206,7 @@ class HAFitnessCoordinator:
             rows,
             key=lambda row: (
                 int(row.get("sort_order", 100)),
-                str(row.get("name") or row.get("id") or ""),
+                self._equipment_name_from_row(row) or str(row.get("id") or ""),
                 str(row.get("id") or ""),
             ),
         )
@@ -2183,7 +2215,7 @@ class HAFitnessCoordinator:
             equipment_id = str(row.get("id") or "")
             if not equipment_id:
                 continue
-            label = f"{str(row.get('name') or equipment_id)} ({equipment_id})"
+            label = f"{self._equipment_name_from_row(row) or equipment_id} ({equipment_id})"
             if int(row.get("enabled", 1)) != 1:
                 label += " [disabled]"
             options.append({"value": equipment_id, "label": label})
@@ -2555,10 +2587,23 @@ class HAFitnessCoordinator:
                     row = {
                         "equipment_id": equipment_id,
                         "name": (
-                            catalog_row.get("name")
+                            self._equipment_name_from_row(catalog_row)
+                            or self._equipment_name_from_row(personal_row)
+                            or self._equipment_name_from_row(household_row)
+                            or catalog_row.get("name")
                             or personal_row.get("name")
                             or household_row.get("name")
                             or equipment_id
+                        ),
+                        "name_en": (
+                            catalog_row.get("name_en")
+                            or personal_row.get("name_en")
+                            or household_row.get("name_en")
+                        ),
+                        "name_de": (
+                            catalog_row.get("name_de")
+                            or personal_row.get("name_de")
+                            or household_row.get("name_de")
                         ),
                         "icon": (
                             catalog_row.get("icon")
@@ -2577,6 +2622,10 @@ class HAFitnessCoordinator:
                         "last_used": None,
                         "top_exercise": None,
                     }
+                else:
+                    row["name"] = self._equipment_name_from_row(row) or str(
+                        row.get("name") or equipment_id
+                    )
 
                 row["personal_volume"] = float(personal_row.get("total_volume", 0.0))
                 row["household_volume"] = float(household_row.get("total_volume", 0.0))

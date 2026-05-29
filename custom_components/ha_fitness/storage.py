@@ -422,7 +422,9 @@ class HAFitnessStore:
     async def async_add_equipment(
         self,
         equipment_id: str,
-        name: str,
+        name: str | None = None,
+        name_en: str | None = None,
+        name_de: str | None = None,
         description: str | None = None,
         icon: str | None = None,
         location: str | None = None,
@@ -434,6 +436,8 @@ class HAFitnessStore:
             self._add_equipment,
             equipment_id,
             name,
+            name_en,
+            name_de,
             description,
             icon,
             location,
@@ -445,6 +449,8 @@ class HAFitnessStore:
         self,
         equipment_id: str,
         name: str | None = None,
+        name_en: str | None = None,
+        name_de: str | None = None,
         description: str | None = None,
         icon: str | None = None,
         location: str | None = None,
@@ -456,6 +462,8 @@ class HAFitnessStore:
             self._update_equipment,
             equipment_id,
             name,
+            name_en,
+            name_de,
             description,
             icon,
             location,
@@ -1258,6 +1266,8 @@ class HAFitnessStore:
                     sl.user_id,
                     sl.equipment_id,
                     eq.name AS equipment_name,
+                    eq.name_en AS equipment_name_en,
+                    eq.name_de AS equipment_name_de,
                     sl.exercise_id,
                     ex.name_en AS exercise_name_en,
                     ex.name_de AS exercise_name_de,
@@ -1458,6 +1468,8 @@ class HAFitnessStore:
                     sl.user_id,
                     sl.equipment_id,
                     eq.name AS equipment_name,
+                    eq.name_en AS equipment_name_en,
+                    eq.name_de AS equipment_name_de,
                     sl.exercise_id,
                     ex.name_en AS exercise_name_en,
                     ex.name_de AS exercise_name_de,
@@ -1813,20 +1825,29 @@ class HAFitnessStore:
     def _add_equipment(
         self,
         equipment_id: str,
-        name: str,
+        name: str | None,
+        name_en: str | None,
+        name_de: str | None,
         description: str | None,
         icon: str | None,
         location: str | None,
         enabled: bool,
         sort_order: int,
     ) -> None:
+        resolved_name_en, resolved_name_de, resolved_name = _resolve_equipment_names(
+            name=name,
+            name_en=name_en,
+            name_de=name_de,
+        )
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO equipment(id, name, description, icon, location, enabled, sort_order, created_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO equipment(id, name, name_en, name_de, description, icon, location, enabled, sort_order, created_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
+                    name_en = excluded.name_en,
+                    name_de = excluded.name_de,
                     description = excluded.description,
                     icon = excluded.icon,
                     location = excluded.location,
@@ -1835,7 +1856,9 @@ class HAFitnessStore:
                 """,
                 (
                     equipment_id,
-                    name,
+                    resolved_name,
+                    resolved_name_en,
+                    resolved_name_de,
                     description,
                     icon,
                     location,
@@ -1850,6 +1873,8 @@ class HAFitnessStore:
         self,
         equipment_id: str,
         name: str | None,
+        name_en: str | None,
+        name_de: str | None,
         description: str | None,
         icon: str | None,
         location: str | None,
@@ -1858,9 +1883,19 @@ class HAFitnessStore:
     ) -> bool:
         updates: list[str] = []
         params: list[Any] = []
-        if name is not None:
+        if name is not None or name_en is not None or name_de is not None:
+            resolved_name_en, resolved_name_de, resolved_name = _resolve_equipment_names(
+                name=name,
+                name_en=name_en,
+                name_de=name_de,
+                existing=self._get_equipment(equipment_id),
+            )
+            updates.append("name_en = ?")
+            params.append(resolved_name_en)
+            updates.append("name_de = ?")
+            params.append(resolved_name_de)
             updates.append("name = ?")
-            params.append(name)
+            params.append(resolved_name)
         if description is not None:
             updates.append("description = ?")
             params.append(description)
@@ -1898,7 +1933,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, name, description, icon, location, enabled, sort_order, created_at
+                SELECT id, name, name_en, name_de, description, icon, location, enabled, sort_order, created_at
                 FROM equipment
                 WHERE id = ?
                 LIMIT 1
@@ -1912,9 +1947,9 @@ class HAFitnessStore:
             self._seed_default_equipment(conn)
             rows = conn.execute(
                 """
-                SELECT id, name, description, icon, location, enabled, sort_order, created_at
+                SELECT id, name, name_en, name_de, description, icon, location, enabled, sort_order, created_at
                 FROM equipment
-                ORDER BY enabled DESC, sort_order ASC, name COLLATE NOCASE ASC, id ASC
+                ORDER BY enabled DESC, sort_order ASC, COALESCE(name_de, name_en, name, id) COLLATE NOCASE ASC, id ASC
                 """
             ).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
@@ -1924,10 +1959,10 @@ class HAFitnessStore:
             self._seed_default_equipment(conn)
             rows = conn.execute(
                 """
-                SELECT id, name, description, icon, location, enabled, sort_order, created_at
+                SELECT id, name, name_en, name_de, description, icon, location, enabled, sort_order, created_at
                 FROM equipment
                 WHERE enabled = 1
-                ORDER BY sort_order ASC, name COLLATE NOCASE ASC, id ASC
+                ORDER BY sort_order ASC, COALESCE(name_de, name_en, name, id) COLLATE NOCASE ASC, id ASC
                 """
             ).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
@@ -2404,7 +2439,9 @@ class HAFitnessStore:
                     f"""
                     SELECT DISTINCT
                         sl.equipment_id AS equipment_id,
-                        eq.name AS equipment_name
+                        eq.name AS equipment_name,
+                        eq.name_en AS equipment_name_en,
+                        eq.name_de AS equipment_name_de
                     FROM set_logs sl
                     LEFT JOIN equipment eq ON eq.id = sl.equipment_id
                     WHERE sl.created_at >= ?
@@ -2423,7 +2460,12 @@ class HAFitnessStore:
                     if item is not None and item["equipment_id"] is not None
                 ]
                 equipment_names = [
-                    str(item["equipment_name"] or item["equipment_id"])
+                    str(
+                        item["equipment_name_de"]
+                        or item["equipment_name_en"]
+                        or item["equipment_name"]
+                        or item["equipment_id"]
+                    )
                     for item in equipment_rows
                     if item is not None and item["equipment_id"] is not None
                 ]
@@ -3070,6 +3112,8 @@ class HAFitnessStore:
             SELECT
                 eq.id AS equipment_id,
                 eq.name AS equipment_name,
+                eq.name_en AS equipment_name_en,
+                eq.name_de AS equipment_name_de,
                 eq.icon AS equipment_icon,
                 eq.location AS equipment_location,
                 eq.enabled AS equipment_enabled,
@@ -3083,8 +3127,8 @@ class HAFitnessStore:
                 {join_user_filter}
         """
         sql += """
-            GROUP BY eq.id, eq.name, eq.icon, eq.location, eq.enabled
-            ORDER BY eq.sort_order ASC, eq.name COLLATE NOCASE ASC, eq.id ASC
+            GROUP BY eq.id, eq.name, eq.name_en, eq.name_de, eq.icon, eq.location, eq.enabled
+            ORDER BY eq.sort_order ASC, COALESCE(eq.name_de, eq.name_en, eq.name, eq.id) COLLATE NOCASE ASC, eq.id ASC
         """
 
         rows = conn.execute(sql, params).fetchall()
@@ -3129,6 +3173,8 @@ class HAFitnessStore:
                 {
                     "equipment_id": equipment_id,
                     "name": row["equipment_name"],
+                    "name_en": row["equipment_name_en"],
+                    "name_de": row["equipment_name_de"],
                     "icon": row["equipment_icon"],
                     "location": row["equipment_location"],
                     "enabled": int(row["equipment_enabled"]) == 1,
@@ -3161,18 +3207,36 @@ class HAFitnessStore:
     def _seed_default_equipment(self, conn: sqlite3.Connection) -> None:
         now = _isoformat(datetime.now(timezone.utc))
         for item in DEFAULT_EQUIPMENT:
+            default_name_en = str(item.get("name_en") or item.get("name") or item["id"])
+            default_name_de = str(item.get("name_de") or item.get("name") or default_name_en)
+            default_name = str(item.get("name") or default_name_de or default_name_en)
             conn.execute(
                 """
-                INSERT INTO equipment(id, name, description, icon, location, enabled, sort_order, created_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO equipment(
+                    id, name, name_en, name_de, description, icon, location, enabled, sort_order, created_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
-                    name = excluded.name,
+                    name = CASE
+                        WHEN equipment.name IS NULL OR TRIM(equipment.name) = '' THEN excluded.name
+                        ELSE equipment.name
+                    END,
+                    name_en = CASE
+                        WHEN equipment.name_en IS NULL OR TRIM(equipment.name_en) = '' THEN excluded.name_en
+                        ELSE equipment.name_en
+                    END,
+                    name_de = CASE
+                        WHEN equipment.name_de IS NULL OR TRIM(equipment.name_de) = '' THEN excluded.name_de
+                        ELSE equipment.name_de
+                    END,
                     icon = COALESCE(equipment.icon, excluded.icon),
                     sort_order = excluded.sort_order
                 """,
                 (
                     str(item["id"]),
-                    str(item["name"]),
+                    default_name,
+                    default_name_en,
+                    default_name_de,
                     item["description"],
                     item["icon"],
                     item["location"],
@@ -3429,6 +3493,53 @@ def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if row is None:
         return None
     return dict(row)
+
+
+def _clean_optional_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned if cleaned else None
+
+
+def _resolve_equipment_names(
+    *,
+    name: str | None,
+    name_en: str | None,
+    name_de: str | None,
+    existing: dict[str, Any] | None = None,
+) -> tuple[str, str, str]:
+    existing_name = _clean_optional_text(existing.get("name") if existing else None)
+    existing_name_en = _clean_optional_text(existing.get("name_en") if existing else None)
+    existing_name_de = _clean_optional_text(existing.get("name_de") if existing else None)
+
+    resolved_name = _clean_optional_text(name)
+    resolved_name_en = _clean_optional_text(name_en)
+    resolved_name_de = _clean_optional_text(name_de)
+
+    if resolved_name and resolved_name_en is None and resolved_name_de is None:
+        resolved_name_en = resolved_name
+        resolved_name_de = resolved_name
+    if resolved_name_de and resolved_name_en is None:
+        resolved_name_en = resolved_name_de
+    if resolved_name_en and resolved_name_de is None:
+        resolved_name_de = resolved_name_en
+
+    if resolved_name_en is None:
+        resolved_name_en = existing_name_en or existing_name_de or existing_name
+    if resolved_name_de is None:
+        resolved_name_de = existing_name_de or existing_name_en or existing_name or resolved_name_en
+    if resolved_name_en is None:
+        resolved_name_en = resolved_name_de
+    if resolved_name_de is None:
+        resolved_name_de = resolved_name_en
+
+    if resolved_name_en is None or resolved_name_de is None:
+        raise ValueError("At least one equipment name must be provided.")
+
+    # Keep legacy compatibility column populated, prefer German name.
+    resolved_legacy_name = resolved_name_de or resolved_name_en
+    return resolved_name_en, resolved_name_de, resolved_legacy_name
 
 
 def _empty_exercise_aggregate() -> dict[str, float | int]:

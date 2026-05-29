@@ -194,7 +194,9 @@ DEFAULT_EXERCISES: list[dict[str, object]] = [
 DEFAULT_EQUIPMENT: list[dict[str, object]] = [
     {
         "id": "bench_station",
-        "name": "Bench Station",
+        "name": "Bankdrückstation",
+        "name_en": "Bench Station",
+        "name_de": "Bankdrückstation",
         "description": None,
         "icon": "mdi:bench",
         "location": None,
@@ -203,7 +205,9 @@ DEFAULT_EQUIPMENT: list[dict[str, object]] = [
     },
     {
         "id": "cable_tower",
-        "name": "Cable Tower",
+        "name": "Kabelzugturm",
+        "name_en": "Cable Tower",
+        "name_de": "Kabelzugturm",
         "description": None,
         "icon": "mdi:pulley",
         "location": None,
@@ -212,7 +216,9 @@ DEFAULT_EQUIPMENT: list[dict[str, object]] = [
     },
     {
         "id": "squat_rack",
-        "name": "Squat Rack",
+        "name": "Kniebeugenständer",
+        "name_en": "Squat Rack",
+        "name_de": "Kniebeugenständer",
         "description": None,
         "icon": "mdi:weight-lifter",
         "location": None,
@@ -221,7 +227,9 @@ DEFAULT_EQUIPMENT: list[dict[str, object]] = [
     },
     {
         "id": "dumbbell_area",
-        "name": "Dumbbell Area",
+        "name": "Kurzhantelbereich",
+        "name_en": "Dumbbell Area",
+        "name_de": "Kurzhantelbereich",
         "description": None,
         "icon": "mdi:dumbbell",
         "location": None,
@@ -230,7 +238,9 @@ DEFAULT_EQUIPMENT: list[dict[str, object]] = [
     },
     {
         "id": "rowing_station",
-        "name": "Row Station",
+        "name": "Ruderstation",
+        "name_en": "Row Station",
+        "name_de": "Ruderstation",
         "description": None,
         "icon": "mdi:rowing",
         "location": None,

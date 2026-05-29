@@ -1875,9 +1875,12 @@ def _exercise_row_payload(
 
 
 def _equipment_row_payload(row: dict[str, Any]) -> dict[str, Any]:
+    equipment_id = str(row.get("id") or "")
     return {
-        "id": str(row.get("id") or ""),
+        "id": equipment_id,
         "name": row.get("name"),
+        "name_en": row.get("name_en"),
+        "name_de": row.get("name_de"),
         "description": row.get("description"),
         "icon": row.get("icon"),
         "location": row.get("location"),
