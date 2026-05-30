@@ -213,3 +213,36 @@ Runtime behavior:
 
 - Equipment display labels now use localized fields.
 - Existing dashboards/code paths reading `equipment.name` remain valid.
+
+## Controlled Analytics Backend (v9)
+
+Schema:
+
+- No destructive schema change required.
+- Existing `set_logs` semantics remain unchanged.
+
+New storage APIs:
+
+- `async_get_core_total_statistics(user_id=None, user_ids=None)`
+- `async_get_daily_metric_statistics(day_ranges, user_id=None, user_ids=None, include_scope_breakdowns=True, breakdown_limit=10)`
+
+Core totals return:
+
+- `total_strength_volume`
+- `total_activity_load`
+- `total_duration_seconds`
+- `total_distance_m`
+- `total_reps`
+- `total_sets`
+- `last_entry_at`
+
+Daily statistics model:
+
+- local day buckets (`00:00 -> next 00:00`) with UTC query boundaries
+- zero-filled days included
+- metric-type totals + overall totals
+- capped nested daily breakdowns (top exercises/equipment/muscle groups)
+
+Why `state_class: total` and not `total_increasing`:
+
+- workout/entry edits and deletes can reduce totals, so monotonic assumptions are invalid.

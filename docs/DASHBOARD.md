@@ -40,6 +40,7 @@ resources:
 
 ```yaml
 type: custom:hagym-period-dashboard-card
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
 metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
 volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
 show_embedded_date_selection: true
@@ -52,6 +53,7 @@ collection_key: hagym
 type: vertical-stack
 cards:
   - type: custom:hagym-period-dashboard-card
+    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
     metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
     volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
     show_embedded_date_selection: false
@@ -71,7 +73,8 @@ cards:
 
 ## Dashboard Config
 
-- `metric_history_entity` (required)
+- `daily_metric_entity` (optional, preferred for exact period aggregation)
+- `metric_history_entity` (optional fallback when daily data is unavailable)
 - `volume_history_entity` (optional)
 - `collection_key` (default: `hagym`)
 - `title` (default: `HAGym`)
@@ -81,4 +84,5 @@ cards:
 
 - This pattern is inspired by Home Assistant Energy (`energy-date-selection`) UX.
 - HAGym does not import private Energy frontend modules.
-- Daily/rolling periods are approximated from weekly buckets until daily backend analytics exist.
+- If `daily_metric_entity` is available, period aggregation is exact for day/week/month/year ranges.
+- If only weekly history is available, rolling periods are approximated from weekly buckets.

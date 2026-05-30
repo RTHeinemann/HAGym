@@ -4,6 +4,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._hass = null;
     this._config = {
+      daily_metric_entity: null,
       metric_history_entity: "",
       volume_history_entity: null,
       collection_key: "hagym",
@@ -18,6 +19,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   static getStubConfig() {
     return {
       type: "custom:hagym-period-dashboard-card",
+      daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
       metric_history_entity: "sensor.ha_fitness_personal_weekly_metric_history",
       volume_history_entity: "sensor.ha_fitness_personal_weekly_volume_history",
       collection_key: "hagym",
@@ -40,11 +42,18 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config || !config.metric_history_entity) {
-      throw new Error("hagym-period-dashboard-card: metric_history_entity is required");
+    if (!config || (!config.daily_metric_entity && !config.metric_history_entity)) {
+      throw new Error(
+        "hagym-period-dashboard-card: daily_metric_entity or metric_history_entity is required"
+      );
     }
     this._config = {
-      metric_history_entity: String(config.metric_history_entity),
+      daily_metric_entity: config.daily_metric_entity
+        ? String(config.daily_metric_entity)
+        : null,
+      metric_history_entity: config.metric_history_entity
+        ? String(config.metric_history_entity)
+        : null,
       volume_history_entity: config.volume_history_entity
         ? String(config.volume_history_entity)
         : null,
@@ -125,12 +134,27 @@ class HAGymPeriodDashboardCard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    const metricState = this._hass?.states?.[this._config.metric_history_entity];
+    const dailyState = this._config.daily_metric_entity
+      ? this._hass?.states?.[this._config.daily_metric_entity]
+      : null;
+    const metricState = this._config.metric_history_entity
+      ? this._hass?.states?.[this._config.metric_history_entity]
+      : null;
     const volumeState = this._config.volume_history_entity
       ? this._hass?.states?.[this._config.volume_history_entity]
       : null;
 
-    if (!metricState) {
+    const dailyDays = Array.isArray(dailyState?.attributes?.days)
+      ? dailyState.attributes.days
+      : [];
+    const metricWeeks = Array.isArray(metricState?.attributes?.weeks)
+      ? metricState.attributes.weeks
+      : [];
+
+    const hasDaily = !!dailyState && dailyDays.length > 0;
+    const hasWeekly = !!metricState && metricWeeks.length > 0;
+
+    if (!hasDaily && !hasWeekly) {
       this.shadowRoot.innerHTML = `
         ${this._style()}
         <ha-card>
@@ -139,7 +163,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
             ${this._embeddedSelector()}
             <div class="warn">Metric history entity not found</div>
             <div class="muted"><code>${this._escape(
-              this._config.metric_history_entity
+              this._config.daily_metric_entity || this._config.metric_history_entity || ""
             )}</code></div>
           </div>
         </ha-card>
@@ -147,34 +171,19 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       return;
     }
 
-    const metricWeeks = Array.isArray(metricState.attributes?.weeks)
-      ? metricState.attributes.weeks
-      : [];
-    if (!metricWeeks.length) {
-      this.shadowRoot.innerHTML = `
-        ${this._style()}
-        <ha-card>
-          <div class="wrap">
-            <div class="title">${this._escape(this._config.title)}</div>
-            ${this._embeddedSelector()}
-            <div class="warn">Keine Wochenverlaufsdaten vorhanden</div>
-          </div>
-        </ha-card>
-      `;
-      return;
-    }
-
     const period = this._selection || this._defaultThisWeekSelection();
-    const selectedWeeks = this._selectWeeksForPeriod(metricWeeks, period);
-    const approxNote = this._approximationNote(period.period_key);
-    const noDailyNote = this._dailyUnavailableNote(period.period_key);
-    const activity = this._aggregateActivity(selectedWeeks);
+    const selectedRows = hasDaily
+      ? this._selectDaysForPeriod(dailyDays, period)
+      : this._selectWeeksForPeriod(metricWeeks, period);
+    const approxNote = hasDaily ? "" : this._approximationNote(period.period_key);
+    const noDailyNote = hasDaily ? "" : this._dailyUnavailableNote(period.period_key);
+    const activity = this._aggregateActivity(selectedRows);
     const strength = this._aggregateStrength(
-      selectedWeeks,
+      selectedRows,
       Array.isArray(volumeState?.attributes?.weeks) ? volumeState.attributes.weeks : []
     );
-    const cardio = this._aggregateCardio(selectedWeeks);
-    const totals = this._aggregateTotals(selectedWeeks, activity);
+    const cardio = this._aggregateCardio(selectedRows);
+    const totals = this._aggregateTotals(selectedRows, activity);
 
     this.shadowRoot.innerHTML = `
       ${this._style()}
@@ -188,7 +197,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
 
           <div class="section">
             <div class="section-title">Activity Load</div>
-            ${this._renderActivityBars(selectedWeeks)}
+            ${this._renderActivityBars(selectedRows)}
           </div>
 
           <div class="section">
@@ -293,6 +302,20 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       const we = this._parseDate(w.week_end);
       if (!ws || !we) return false;
       return ws < end && we > start;
+    });
+  }
+
+  _selectDaysForPeriod(days, period) {
+    const rows = Array.isArray(days) ? days : [];
+    const start = this._parseDate(period?.start);
+    const end = this._parseDate(period?.end);
+    if (!start || !end) return [];
+
+    return rows.filter((d) => {
+      const ds = this._parseDate(d.day_start);
+      const de = this._parseDate(d.day_end);
+      if (!ds || !de) return false;
+      return ds < end && de > start;
     });
   }
 
@@ -547,4 +570,3 @@ window.customCards.push({
   description: "HAGym analytics dashboard consuming shared period selection",
   preview: true,
 });
-

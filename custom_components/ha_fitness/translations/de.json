@@ -822,6 +822,48 @@
       "household_weekly_metric_history": {
         "name": "Haushalts-Wochenverlauf nach Metrik"
       },
+      "personal_core_total_strength_volume": {
+        "name": "HAGym Persönliches Kraftvolumen gesamt"
+      },
+      "personal_core_total_activity_load": {
+        "name": "HAGym Persönliche Trainingslast gesamt"
+      },
+      "personal_core_total_duration_minutes": {
+        "name": "HAGym Persönliche Dauer gesamt"
+      },
+      "personal_core_total_distance_km": {
+        "name": "HAGym Persönliche Distanz gesamt"
+      },
+      "personal_core_total_reps": {
+        "name": "HAGym Persönliche Wiederholungen gesamt"
+      },
+      "personal_core_total_sets": {
+        "name": "HAGym Persönliche Sätze gesamt"
+      },
+      "household_core_total_strength_volume": {
+        "name": "HAGym Haushalts-Kraftvolumen gesamt"
+      },
+      "household_core_total_activity_load": {
+        "name": "HAGym Haushalts-Trainingslast gesamt"
+      },
+      "household_core_total_duration_minutes": {
+        "name": "HAGym Haushalts-Dauer gesamt"
+      },
+      "household_core_total_distance_km": {
+        "name": "HAGym Haushalts-Distanz gesamt"
+      },
+      "household_core_total_reps": {
+        "name": "HAGym Haushalts-Wiederholungen gesamt"
+      },
+      "household_core_total_sets": {
+        "name": "HAGym Haushalts-Sätze gesamt"
+      },
+      "personal_daily_metric_statistics": {
+        "name": "HAGym Persönliche Tagesstatistik"
+      },
+      "household_daily_metric_statistics": {
+        "name": "HAGym Haushalts-Tagesstatistik"
+      },
       "muscle_group_statistics": {
         "name": "Muskelgruppen-Statistiken"
       },

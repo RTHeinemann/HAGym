@@ -37,6 +37,9 @@ _LOGGER = logging.getLogger(__name__)
 _ANALYTICS_TOP_LIMIT = 20
 _WEEKLY_HISTORY_DEFAULT_WEEKS = 12
 _WEEKLY_HISTORY_MAX_WEEKS = 26
+_DAILY_STATS_DEFAULT_DAYS = 90
+_DAILY_STATS_MAX_DAYS = 366
+_DAILY_STATS_BREAKDOWN_LIMIT = 10
 _PUSH_MUSCLE_GROUP_IDS = {"chest", "shoulders", "triceps"}
 _PULL_MUSCLE_GROUP_IDS = {
     "back",
@@ -133,9 +136,13 @@ class HAFitnessCoordinator:
         self._personal_weekly_muscle_group_statistics: dict[str, Any] = {}
         self._personal_weekly_volume_history: dict[str, Any] = {}
         self._personal_weekly_metric_history: dict[str, Any] = {}
+        self._personal_core_total_statistics: dict[str, Any] = {}
+        self._personal_daily_metric_statistics: dict[str, Any] = {}
         self._personal_training_balance: dict[str, Any] = {}
         self._household_weekly_summary: dict[str, Any] = {}
         self._household_weekly_metric_history: dict[str, Any] = {}
+        self._household_core_total_statistics: dict[str, Any] = {}
+        self._household_daily_metric_statistics: dict[str, Any] = {}
         self._recent_workouts: list[dict[str, Any]] = []
         self._recent_workouts_user_id: str | None = None
         self._recent_workouts_limit: int = 20
@@ -494,6 +501,18 @@ class HAFitnessCoordinator:
 
     def get_personal_weekly_metric_history(self) -> dict[str, Any]:
         return self._personal_weekly_metric_history
+
+    def get_personal_core_total_statistics(self) -> dict[str, Any]:
+        return self._personal_core_total_statistics
+
+    def get_household_core_total_statistics(self) -> dict[str, Any]:
+        return self._household_core_total_statistics
+
+    def get_personal_daily_metric_statistics(self) -> dict[str, Any]:
+        return self._personal_daily_metric_statistics
+
+    def get_household_daily_metric_statistics(self) -> dict[str, Any]:
+        return self._household_daily_metric_statistics
 
     def get_personal_training_balance(self) -> dict[str, Any]:
         return self._personal_training_balance
@@ -1235,6 +1254,14 @@ class HAFitnessCoordinator:
         """Refresh current-week aggregate analytics caches."""
         effective_personal_user_id = personal_user_id or self._resolve_personal_user_id()
         effective_household_user_ids = household_user_ids or self._included_user_ids
+        if effective_household_user_ids is None:
+            effective_household_user_ids = [
+                str(row.get("id"))
+                for row in self._users
+                if row.get("id") and _coerce_enabled(row.get("enabled"), default=True)
+            ]
+            if not effective_household_user_ids:
+                effective_household_user_ids = [LEGACY_USER_ID]
         timezone_name, week_start_local, week_end_local, week_start_utc, week_end_utc = (
             _current_week_bounds(self.hass)
         )
@@ -1592,6 +1619,14 @@ class HAFitnessCoordinator:
         """Refresh personal and household weekly metric-history caches."""
         effective_personal_user_id = personal_user_id or self._resolve_personal_user_id()
         effective_household_user_ids = household_user_ids or self._included_user_ids
+        if effective_household_user_ids is None:
+            effective_household_user_ids = [
+                str(row.get("id"))
+                for row in self._users
+                if row.get("id") and _coerce_enabled(row.get("enabled"), default=True)
+            ]
+            if not effective_household_user_ids:
+                effective_household_user_ids = [LEGACY_USER_ID]
         timezone_name, week_ranges = _weekly_ranges(
             self.hass,
             weeks=_WEEKLY_HISTORY_DEFAULT_WEEKS,
@@ -1754,6 +1789,125 @@ class HAFitnessCoordinator:
             "weeks": household_weeks_payload,
         }
 
+        if notify:
+            self._notify_listeners()
+
+    async def async_refresh_core_total_statistics(
+        self,
+        notify: bool = True,
+        *,
+        personal_user_id: str | None = None,
+        household_user_ids: list[str] | None = None,
+    ) -> None:
+        """Refresh compact core total counters for personal + household scopes."""
+        effective_personal_user_id = personal_user_id or self._resolve_personal_user_id()
+        effective_household_user_ids = household_user_ids or self._included_user_ids
+
+        personal = await self._store.async_get_core_total_statistics(
+            user_id=effective_personal_user_id
+        )
+        household = await self._store.async_get_core_total_statistics(
+            user_ids=effective_household_user_ids
+        )
+        resolved_included_user_ids = (
+            list(effective_household_user_ids)
+            if effective_household_user_ids is not None
+            else [
+                str(row.get("id"))
+                for row in self._users
+                if row.get("id") and _coerce_enabled(row.get("enabled"), default=True)
+            ]
+        )
+        self._personal_core_total_statistics = {
+            "scope": "personal",
+            "user_id": effective_personal_user_id,
+            "total_strength_volume": float(personal.get("total_strength_volume", 0.0)),
+            "total_activity_load": float(personal.get("total_activity_load", 0.0)),
+            "total_duration_seconds": int(personal.get("total_duration_seconds", 0)),
+            "total_distance_m": float(personal.get("total_distance_m", 0.0)),
+            "total_reps": int(personal.get("total_reps", 0)),
+            "total_sets": int(personal.get("total_sets", 0)),
+            "last_entry_at": personal.get("last_entry_at"),
+            "last_updated_from_logs": personal.get("last_entry_at"),
+            "note": "Totals can decrease when workouts or entries are edited/deleted.",
+        }
+        self._household_core_total_statistics = {
+            "scope": "household",
+            "included_user_ids": (
+                resolved_included_user_ids if resolved_included_user_ids else None
+            ),
+            "total_strength_volume": float(household.get("total_strength_volume", 0.0)),
+            "total_activity_load": float(household.get("total_activity_load", 0.0)),
+            "total_duration_seconds": int(household.get("total_duration_seconds", 0)),
+            "total_distance_m": float(household.get("total_distance_m", 0.0)),
+            "total_reps": int(household.get("total_reps", 0)),
+            "total_sets": int(household.get("total_sets", 0)),
+            "last_entry_at": household.get("last_entry_at"),
+            "last_updated_from_logs": household.get("last_entry_at"),
+            "note": "Totals can decrease when workouts or entries are edited/deleted.",
+        }
+        if notify:
+            self._notify_listeners()
+
+    async def async_refresh_daily_metric_statistics(
+        self,
+        notify: bool = True,
+        *,
+        personal_user_id: str | None = None,
+        household_user_ids: list[str] | None = None,
+        day_count: int = _DAILY_STATS_DEFAULT_DAYS,
+    ) -> None:
+        """Refresh compact per-day metric statistics for personal + household scopes."""
+        effective_personal_user_id = personal_user_id or self._resolve_personal_user_id()
+        effective_household_user_ids = household_user_ids or self._included_user_ids
+        timezone_name, day_ranges = _daily_ranges(
+            self.hass,
+            days=day_count,
+            max_days=_DAILY_STATS_MAX_DAYS,
+        )
+        personal_days = await self._store.async_get_daily_metric_statistics(
+            day_ranges,
+            user_id=effective_personal_user_id,
+            include_scope_breakdowns=True,
+            breakdown_limit=_DAILY_STATS_BREAKDOWN_LIMIT,
+        )
+        household_days = await self._store.async_get_daily_metric_statistics(
+            day_ranges,
+            user_ids=effective_household_user_ids,
+            include_scope_breakdowns=True,
+            breakdown_limit=_DAILY_STATS_BREAKDOWN_LIMIT,
+        )
+        current_personal_day = personal_days[-1] if personal_days else {}
+        current_household_day = household_days[-1] if household_days else {}
+        resolved_included_user_ids = (
+            list(effective_household_user_ids)
+            if effective_household_user_ids is not None
+            else [
+                str(row.get("id"))
+                for row in self._users
+                if row.get("id") and _coerce_enabled(row.get("enabled"), default=True)
+            ]
+        )
+        self._personal_daily_metric_statistics = {
+            "scope": "personal",
+            "user_id": effective_personal_user_id,
+            "timezone": timezone_name,
+            "day_count": len(personal_days),
+            "current_day_start": current_personal_day.get("day_start"),
+            "current_day_end": current_personal_day.get("day_end"),
+            "days": personal_days,
+        }
+        self._household_daily_metric_statistics = {
+            "scope": "household",
+            "included_user_ids": (
+                resolved_included_user_ids if resolved_included_user_ids else None
+            ),
+            "timezone": timezone_name,
+            "day_count": len(household_days),
+            "current_day_start": current_household_day.get("day_start"),
+            "current_day_end": current_household_day.get("day_end"),
+            "days": household_days,
+        }
         if notify:
             self._notify_listeners()
 
@@ -2843,6 +2997,16 @@ class HAFitnessCoordinator:
                 personal_user_id=personal_user_id,
                 household_user_ids=household_user_ids,
             )
+            await self.async_refresh_core_total_statistics(
+                notify=False,
+                personal_user_id=personal_user_id,
+                household_user_ids=household_user_ids,
+            )
+            await self.async_refresh_daily_metric_statistics(
+                notify=False,
+                personal_user_id=personal_user_id,
+                household_user_ids=household_user_ids,
+            )
             await self.async_refresh_workout_history(
                 notify=False,
                 user_id=personal_user_id,
@@ -2946,6 +3110,8 @@ class HAFitnessCoordinator:
                 "weekly_muscle_group_statistics": self._personal_weekly_muscle_group_statistics,
                 "weekly_volume_history": self._personal_weekly_volume_history,
                 "weekly_metric_history": self._personal_weekly_metric_history,
+                "core_total_statistics": self._personal_core_total_statistics,
+                "daily_metric_statistics": self._personal_daily_metric_statistics,
                 "training_balance": self._personal_training_balance,
                 "exercise_metric_statistics": self._exercise_metric_stats_personal,
             },
@@ -2959,6 +3125,8 @@ class HAFitnessCoordinator:
                 "recent_sets": self._household_recent_sets,
                 "weekly_summary": self._household_weekly_summary,
                 "weekly_metric_history": self._household_weekly_metric_history,
+                "core_total_statistics": self._household_core_total_statistics,
+                "daily_metric_statistics": self._household_daily_metric_statistics,
                 "exercise_metric_statistics": self._exercise_metric_stats_household,
             },
         }
@@ -3816,6 +3984,39 @@ def _weekly_ranges(
                 "iso_year": int(iso_year),
                 "iso_week": int(iso_week),
                 "week_label": f"KW {int(iso_week):02d}",
+                "timezone": timezone_name,
+            }
+        )
+    return timezone_name, rows
+
+
+def _daily_ranges(
+    hass: HomeAssistant,
+    days: int = _DAILY_STATS_DEFAULT_DAYS,
+    max_days: int = _DAILY_STATS_MAX_DAYS,
+) -> tuple[str, list[dict[str, Any]]]:
+    requested_days = max(1, min(int(days), int(max_days)))
+    timezone_name = str(hass.config.time_zone or "UTC")
+    try:
+        local_tz = ZoneInfo(timezone_name)
+    except Exception:
+        timezone_name = "UTC"
+        local_tz = ZoneInfo("UTC")
+
+    now_local = datetime.now(local_tz)
+    current_day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    rows: list[dict[str, Any]] = []
+    for offset in range(requested_days - 1, -1, -1):
+        day_start = current_day_start - timedelta(days=offset)
+        day_end = day_start + timedelta(days=1)
+        rows.append(
+            {
+                "date": day_start.date().isoformat(),
+                "weekday": day_start.strftime("%A"),
+                "day_start_local": day_start.isoformat(),
+                "day_end_local": day_end.isoformat(),
+                "day_start_utc": day_start.astimezone(timezone.utc).isoformat(),
+                "day_end_utc": day_end.astimezone(timezone.utc).isoformat(),
                 "timezone": timezone_name,
             }
         )

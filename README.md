@@ -95,6 +95,13 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
   - `sensor.ha_fitness_personal_training_balance`
   - `sensor.ha_fitness_household_weekly_summary`
   - `sensor.ha_fitness_household_weekly_metric_history` (last 12 weeks in attributes)
+- controlled core total analytics sensors (fixed set, statistics-friendly):
+  - personal: strength volume, activity load, duration, distance, reps, sets
+  - household: strength volume, activity load, duration, distance, reps, sets
+  - state_class `total` (not `total_increasing`, because edits/deletes can decrease totals)
+- compact daily metric statistics sensors:
+  - `sensor.ha_fitness_personal_daily_metric_statistics` (90-day buckets in attributes)
+  - `sensor.ha_fitness_household_daily_metric_statistics` (90-day buckets in attributes)
 - workout management aggregate sensor:
   - `sensor.ha_fitness_personal_recent_workouts`
 - per-muscle-group Home Assistant devices and sensors (enabled groups only)

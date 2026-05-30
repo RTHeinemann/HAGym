@@ -112,6 +112,11 @@ SUPPORTED_METRIC_TYPES: list[str] = [
 
 DEFAULT_METRIC_TYPE = METRIC_TYPE_STRENGTH
 
+# Sensor mode preparation (future OptionsFlow switch)
+SENSOR_MODE_STANDARD = "standard"
+SENSOR_MODE_MINIMAL = "minimal"
+SENSOR_MODE_EXTENDED = "extended"
+
 # Stable default exercise IDs (also used by existing per-exercise sensors)
 EXERCISE_IDS: list[str] = [
     "bench_press",

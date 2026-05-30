@@ -50,6 +50,44 @@ async def async_setup_entry(
         HAFitnessHouseholdTotalSetsSensor(coordinator, entry),
         HAFitnessHouseholdTotalWorkoutsSensor(coordinator, entry),
         HAFitnessHouseholdRecentSetsSensor(coordinator, entry),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="personal", metric_key="strength_volume"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="personal", metric_key="activity_load"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="personal", metric_key="duration_minutes"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="personal", metric_key="distance_km"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="personal", metric_key="reps"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="personal", metric_key="sets"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="household", metric_key="strength_volume"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="household", metric_key="activity_load"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="household", metric_key="duration_minutes"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="household", metric_key="distance_km"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="household", metric_key="reps"
+        ),
+        HAFitnessCoreTotalSensor(
+            coordinator, entry, scope="household", metric_key="sets"
+        ),
+        HAFitnessPersonalDailyMetricStatisticsSensor(coordinator, entry),
+        HAFitnessHouseholdDailyMetricStatisticsSensor(coordinator, entry),
         HAFitnessPersonalWeeklySummarySensor(coordinator, entry),
         HAFitnessPersonalWeeklyExerciseStatisticsSensor(coordinator, entry),
         HAFitnessPersonalWeeklyMuscleGroupStatisticsSensor(coordinator, entry),
@@ -514,6 +552,117 @@ class HAFitnessPersonalRecentWorkoutsSensor(_HAFitnessSensorBase):
             "limit": self._coordinator.get_recent_workouts_limit(),
             "workouts": self._coordinator.get_recent_workouts(),
         }
+
+
+class HAFitnessCoreTotalSensor(_HAFitnessSensorBase):
+    _attr_state_class = SensorStateClass.TOTAL
+
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        *,
+        scope: str,
+        metric_key: str,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._scope = scope
+        self._metric_key = metric_key
+        self._attr_translation_key = f"{scope}_core_total_{metric_key}"
+        self._attr_unique_id = f"{entry.entry_id}_{scope}_core_total_{metric_key}"
+        unit_map: dict[str, str | None] = {
+            "strength_volume": UnitOfMass.KILOGRAMS,
+            "activity_load": "load",
+            "duration_minutes": UnitOfTime.MINUTES,
+            "distance_km": UnitOfLength.KILOMETERS,
+            "reps": None,
+            "sets": None,
+        }
+        self._attr_native_unit_of_measurement = unit_map.get(metric_key)
+
+    def _stats(self) -> dict[str, Any]:
+        if self._scope == "household":
+            return self._coordinator.get_household_core_total_statistics()
+        return self._coordinator.get_personal_core_total_statistics()
+
+    @property
+    def native_value(self) -> float | int:
+        stats = self._stats()
+        if self._metric_key == "strength_volume":
+            return float(stats.get("total_strength_volume", 0.0))
+        if self._metric_key == "activity_load":
+            return float(stats.get("total_activity_load", 0.0))
+        if self._metric_key == "duration_minutes":
+            return float(stats.get("total_duration_seconds", 0)) / 60.0
+        if self._metric_key == "distance_km":
+            return float(stats.get("total_distance_m", 0.0)) / 1000.0
+        if self._metric_key == "reps":
+            return int(stats.get("total_reps", 0))
+        if self._metric_key == "sets":
+            return int(stats.get("total_sets", 0))
+        return 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        stats = self._stats()
+        attrs: dict[str, Any] = {
+            "scope": self._scope,
+            "metric": self._metric_key,
+            "last_updated_from_logs": stats.get("last_updated_from_logs"),
+            "note": stats.get(
+                "note",
+                "Totals can decrease when workouts or entries are edited/deleted.",
+            ),
+        }
+        if self._scope == "household":
+            attrs["included_user_ids"] = stats.get("included_user_ids")
+        else:
+            attrs["user_id"] = stats.get("user_id")
+        return attrs
+
+
+class HAFitnessPersonalDailyMetricStatisticsSensor(_HAFitnessSensorBase):
+    _attr_translation_key = "personal_daily_metric_statistics"
+    _attr_native_unit_of_measurement = "load"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_personal_daily_metric_statistics"
+
+    @property
+    def native_value(self) -> float:
+        payload = self._coordinator.get_personal_daily_metric_statistics()
+        days = list(payload.get("days") or [])
+        if not days:
+            return 0.0
+        return float(days[-1].get("total_activity_load_score", 0.0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return dict(self._coordinator.get_personal_daily_metric_statistics())
+
+
+class HAFitnessHouseholdDailyMetricStatisticsSensor(_HAFitnessSensorBase):
+    _attr_translation_key = "household_daily_metric_statistics"
+    _attr_native_unit_of_measurement = "load"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: HAFitnessCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_household_daily_metric_statistics"
+
+    @property
+    def native_value(self) -> float:
+        payload = self._coordinator.get_household_daily_metric_statistics()
+        days = list(payload.get("days") or [])
+        if not days:
+            return 0.0
+        return float(days[-1].get("total_activity_load_score", 0.0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return dict(self._coordinator.get_household_daily_metric_statistics())
 
 
 class HAFitnessPersonalWeeklySummarySensor(_HAFitnessSensorBase):

@@ -793,6 +793,36 @@ class HAFitnessStore:
             user_ids,
         )
 
+    async def async_get_core_total_statistics(
+        self,
+        user_id: str | None = None,
+        user_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return core total counters for one scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_core_total_statistics,
+            user_id,
+            user_ids,
+        )
+
+    async def async_get_daily_metric_statistics(
+        self,
+        day_ranges: list[dict[str, Any]],
+        user_id: str | None = None,
+        user_ids: list[str] | None = None,
+        include_scope_breakdowns: bool = True,
+        breakdown_limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Return compact per-day metric statistics for one scope."""
+        return await self._hass.async_add_executor_job(
+            self._get_daily_metric_statistics,
+            day_ranges,
+            user_id,
+            user_ids,
+            include_scope_breakdowns,
+            breakdown_limit,
+        )
+
     # ------------------------------------------------------------------
     # Sync implementation (executor only)
     # ------------------------------------------------------------------
@@ -3198,6 +3228,595 @@ class HAFitnessStore:
                 )
         return result
 
+    def _get_core_total_statistics(
+        self,
+        user_id: str | None,
+        user_ids: list[str] | None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            scope_sql, scope_params = _scope_filter_sql(user_id, user_ids, "sl.user_id")
+            row = conn.execute(
+                f"""
+                SELECT
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') = '{METRIC_TYPE_STRENGTH}'
+                                    THEN COALESCE(sl.volume, 0)
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS total_strength_volume,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') != '{METRIC_TYPE_STRENGTH}'
+                                    THEN COALESCE(sl.load_score, 0)
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS total_activity_load,
+                    COALESCE(SUM(COALESCE(sl.duration_seconds, 0)), 0) AS total_duration_seconds,
+                    COALESCE(SUM(COALESCE(sl.distance_m, 0)), 0) AS total_distance_m,
+                    COALESCE(SUM(COALESCE(sl.reps, 0)), 0) AS total_reps,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') IN ('{METRIC_TYPE_STRENGTH}', '{METRIC_TYPE_BODYWEIGHT}')
+                                    THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS total_sets,
+                    MAX(sl.created_at) AS last_entry_at
+                FROM set_logs sl
+                WHERE 1 = 1
+                  {scope_sql}
+                """,
+                scope_params,
+            ).fetchone()
+            if row is None:
+                return {
+                    "total_strength_volume": 0.0,
+                    "total_activity_load": 0.0,
+                    "total_duration_seconds": 0,
+                    "total_distance_m": 0.0,
+                    "total_reps": 0,
+                    "total_sets": 0,
+                    "last_entry_at": None,
+                }
+            return {
+                "total_strength_volume": float(row["total_strength_volume"] or 0.0),
+                "total_activity_load": float(row["total_activity_load"] or 0.0),
+                "total_duration_seconds": int(row["total_duration_seconds"] or 0),
+                "total_distance_m": float(row["total_distance_m"] or 0.0),
+                "total_reps": int(row["total_reps"] or 0),
+                "total_sets": int(row["total_sets"] or 0),
+                "last_entry_at": row["last_entry_at"],
+            }
+
+    def _get_daily_metric_statistics(
+        self,
+        day_ranges: list[dict[str, Any]],
+        user_id: str | None,
+        user_ids: list[str] | None,
+        include_scope_breakdowns: bool,
+        breakdown_limit: int,
+    ) -> list[dict[str, Any]]:
+        if not day_ranges:
+            return []
+
+        safe_breakdown_limit = max(1, min(int(breakdown_limit), 25))
+        ordered_ranges = sorted(
+            list(day_ranges),
+            key=lambda row: str(row.get("day_start_utc") or ""),
+        )
+        first_start_utc = str(ordered_ranges[0].get("day_start_utc") or "")
+        last_end_utc = str(ordered_ranges[-1].get("day_end_utc") or "")
+        if not first_start_utc or not last_end_utc:
+            return []
+
+        timezone_name = str(ordered_ranges[0].get("timezone") or "UTC")
+        try:
+            local_tz = ZoneInfo(timezone_name)
+        except Exception:
+            local_tz = ZoneInfo("UTC")
+
+        day_payload_by_date: dict[str, dict[str, Any]] = {}
+        for day_range in ordered_ranges:
+            day_key = str(day_range.get("date") or "")
+            if not day_key:
+                continue
+            day_payload_by_date[day_key] = _empty_daily_metric_bucket(day_range)
+
+        if not day_payload_by_date:
+            return []
+
+        with self._connect() as conn:
+            scope_sql, scope_params = _scope_filter_sql(user_id, user_ids, "sl.user_id")
+            rows = conn.execute(
+                f"""
+                SELECT
+                    sl.id,
+                    sl.workout_id,
+                    sl.exercise_id,
+                    sl.equipment_id,
+                    COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') AS metric_type,
+                    sl.volume,
+                    sl.reps,
+                    sl.duration_seconds,
+                    sl.distance_m,
+                    sl.calories,
+                    sl.steps,
+                    sl.avg_heart_rate,
+                    sl.max_heart_rate,
+                    sl.load_score,
+                    sl.created_at,
+                    ex.name_en AS exercise_name_en,
+                    ex.name_de AS exercise_name_de,
+                    eq.name AS equipment_name,
+                    eq.name_en AS equipment_name_en,
+                    eq.name_de AS equipment_name_de
+                FROM set_logs sl
+                LEFT JOIN exercises ex ON ex.id = sl.exercise_id
+                LEFT JOIN equipment eq ON eq.id = sl.equipment_id
+                WHERE sl.created_at >= ?
+                  AND sl.created_at < ?
+                  {scope_sql}
+                ORDER BY sl.created_at ASC, sl.id ASC
+                """,
+                (first_start_utc, last_end_utc, *scope_params),
+            ).fetchall()
+
+            # day->scope breakdown maps
+            day_exercises: dict[str, dict[str, dict[str, Any]]] = {
+                key: {} for key in day_payload_by_date
+            }
+            day_equipment: dict[str, dict[str, dict[str, Any]]] = {
+                key: {} for key in day_payload_by_date
+            }
+            day_workout_ids: dict[str, set[int]] = {key: set() for key in day_payload_by_date}
+
+            def _to_float(value: Any) -> float:
+                try:
+                    return float(value or 0.0)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            def _to_int(value: Any) -> int:
+                try:
+                    return int(value or 0)
+                except (TypeError, ValueError):
+                    return 0
+
+            def _exercise_name(row: sqlite3.Row) -> str:
+                return str(
+                    row["exercise_name_de"]
+                    or row["exercise_name_en"]
+                    or row["exercise_id"]
+                    or "Unknown"
+                )
+
+            def _equipment_name(row: sqlite3.Row) -> str:
+                return str(
+                    row["equipment_name_de"]
+                    or row["equipment_name_en"]
+                    or row["equipment_name"]
+                    or row["equipment_id"]
+                    or "Unknown"
+                )
+
+            def _day_key_from_created_at(created_at: Any) -> str | None:
+                parsed = _parse_iso_datetime(created_at)
+                if parsed is None:
+                    return None
+                return parsed.astimezone(local_tz).date().isoformat()
+
+            for row in rows:
+                if row is None:
+                    continue
+                day_key = _day_key_from_created_at(row["created_at"])
+                if day_key is None or day_key not in day_payload_by_date:
+                    continue
+
+                metric_type = _normalize_metric_type(row["metric_type"])
+                payload = day_payload_by_date[day_key]
+                exercise_id = str(row["exercise_id"] or "")
+                equipment_id = str(row["equipment_id"] or "")
+
+                volume = _to_float(row["volume"])
+                reps = max(0, _to_int(row["reps"]))
+                duration_seconds = max(0, _to_int(row["duration_seconds"]))
+                distance_m = max(0.0, _to_float(row["distance_m"]))
+                calories = max(0.0, _to_float(row["calories"]))
+                steps = max(0, _to_int(row["steps"]))
+                avg_hr = max(0.0, _to_float(row["avg_heart_rate"]))
+                max_hr = max(0.0, _to_float(row["max_heart_rate"]))
+                load_score = _to_float(row["load_score"])
+
+                payload["entry_count"] += 1
+                payload["active"] = payload["entry_count"] > 0
+                payload["total_load_score"] += load_score
+                payload["total_minutes"] += float(duration_seconds) / 60.0
+                payload["total_distance_km"] += distance_m / 1000.0
+                payload["total_calories"] += calories
+                payload["total_steps"] += steps
+                payload["total_reps"] += reps
+
+                if metric_type == METRIC_TYPE_STRENGTH:
+                    payload["strength_volume_kg"] += volume
+                    payload["strength_sets"] += 1
+                    payload["strength_reps"] += reps
+                    payload["total_strength_volume_kg"] += volume
+                    payload["total_sets"] += 1
+                elif metric_type == METRIC_TYPE_BODYWEIGHT:
+                    payload["bodyweight_reps"] += reps
+                    payload["bodyweight_entries"] += 1
+                    payload["bodyweight_load_score"] += load_score
+                    payload["total_activity_load_score"] += load_score
+                    payload["total_sets"] += 1
+                elif metric_type == METRIC_TYPE_DURATION:
+                    minutes = float(duration_seconds) / 60.0
+                    payload["duration_minutes"] += minutes
+                    payload["duration_entries"] += 1
+                    payload["duration_load_score"] += load_score
+                    payload["total_activity_load_score"] += load_score
+                elif metric_type == METRIC_TYPE_HOLD:
+                    minutes = float(duration_seconds) / 60.0
+                    payload["hold_minutes"] += minutes
+                    payload["hold_entries"] += 1
+                    payload["hold_load_score"] += load_score
+                    payload["total_activity_load_score"] += load_score
+                elif metric_type == METRIC_TYPE_DISTANCE:
+                    minutes = float(duration_seconds) / 60.0
+                    km = distance_m / 1000.0
+                    payload["distance_minutes"] += minutes
+                    payload["distance_km"] += km
+                    payload["distance_entries"] += 1
+                    payload["distance_load_score"] += load_score
+                    payload["total_activity_load_score"] += load_score
+                elif metric_type == METRIC_TYPE_CARDIO:
+                    minutes = float(duration_seconds) / 60.0
+                    km = distance_m / 1000.0
+                    payload["cardio_minutes"] += minutes
+                    payload["cardio_km"] += km
+                    payload["cardio_calories"] += calories
+                    payload["cardio_steps"] += steps
+                    payload["cardio_entries"] += 1
+                    payload["cardio_load_score"] += load_score
+                    payload["total_activity_load_score"] += load_score
+                    payload["_cardio_hr_duration_weighted_sum"] += avg_hr * float(
+                        duration_seconds
+                    )
+                    payload["_cardio_hr_duration_weight"] += float(duration_seconds)
+                    if duration_seconds <= 0 and avg_hr > 0:
+                        payload["_cardio_hr_simple_sum"] += avg_hr
+                        payload["_cardio_hr_simple_count"] += 1
+                    payload["cardio_max_heart_rate"] = max(
+                        float(payload["cardio_max_heart_rate"]), max_hr
+                    )
+                else:
+                    minutes = float(duration_seconds) / 60.0
+                    km = distance_m / 1000.0
+                    payload["custom_entries"] += 1
+                    payload["custom_minutes"] += minutes
+                    payload["custom_km"] += km
+                    payload["custom_load_score"] += load_score
+                    payload["total_activity_load_score"] += load_score
+
+                workout_id = row["workout_id"]
+                if workout_id is not None:
+                    day_workout_ids[day_key].add(int(workout_id))
+
+                # Exercise breakdown
+                if include_scope_breakdowns and exercise_id:
+                    ex_map = day_exercises[day_key]
+                    ex_entry = ex_map.get(exercise_id)
+                    if ex_entry is None:
+                        ex_entry = {
+                            "exercise_id": exercise_id,
+                            "exercise_name": _exercise_name(row),
+                            "metric_type": metric_type,
+                            "strength_volume_kg": 0.0,
+                            "activity_load_score": 0.0,
+                            "duration_minutes": 0.0,
+                            "distance_km": 0.0,
+                            "reps": 0,
+                            "entries": 0,
+                            "sets": 0,
+                        }
+                        ex_map[exercise_id] = ex_entry
+                    ex_entry["entries"] += 1
+                    ex_entry["reps"] += reps
+                    ex_entry["duration_minutes"] += float(duration_seconds) / 60.0
+                    ex_entry["distance_km"] += distance_m / 1000.0
+                    if metric_type == METRIC_TYPE_STRENGTH:
+                        ex_entry["strength_volume_kg"] += volume
+                        ex_entry["sets"] += 1
+                    elif metric_type == METRIC_TYPE_BODYWEIGHT:
+                        ex_entry["sets"] += 1
+                        ex_entry["activity_load_score"] += load_score
+                    else:
+                        ex_entry["activity_load_score"] += load_score
+
+                # Equipment breakdown
+                if include_scope_breakdowns and equipment_id:
+                    eq_map = day_equipment[day_key]
+                    eq_entry = eq_map.get(equipment_id)
+                    if eq_entry is None:
+                        eq_entry = {
+                            "equipment_id": equipment_id,
+                            "equipment_name": _equipment_name(row),
+                            "strength_volume_kg": 0.0,
+                            "activity_load_score": 0.0,
+                            "duration_minutes": 0.0,
+                            "distance_km": 0.0,
+                            "reps": 0,
+                            "entries": 0,
+                            "sets": 0,
+                        }
+                        eq_map[equipment_id] = eq_entry
+                    eq_entry["entries"] += 1
+                    eq_entry["reps"] += reps
+                    eq_entry["duration_minutes"] += float(duration_seconds) / 60.0
+                    eq_entry["distance_km"] += distance_m / 1000.0
+                    if metric_type == METRIC_TYPE_STRENGTH:
+                        eq_entry["strength_volume_kg"] += volume
+                        eq_entry["sets"] += 1
+                    elif metric_type == METRIC_TYPE_BODYWEIGHT:
+                        eq_entry["sets"] += 1
+                        eq_entry["activity_load_score"] += load_score
+                    else:
+                        eq_entry["activity_load_score"] += load_score
+
+            # Muscle-group breakdown query (aggregated, no per-row roundtrips)
+            muscle_rows = conn.execute(
+                f"""
+                SELECT
+                    DATE(sl.created_at) AS created_date_utc,
+                    sl.created_at AS created_at,
+                    mg.id AS muscle_group_id,
+                    mg.name_en AS muscle_group_name_en,
+                    mg.name_de AS muscle_group_name_de,
+                    SUM(
+                        CASE
+                            WHEN COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') = '{METRIC_TYPE_STRENGTH}'
+                                THEN COALESCE(sl.volume, 0) * COALESCE(emg.weight_factor, 1.0)
+                            ELSE 0
+                        END
+                    ) AS strength_value,
+                    SUM(
+                        CASE
+                            WHEN COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') != '{METRIC_TYPE_STRENGTH}'
+                                THEN COALESCE(sl.load_score, 0) * COALESCE(emg.weight_factor, 1.0)
+                            ELSE 0
+                        END
+                    ) AS activity_value,
+                    COUNT(sl.id) AS entry_count,
+                    SUM(
+                        CASE
+                            WHEN COALESCE(sl.metric_type, '{DEFAULT_METRIC_TYPE}') = '{METRIC_TYPE_STRENGTH}'
+                                THEN COALESCE(sl.volume, 0) * COALESCE(emg.weight_factor, 1.0)
+                            ELSE COALESCE(sl.load_score, 0) * COALESCE(emg.weight_factor, 1.0)
+                        END
+                    ) AS contribution_value
+                FROM set_logs sl
+                JOIN exercise_muscle_groups emg ON emg.exercise_id = sl.exercise_id
+                JOIN muscle_groups mg ON mg.id = emg.muscle_group_id
+                WHERE sl.created_at >= ?
+                  AND sl.created_at < ?
+                  {scope_sql}
+                GROUP BY created_date_utc, sl.created_at, mg.id, mg.name_en, mg.name_de
+                """,
+                (first_start_utc, last_end_utc, *scope_params),
+            ).fetchall()
+
+            day_muscles: dict[str, dict[str, dict[str, Any]]] = {
+                key: {} for key in day_payload_by_date
+            }
+            for row in muscle_rows:
+                if row is None:
+                    continue
+                day_key = _day_key_from_created_at(row["created_at"])
+                if day_key is None or day_key not in day_payload_by_date:
+                    continue
+                muscle_group_id = str(row["muscle_group_id"] or "")
+                if not muscle_group_id:
+                    continue
+                mg_map = day_muscles[day_key]
+                mg_entry = mg_map.get(muscle_group_id)
+                if mg_entry is None:
+                    mg_entry = {
+                        "muscle_group_id": muscle_group_id,
+                        "muscle_group_name": str(
+                            row["muscle_group_name_de"]
+                            or row["muscle_group_name_en"]
+                            or muscle_group_id
+                        ),
+                        "strength_volume_kg": 0.0,
+                        "activity_load_score": 0.0,
+                        "duration_minutes": 0.0,
+                        "distance_km": 0.0,
+                        "reps": 0,
+                        "entries": 0,
+                        "_value": 0.0,
+                    }
+                    mg_map[muscle_group_id] = mg_entry
+                mg_entry["strength_volume_kg"] += float(row["strength_value"] or 0.0)
+                mg_entry["activity_load_score"] += float(row["activity_value"] or 0.0)
+                mg_entry["entries"] += int(row["entry_count"] or 0)
+                mg_entry["_value"] += float(row["contribution_value"] or 0.0)
+
+            # finalize payload
+            for day_key, payload in day_payload_by_date.items():
+                payload["workout_count"] = len(day_workout_ids.get(day_key, set()))
+                payload["active"] = payload["entry_count"] > 0
+                hr_weight = float(payload.pop("_cardio_hr_duration_weight", 0.0))
+                hr_weight_sum = float(payload.pop("_cardio_hr_duration_weighted_sum", 0.0))
+                hr_simple_sum = float(payload.pop("_cardio_hr_simple_sum", 0.0))
+                hr_simple_count = int(payload.pop("_cardio_hr_simple_count", 0))
+                if hr_weight > 0:
+                    payload["cardio_avg_heart_rate"] = hr_weight_sum / hr_weight
+                elif hr_simple_count > 0:
+                    payload["cardio_avg_heart_rate"] = hr_simple_sum / float(hr_simple_count)
+                else:
+                    payload["cardio_avg_heart_rate"] = 0.0
+
+                ex_rows = list(day_exercises.get(day_key, {}).values())
+                ex_rows.sort(
+                    key=lambda row: (
+                        _metric_aggregate_value(row),
+                        row.get("entries", 0),
+                        str(row.get("exercise_id") or ""),
+                    ),
+                    reverse=True,
+                )
+                eq_rows = list(day_equipment.get(day_key, {}).values())
+                eq_rows.sort(
+                    key=lambda row: (
+                        _metric_aggregate_value(row),
+                        row.get("entries", 0),
+                        str(row.get("equipment_id") or ""),
+                    ),
+                    reverse=True,
+                )
+                mg_rows = list(day_muscles.get(day_key, {}).values())
+                mg_rows.sort(
+                    key=lambda row: (
+                        float(row.get("_value") or 0.0),
+                        str(row.get("muscle_group_id") or ""),
+                    ),
+                    reverse=True,
+                )
+
+                top_ex = ex_rows[0] if ex_rows else None
+                top_eq = eq_rows[0] if eq_rows else None
+                top_mg = mg_rows[0] if mg_rows else None
+
+                payload["top_exercise_id"] = top_ex.get("exercise_id") if top_ex else None
+                payload["top_exercise_name"] = top_ex.get("exercise_name") if top_ex else None
+                payload["top_exercise_metric_type"] = (
+                    top_ex.get("metric_type") if top_ex else None
+                )
+                payload["top_exercise_value"] = (
+                    round(_metric_aggregate_value(top_ex), 2) if top_ex else 0.0
+                )
+                payload["top_equipment_id"] = top_eq.get("equipment_id") if top_eq else None
+                payload["top_equipment_name"] = top_eq.get("equipment_name") if top_eq else None
+                payload["top_equipment_value"] = (
+                    round(_metric_aggregate_value(top_eq), 2) if top_eq else 0.0
+                )
+                payload["top_muscle_group_id"] = (
+                    top_mg.get("muscle_group_id") if top_mg else None
+                )
+                payload["top_muscle_group_name"] = (
+                    top_mg.get("muscle_group_name") if top_mg else None
+                )
+                payload["top_muscle_group_value"] = (
+                    round(float(top_mg.get("_value") or 0.0), 2) if top_mg else 0.0
+                )
+
+                if include_scope_breakdowns:
+                    payload["exercises"] = [
+                        {
+                            "exercise_id": str(item.get("exercise_id") or ""),
+                            "exercise_name": item.get("exercise_name"),
+                            "metric_type": item.get("metric_type"),
+                            "strength_volume_kg": round(
+                                float(item.get("strength_volume_kg", 0.0)), 2
+                            ),
+                            "activity_load_score": round(
+                                float(item.get("activity_load_score", 0.0)), 2
+                            ),
+                            "duration_minutes": round(
+                                float(item.get("duration_minutes", 0.0)), 2
+                            ),
+                            "distance_km": round(float(item.get("distance_km", 0.0)), 3),
+                            "reps": int(item.get("reps", 0)),
+                            "entries": int(item.get("entries", 0)),
+                            "sets": int(item.get("sets", 0)),
+                        }
+                        for item in ex_rows[:safe_breakdown_limit]
+                    ]
+                    payload["equipment"] = [
+                        {
+                            "equipment_id": str(item.get("equipment_id") or ""),
+                            "equipment_name": item.get("equipment_name"),
+                            "strength_volume_kg": round(
+                                float(item.get("strength_volume_kg", 0.0)), 2
+                            ),
+                            "activity_load_score": round(
+                                float(item.get("activity_load_score", 0.0)), 2
+                            ),
+                            "duration_minutes": round(
+                                float(item.get("duration_minutes", 0.0)), 2
+                            ),
+                            "distance_km": round(float(item.get("distance_km", 0.0)), 3),
+                            "reps": int(item.get("reps", 0)),
+                            "entries": int(item.get("entries", 0)),
+                            "sets": int(item.get("sets", 0)),
+                        }
+                        for item in eq_rows[:safe_breakdown_limit]
+                    ]
+                    payload["muscle_groups"] = [
+                        {
+                            "muscle_group_id": str(item.get("muscle_group_id") or ""),
+                            "muscle_group_name": item.get("muscle_group_name"),
+                            "strength_volume_kg": round(
+                                float(item.get("strength_volume_kg", 0.0)), 2
+                            ),
+                            "activity_load_score": round(
+                                float(item.get("activity_load_score", 0.0)), 2
+                            ),
+                            "duration_minutes": round(
+                                float(item.get("duration_minutes", 0.0)), 2
+                            ),
+                            "distance_km": round(float(item.get("distance_km", 0.0)), 3),
+                            "reps": int(item.get("reps", 0)),
+                            "entries": int(item.get("entries", 0)),
+                            "value": round(float(item.get("_value") or 0.0), 2),
+                        }
+                        for item in mg_rows[:safe_breakdown_limit]
+                    ]
+                else:
+                    payload["exercises"] = []
+                    payload["equipment"] = []
+                    payload["muscle_groups"] = []
+
+                # round top-level numeric values
+                payload["total_load_score"] = round(float(payload["total_load_score"]), 2)
+                payload["total_activity_load_score"] = round(
+                    float(payload["total_activity_load_score"]), 2
+                )
+                payload["total_strength_volume_kg"] = round(
+                    float(payload["total_strength_volume_kg"]), 2
+                )
+                payload["total_minutes"] = round(float(payload["total_minutes"]), 2)
+                payload["total_distance_km"] = round(float(payload["total_distance_km"]), 3)
+                payload["total_calories"] = round(float(payload["total_calories"]), 2)
+                payload["strength_volume_kg"] = round(float(payload["strength_volume_kg"]), 2)
+                payload["duration_minutes"] = round(float(payload["duration_minutes"]), 2)
+                payload["hold_minutes"] = round(float(payload["hold_minutes"]), 2)
+                payload["distance_km"] = round(float(payload["distance_km"]), 3)
+                payload["distance_minutes"] = round(float(payload["distance_minutes"]), 2)
+                payload["cardio_minutes"] = round(float(payload["cardio_minutes"]), 2)
+                payload["cardio_km"] = round(float(payload["cardio_km"]), 3)
+                payload["cardio_calories"] = round(float(payload["cardio_calories"]), 2)
+                payload["cardio_avg_heart_rate"] = round(
+                    float(payload["cardio_avg_heart_rate"]), 2
+                )
+                payload["cardio_max_heart_rate"] = round(
+                    float(payload["cardio_max_heart_rate"]), 2
+                )
+                payload["custom_minutes"] = round(float(payload["custom_minutes"]), 2)
+                payload["custom_km"] = round(float(payload["custom_km"]), 3)
+
+        ordered_dates = [str(row.get("date") or "") for row in ordered_ranges if row.get("date")]
+        return [day_payload_by_date[day_key] for day_key in ordered_dates if day_key in day_payload_by_date]
+
     def _get_household_total_volume(self, user_ids: list[str] | None) -> float:
         with self._connect() as conn:
             resolved = self._resolve_household_user_ids(conn, user_ids)
@@ -4058,6 +4677,80 @@ def _empty_exercise_metric_statistics(
         "avg_speed_mps": 0.0,
         "total_load_score": 0.0,
     }
+
+
+def _empty_daily_metric_bucket(day_range: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "date": str(day_range.get("date") or ""),
+        "day_start": day_range.get("day_start_local"),
+        "day_end": day_range.get("day_end_local"),
+        "weekday": str(day_range.get("weekday") or ""),
+        "entry_count": 0,
+        "workout_count": 0,
+        "active": False,
+        "total_load_score": 0.0,
+        "total_activity_load_score": 0.0,
+        "total_strength_volume_kg": 0.0,
+        "total_minutes": 0.0,
+        "total_distance_km": 0.0,
+        "total_calories": 0.0,
+        "total_steps": 0,
+        "total_reps": 0,
+        "total_sets": 0,
+        "strength_volume_kg": 0.0,
+        "strength_sets": 0,
+        "strength_reps": 0,
+        "bodyweight_reps": 0,
+        "bodyweight_entries": 0,
+        "bodyweight_load_score": 0.0,
+        "duration_minutes": 0.0,
+        "duration_entries": 0,
+        "duration_load_score": 0.0,
+        "hold_minutes": 0.0,
+        "hold_entries": 0,
+        "hold_load_score": 0.0,
+        "distance_km": 0.0,
+        "distance_minutes": 0.0,
+        "distance_entries": 0,
+        "distance_load_score": 0.0,
+        "cardio_minutes": 0.0,
+        "cardio_km": 0.0,
+        "cardio_calories": 0.0,
+        "cardio_steps": 0,
+        "cardio_entries": 0,
+        "cardio_load_score": 0.0,
+        "cardio_avg_heart_rate": 0.0,
+        "cardio_max_heart_rate": 0.0,
+        "custom_minutes": 0.0,
+        "custom_km": 0.0,
+        "custom_entries": 0,
+        "custom_load_score": 0.0,
+        "top_exercise_id": None,
+        "top_exercise_name": None,
+        "top_exercise_metric_type": None,
+        "top_exercise_value": 0.0,
+        "top_equipment_id": None,
+        "top_equipment_name": None,
+        "top_equipment_value": 0.0,
+        "top_muscle_group_id": None,
+        "top_muscle_group_name": None,
+        "top_muscle_group_value": 0.0,
+        "exercises": [],
+        "equipment": [],
+        "muscle_groups": [],
+        "_cardio_hr_duration_weighted_sum": 0.0,
+        "_cardio_hr_duration_weight": 0.0,
+        "_cardio_hr_simple_sum": 0.0,
+        "_cardio_hr_simple_count": 0,
+    }
+
+
+def _metric_aggregate_value(row: dict[str, Any] | None) -> float:
+    if not row:
+        return 0.0
+    return float(
+        row.get("strength_volume_kg", 0.0) or 0.0
+    ) + float(row.get("activity_load_score", 0.0) or 0.0)
 
 
 def _empty_weighted_muscle_aggregate() -> dict[str, Any]:

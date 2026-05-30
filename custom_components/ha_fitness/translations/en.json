@@ -822,6 +822,48 @@
       "household_weekly_metric_history": {
         "name": "Household weekly metric history"
       },
+      "personal_core_total_strength_volume": {
+        "name": "HAGym personal total strength volume"
+      },
+      "personal_core_total_activity_load": {
+        "name": "HAGym personal total activity load"
+      },
+      "personal_core_total_duration_minutes": {
+        "name": "HAGym personal total duration"
+      },
+      "personal_core_total_distance_km": {
+        "name": "HAGym personal total distance"
+      },
+      "personal_core_total_reps": {
+        "name": "HAGym personal total reps"
+      },
+      "personal_core_total_sets": {
+        "name": "HAGym personal total sets"
+      },
+      "household_core_total_strength_volume": {
+        "name": "HAGym household total strength volume"
+      },
+      "household_core_total_activity_load": {
+        "name": "HAGym household total activity load"
+      },
+      "household_core_total_duration_minutes": {
+        "name": "HAGym household total duration"
+      },
+      "household_core_total_distance_km": {
+        "name": "HAGym household total distance"
+      },
+      "household_core_total_reps": {
+        "name": "HAGym household total reps"
+      },
+      "household_core_total_sets": {
+        "name": "HAGym household total sets"
+      },
+      "personal_daily_metric_statistics": {
+        "name": "HAGym personal daily metric statistics"
+      },
+      "household_daily_metric_statistics": {
+        "name": "HAGym household daily metric statistics"
+      },
       "muscle_group_statistics": {
         "name": "Muscle Group Statistics"
       },

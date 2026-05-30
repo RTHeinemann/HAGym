@@ -1,20 +1,59 @@
 # Analytics Sensors
 
-HAGym exposes weekly analytics as a small set of aggregate sensors on the main device.
+HAGym exposes analytics as a controlled hybrid model on the main device.
 
 Goal:
 
-- Keep entity count low.
-- Avoid per-week/per-exercise/per-muscle sensor explosion.
-- Provide rich details through attributes.
+- Keep entity count low and predictable.
+- Avoid per-metric-per-exercise/equipment/muscle sensor explosion.
+- Provide rich details through compact attribute payloads.
 
 Note:
 
-- This document focuses on weekly aggregate analytics.
+- This document covers core totals, daily metric buckets, and weekly history.
 - Exercise device statistics are metric-type-aware and separate from weekly aggregate sensors.
 - Strength keeps kg volume/PR semantics; non-strength exercise devices use duration/distance/load/cardio metrics.
 
-## Weekly Sensor Set
+## Core Total Sensors (Fixed Set)
+
+Personal core totals:
+
+- `sensor.ha_fitness_personal_core_total_strength_volume`
+- `sensor.ha_fitness_personal_core_total_activity_load`
+- `sensor.ha_fitness_personal_core_total_duration_minutes`
+- `sensor.ha_fitness_personal_core_total_distance_km`
+- `sensor.ha_fitness_personal_core_total_reps`
+- `sensor.ha_fitness_personal_core_total_sets`
+
+Household core totals:
+
+- `sensor.ha_fitness_household_core_total_strength_volume`
+- `sensor.ha_fitness_household_core_total_activity_load`
+- `sensor.ha_fitness_household_core_total_duration_minutes`
+- `sensor.ha_fitness_household_core_total_distance_km`
+- `sensor.ha_fitness_household_core_total_reps`
+- `sensor.ha_fitness_household_core_total_sets`
+
+These use `state_class: total` (not `total_increasing`) because edited/deleted entries can reduce totals.
+
+## Daily Metric Statistics Sensors
+
+- `sensor.ha_fitness_personal_daily_metric_statistics`
+- `sensor.ha_fitness_household_daily_metric_statistics`
+
+Default payload:
+
+- `day_count = 90`
+- zero-filled days included
+- capped nested breakdown lists (top exercises/equipment/muscle groups) to avoid oversized attributes
+
+Entity-count control:
+
+- No per-exercise metric daily sensors
+- No per-equipment metric daily sensors
+- No per-muscle-group metric daily sensors
+
+## Weekly Sensor Set (Backward Compatible)
 
 - `sensor.ha_fitness_personal_weekly_summary`
 - `sensor.ha_fitness_personal_weekly_exercise_statistics`
@@ -340,6 +379,7 @@ Embedded selector:
 
 ```yaml
 type: custom:hagym-period-dashboard-card
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
 metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
 volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
 show_embedded_date_selection: true
@@ -352,6 +392,7 @@ Separate selector + dashboard:
 type: vertical-stack
 cards:
   - type: custom:hagym-period-dashboard-card
+    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
     metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
     volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
     show_embedded_date_selection: false
