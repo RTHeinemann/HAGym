@@ -12,6 +12,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       show_embedded_date_selection: true,
     };
     this._selection = null;
+    this._visibleMetrics = new Set();
     this._onPeriodChanged = this._onPeriodChanged.bind(this);
     this._onStorage = this._onStorage.bind(this);
   }
@@ -32,6 +33,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     window.addEventListener("hagym-date-selection-changed", this._onPeriodChanged);
     window.addEventListener("storage", this._onStorage);
     this._selection = this._loadSelection();
+    this._visibleMetrics = this._loadVisibleMetrics();
     this._render();
   }
 
@@ -96,6 +98,62 @@ class HAGymPeriodDashboardCard extends HTMLElement {
 
   _storageKey() {
     return `hagym-period-selection:${this._config.collection_key}`;
+  }
+
+  _metricKey() {
+    return `hagym-visible-metrics:${this._config.collection_key}`;
+  }
+
+  _loadVisibleMetrics() {
+    try {
+      const raw = localStorage.getItem(this._metricKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return new Set(parsed);
+      }
+    } catch (_err) {}
+    return null;
+  }
+
+  _saveVisibleMetrics(set) {
+    try {
+      localStorage.setItem(this._metricKey(), JSON.stringify([...set]));
+    } catch (_err) {}
+  }
+
+  _allMetricKeys = ["bodyweight_load_score", "duration_load_score", "hold_load_score", "distance_load_score", "cardio_load_score", "custom_load_score"];
+
+  _toggleMetric(key) {
+    if (!this._visibleMetrics.size) {
+      this._visibleMetrics = new Set(this._allMetricKeys);
+    }
+    if (this._visibleMetrics.has(key)) {
+      this._visibleMetrics.delete(key);
+      if (this._visibleMetrics.size === 0) {
+        this._visibleMetrics = new Set(this._allMetricKeys);
+      }
+    } else {
+      this._visibleMetrics.add(key);
+    }
+    this._saveVisibleMetrics(this._visibleMetrics);
+    this._render();
+  }
+
+  _areMetricsVisible() {
+    return this._visibleMetrics.size > 0;
+  }
+
+  _metricName(k) {
+    const map = {
+      bodyweight_load_score: "Bodyweight",
+      duration_load_score: "Duration",
+      hold_load_score: "Hold",
+      distance_load_score: "Distance",
+      cardio_load_score: "Cardio",
+      custom_load_score: "Custom",
+    };
+    return map[k] || k;
   }
 
   _loadSelection() {
@@ -185,6 +243,11 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     const cardio = this._aggregateCardio(selectedRows);
     const totals = this._aggregateTotals(selectedRows, activity);
 
+    // Sync visible metrics for next render
+    if (this._visibleMetrics.size === 0) {
+      this._visibleMetrics = new Set(this._allMetricKeys);
+    }
+
     this.shadowRoot.innerHTML = `
       ${this._style()}
       <ha-card>
@@ -198,6 +261,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
           <div class="section">
             <div class="section-title">Activity Load</div>
             ${this._renderActivityBars(selectedRows)}
+            ${this._renderMetricChips(activity)}
           </div>
 
           <div class="section">
@@ -431,11 +495,36 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     return out;
   }
 
+  _renderMetricChips(activity) {
+    if (!this._areMetricsVisible()) {
+      return "";
+    }
+    const allKeys = ["bodyweight_load_score", "duration_load_score", "hold_load_score", "distance_load_score", "cardio_load_score", "custom_load_score"];
+    const colors = {
+      bodyweight_load_score: "#1976d2",
+      duration_load_score: "#26a69a",
+      hold_load_score: "#8e24aa",
+      distance_load_score: "#fb8c00",
+      cardio_load_score: "#e53935",
+      custom_load_score: "#607d8b",
+    };
+    const anyVisible = this._visibleMetrics.size > 0;
+    const chips = allKeys.map((k) => {
+      const color = colors[k];
+      const name = this._metricName(k);
+      const active = anyVisible && this._visibleMetrics.has(k);
+      const val = this._num(activity[k]);
+      const muted = !active ? "opacity:0.4;" : "";
+      return `<span class="chip metric-chip${active ? "" : " dimmed"}" data-metric="${k}" style="${muted}"><span class="dot" style="background:${color}"></span>${name}<span class="metric-val">${val > 0 ? this._fmt(val, 0) : ""}</span></span>`;
+    }).join("");
+    return `<div class="legend metrics-legend">${chips}</div>`;
+  }
+
   _renderActivityBars(weeks) {
     if (!weeks.length) {
       return `<div class="warn-inline">Keine Daten im gewahlten Zeitraum</div>`;
     }
-    const keys = [
+    const metricDefs = [
       ["bodyweight_load_score", "#1976d2", "Bodyweight"],
       ["duration_load_score", "#26a69a", "Duration"],
       ["hold_load_score", "#8e24aa", "Hold"],
@@ -443,15 +532,22 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       ["cardio_load_score", "#e53935", "Cardio"],
       ["custom_load_score", "#607d8b", "Custom"],
     ];
+    const activeKeys = this._areMetricsVisible() && this._visibleMetrics.size > 0
+      ? [...this._visibleMetrics].filter((k) => {
+          const w = weeks[0];
+          return w && this._num(w[k]) > 0;
+        })
+      : metricDefs.map((d) => d[0]);
     const totals = weeks.map((w) =>
-      keys.reduce((sum, [k]) => sum + this._num(w[k]), 0)
+      metricDefs.reduce((sum, [k]) => sum + this._num(w[k]), 0)
     );
     const max = Math.max(1, ...totals);
     const bars = weeks
       .map((w) => {
         const weekLabel = this._escape(w.week_label || "");
-        const segs = keys
+        const segs = metricDefs
           .map(([k, color, name]) => {
+            if (!activeKeys.includes(k)) return "";
             const v = this._num(w[k]);
             if (v <= 0) return "";
             const height = (v / max) * 100;
@@ -465,13 +561,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       })
       .join("");
 
-    const legend = keys
-      .map(
-        ([k, color, name]) =>
-          `<span class="chip"><span class="dot" style="background:${color}"></span>${name}</span>`
-      )
-      .join("");
-    return `<div class="bars">${bars}</div><div class="legend">${legend}</div>`;
+    return `<div class="bars">${bars}</div>`;
   }
 
   _startOfWeek(date) {

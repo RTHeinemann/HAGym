@@ -1,7 +1,7 @@
 {
   "domain": "ha_fitness",
   "name": "HAGym",
-  "version": "0.1.0",
+  "version": "1.0.3.0",
   "documentation": "https://github.com/RTHeinemann/HAGym",
   "issue_tracker": "https://github.com/RTHeinemann/HAGym/issues",
   "codeowners": ["@RTHeinemann"],
