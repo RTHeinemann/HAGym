@@ -79,7 +79,8 @@ Reusable selector card with:
 - `Jetzt`
 - period menu
 - `fixed-bottom` placement option
-- automatic desktop sidebar offset detection for better centering
+- Energy-inspired fixed row + centered inner pill
+- automatic desktop content-area detection for better centering
 - optional manual desktop override
 
 Example:
@@ -93,6 +94,7 @@ vertical_opening_direction: up
 desktop_sidebar_offset: auto
 content_selector: null
 debug_layout: false
+full_width_row: true
 max_width: 720
 bottom_offset: 16
 z_index: 10
@@ -116,11 +118,17 @@ Advanced selector options:
 - `debug_layout`
   - default `false`
   - logs detected layout source and rect via `console.debug`
+- `full_width_row`
+  - default `true`
+  - keeps the fixed bottom row stretched across the detected content area
 
 Desktop centering behavior:
 
-- On desktop, HAGym tries to center the selector relative to the visible dashboard content area.
-- It prefers measuring the actual Lovelace content rect.
+- In `fixed-bottom` mode, HAGym now behaves more like the Energy selector:
+  - an internal fixed row is positioned across the detected dashboard content area
+  - the actual selector pill is centered inside that row
+- On desktop, HAGym first tries `--ha-top-app-bar-width`.
+- If that is not available, it prefers measuring the actual Lovelace content rect.
 - If that is not available, it falls back to sidebar-offset logic.
 - If Home Assistant layout detection is not enough in a custom setup, you can override it manually:
 

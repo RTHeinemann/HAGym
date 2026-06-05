@@ -256,7 +256,8 @@
         desktop_sidebar_offset: "auto",
         content_selector: null,
         debug_layout: false,
-        max_width: 720,
+        full_width_row: true,
+        max_width: 900,
         bottom_offset: 16,
         z_index: 10,
       };
@@ -267,8 +268,11 @@
       this._contentResizeObserver = null;
       this._observedContentElement = null;
       this._pendingPlacementTimers = new Set();
+      this._lastLayoutDebug = "";
+      this._lastLayoutSource = "unknown";
       this._onStorage = this._onStorage.bind(this);
-      this._onOutsideClick = this._onOutsideClick.bind(this);
+      this._onDocumentClick = this._onDocumentClick.bind(this);
+      this._onPointerUp = this._onPointerUp.bind(this);
       this._onResize = this._onResize.bind(this);
     }
 
@@ -283,7 +287,8 @@
         desktop_sidebar_offset: "auto",
         content_selector: null,
         debug_layout: false,
-        max_width: 720,
+        full_width_row: true,
+        max_width: 900,
         bottom_offset: 16,
         z_index: 10,
       };
@@ -291,7 +296,8 @@
 
     connectedCallback() {
       window.addEventListener("storage", this._onStorage);
-      window.addEventListener("click", this._onOutsideClick, true);
+      window.addEventListener("click", this._onDocumentClick, true);
+      window.addEventListener("pointerup", this._onPointerUp, true);
       window.addEventListener("resize", this._onResize);
       this._startLayoutObserver();
       this._startMutationObserver();
@@ -303,7 +309,8 @@
 
     disconnectedCallback() {
       window.removeEventListener("storage", this._onStorage);
-      window.removeEventListener("click", this._onOutsideClick, true);
+      window.removeEventListener("click", this._onDocumentClick, true);
+      window.removeEventListener("pointerup", this._onPointerUp, true);
       window.removeEventListener("resize", this._onResize);
       this._stopLayoutObserver();
       this._stopMutationObserver();
@@ -326,13 +333,12 @@
       ) {
         desktopSidebarOffset = Math.max(0, Number(rawDesktopOffset));
       }
-      const maxWidth = Math.max(280, Number(config?.max_width) || 720);
-      const bottomOffset = Math.max(0, Number(config?.bottom_offset) || 16);
-      const zIndex = Math.max(1, Number(config?.z_index) || 10);
+
       const contentSelector =
         config?.content_selector && String(config.content_selector).trim()
           ? String(config.content_selector).trim()
           : null;
+
       this._config = {
         collection_key:
           config?.collection_key && String(config.collection_key).trim()
@@ -346,9 +352,10 @@
         desktop_sidebar_offset: desktopSidebarOffset,
         content_selector: contentSelector,
         debug_layout: config?.debug_layout === true,
-        max_width: maxWidth,
-        bottom_offset: bottomOffset,
-        z_index: zIndex,
+        full_width_row: config?.full_width_row !== false,
+        max_width: Math.max(280, Number(config?.max_width) || 900),
+        bottom_offset: Math.max(0, Number(config?.bottom_offset) || 16),
+        z_index: Math.max(1, Number(config?.z_index) || 10),
       };
       this._selection = this._loadSelection();
       this._applyPlacement();
@@ -371,6 +378,7 @@
         this._pendingPlacementTimers.delete(timer);
         if (this._config.placement === "fixed-bottom") {
           this._applyPlacement();
+          this._render();
         }
       }, delay);
       this._pendingPlacementTimers.add(timer);
@@ -402,6 +410,7 @@
       this._resizeObserver = new ResizeObserver(() => {
         if (this._config.placement === "fixed-bottom") {
           this._applyPlacement();
+          this._render();
         }
       });
       for (const target of targets) {
@@ -457,12 +466,6 @@
       this._mutationObserver = null;
     }
 
-    _stopContentObserver() {
-      this._contentResizeObserver?.disconnect?.();
-      this._contentResizeObserver = null;
-      this._observedContentElement = null;
-    }
-
     _observeContentElement(element) {
       if (!element || typeof ResizeObserver !== "function") {
         return;
@@ -475,9 +478,16 @@
       this._contentResizeObserver = new ResizeObserver(() => {
         if (this._config.placement === "fixed-bottom") {
           this._applyPlacement();
+          this._render();
         }
       });
       this._contentResizeObserver.observe(element);
+    }
+
+    _stopContentObserver() {
+      this._contentResizeObserver?.disconnect?.();
+      this._contentResizeObserver = null;
+      this._observedContentElement = null;
     }
 
     _layoutTargets() {
@@ -514,103 +524,139 @@
     _applyPlacement() {
       const fixed = this._config.placement === "fixed-bottom";
       this.toggleAttribute("data-fixed-bottom", fixed);
-      this.style.position = fixed ? "fixed" : "";
-      this.style.transform = fixed ? "translateX(-50%)" : "";
-      this.style.pointerEvents = "auto";
+      this.style.pointerEvents = fixed ? "none" : "auto";
       if (!fixed) {
-        this.style.left = "";
-        this.style.bottom = "";
-        this.style.width = "";
-        this.style.maxWidth = "";
-        this.style.zIndex = "";
-        this.style.setProperty("--hagym-date-selector-left", "");
-        this.style.setProperty("--hagym-date-selector-width", "");
+        this.style.setProperty("--hagym-content-left", "");
+        this.style.setProperty("--hagym-content-width", "");
+        this.style.setProperty("--hagym-max-width", "");
+        this.style.setProperty("--hagym-bottom-offset", "");
+        this.style.setProperty("--hagym-z-index", "");
+        this._lastLayoutSource = "inline";
+        this._lastLayoutDebug = "";
         return;
       }
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
       const isDesktop = viewportWidth >= 870;
-      const maxWidth = this._config.max_width;
-      const horizontalPadding = isDesktop ? 32 : 24;
-      let left = viewportWidth / 2;
-      let cardWidth = Math.min(maxWidth, Math.max(280, viewportWidth - horizontalPadding));
-      let source = "mobile";
-
+      let layout;
       if (isDesktop) {
-        const contentTarget = this._findBestContentTarget();
-        const contentRect = contentTarget?.rect || null;
-        if (
-          this._config.desktop_sidebar_offset === "auto" &&
-          contentRect &&
-          contentRect.width > 300
-        ) {
-          left = contentRect.left + contentRect.width / 2;
-          cardWidth = Math.min(maxWidth, Math.max(280, contentRect.width - horizontalPadding));
-          source = contentTarget.source;
-          this._observeContentElement(contentTarget.element);
-          this._debugLayout("content-rect", {
-            source,
-            left: Math.round(left),
-            width: Math.round(cardWidth),
-            rect: this._rectToDebug(contentRect),
-          });
-        } else {
-          const sidebarOffset = this._resolveDesktopSidebarOffset();
-          const contentWidth = Math.max(280, viewportWidth - sidebarOffset - horizontalPadding);
-          cardWidth = Math.min(maxWidth, contentWidth);
-          left = sidebarOffset + Math.max(0, (viewportWidth - sidebarOffset) / 2);
-          source = typeof this._config.desktop_sidebar_offset === "number" ? "manual-offset" : "sidebar-offset";
-          this._stopContentObserver();
-          this._debugLayout("offset-fallback", {
-            source,
-            sidebarOffset,
-            left: Math.round(left),
-            width: Math.round(cardWidth),
-          });
-        }
+        layout = this._resolveDesktopContentLayout(viewportWidth);
       } else {
         this._stopContentObserver();
+        layout = {
+          left: 0,
+          width: viewportWidth,
+          source: "mobile",
+          element: null,
+        };
       }
 
-      const bottomOffset = isDesktop
-        ? this._config.bottom_offset
-        : Math.max(12, this._config.bottom_offset - 4);
+      if (layout.element) {
+        this._observeContentElement(layout.element);
+      }
 
-      this.style.left = `${Math.round(left)}px`;
-      this.style.bottom = `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`;
-      this.style.width = `${Math.round(cardWidth)}px`;
-      this.style.maxWidth = `${Math.round(cardWidth)}px`;
-      this.style.zIndex = String(this._config.z_index);
-      this.style.setProperty("--hagym-date-selector-left", `${Math.round(left)}px`);
-      this.style.setProperty("--hagym-date-selector-width", `${Math.round(cardWidth)}px`);
+      this.style.setProperty("--hagym-content-left", `${Math.round(layout.left)}px`);
+      this.style.setProperty("--hagym-content-width", `${Math.round(layout.width)}px`);
+      this.style.setProperty("--hagym-max-width", `${Math.round(this._config.max_width)}px`);
+      this.style.setProperty(
+        "--hagym-bottom-offset",
+        `${Math.round(isDesktop ? this._config.bottom_offset : 12)}px`
+      );
+      this.style.setProperty("--hagym-z-index", String(this._config.z_index));
+
+      this._lastLayoutSource = layout.source;
+      this._lastLayoutDebug =
+        `layout: ${layout.source} left=${Math.round(layout.left)} width=${Math.round(layout.width)}`;
+      this._debugLayout("fixed-row-layout", {
+        source: layout.source,
+        contentLeft: Math.round(layout.left),
+        contentWidth: Math.round(layout.width),
+      });
     }
 
-    _resolveDesktopSidebarOffset() {
+    _resolveDesktopContentLayout(viewportWidth) {
       if (this._config.desktop_sidebar_offset === 0) {
-        return 0;
+        return { left: 0, width: viewportWidth, source: "viewport", element: null };
       }
+
+      if (this._config.desktop_sidebar_offset === "auto") {
+        const topBarWidth = this._detectContentWidthFromCssVariables();
+        if (topBarWidth > 300 && topBarWidth <= viewportWidth) {
+          return {
+            left: Math.max(0, viewportWidth - topBarWidth),
+            width: topBarWidth,
+            source: "ha-top-app-bar-width",
+            element: null,
+          };
+        }
+      }
+
+      const contentTarget = this._findBestContentTarget();
+      if (
+        this._config.desktop_sidebar_offset === "auto" &&
+        contentTarget?.rect &&
+        contentTarget.rect.width > 300
+      ) {
+        return {
+          left: Math.max(0, contentTarget.rect.left),
+          width: Math.min(viewportWidth, contentTarget.rect.width),
+          source: contentTarget.source || "content-rect",
+          element: contentTarget.element || null,
+        };
+      }
+
       if (typeof this._config.desktop_sidebar_offset === "number") {
-        return this._config.desktop_sidebar_offset;
+        return {
+          left: this._config.desktop_sidebar_offset,
+          width: Math.max(280, viewportWidth - this._config.desktop_sidebar_offset),
+          source: "manual-offset",
+          element: null,
+        };
       }
 
-      const contentLeft = this._detectContentLeftOffset();
-      if (contentLeft > 0) {
-        return contentLeft;
-      }
+      const fallbackOffset = 256;
+      return {
+        left: fallbackOffset,
+        width: Math.max(280, viewportWidth - fallbackOffset),
+        source: "fallback-sidebar",
+        element: null,
+      };
+    }
 
-      const variableOffset = this._detectSidebarWidthFromCssVariables();
-      if (variableOffset > 0) {
-        return variableOffset;
-      }
+    _detectContentWidthFromCssVariables() {
+      const variableNames = [
+        "--ha-top-app-bar-width",
+        "--mdc-drawer-width",
+        "--sidebar-width",
+        "--app-drawer-width",
+      ];
+      const elements = [
+        document.documentElement,
+        document.body,
+        document.querySelector("home-assistant"),
+        document.querySelector("home-assistant-main"),
+      ].filter(Boolean);
 
-      return 256;
+      for (const element of elements) {
+        const styles = window.getComputedStyle(element);
+        for (const name of variableNames) {
+          const value = styles.getPropertyValue(name);
+          const parsed = this._parseCssLength(value);
+          if (name === "--ha-top-app-bar-width") {
+            if (parsed > 300 && parsed <= window.innerWidth) {
+              return parsed;
+            }
+          }
+        }
+      }
+      return 0;
     }
 
     _findBestContentTarget() {
       const configuredSelectors = this._config.content_selector
         ? [this._config.content_selector]
         : [];
-      const candidateSelectors = [
+      const selectors = [
         ...configuredSelectors,
         "hui-sections-view",
         "hui-view",
@@ -625,24 +671,17 @@
         "app-drawer-layout",
         "ha-drawer",
       ];
-      const seen = new Set();
-      const dedupedSelectors = candidateSelectors.filter((selector) => {
-        if (!selector || seen.has(selector)) {
-          return false;
-        }
-        seen.add(selector);
-        return true;
-      });
-
+      const uniqueSelectors = [...new Set(selectors.filter(Boolean))];
       const candidates = [];
-      for (const element of this._findDeep(dedupedSelectors)) {
+
+      for (const element of this._findDeep(uniqueSelectors)) {
         const rect = element.getBoundingClientRect?.();
         if (!rect) {
           continue;
         }
         const expanded = this._expandToLargeParent(element, rect);
-        const usedRect = expanded?.rect || rect;
-        const usedElement = expanded?.element || element;
+        const usedElement = expanded.element;
+        const usedRect = expanded.rect;
         const score = this._scoreContentCandidate(usedElement, usedRect);
         if (score <= 0) {
           continue;
@@ -663,12 +702,14 @@
       const results = new Set();
       const queue = [document];
       const visitedRoots = new Set();
+
       while (queue.length) {
         const root = queue.shift();
         if (!root || visitedRoots.has(root)) {
           continue;
         }
         visitedRoots.add(root);
+
         if (typeof root.querySelectorAll === "function") {
           for (const selector of selectorList) {
             try {
@@ -676,9 +717,10 @@
                 results.add(element);
               }
             } catch (_err) {
-              // Ignore invalid selectors in custom configs.
+              // Ignore invalid selectors from custom configs.
             }
           }
+
           for (const element of root.querySelectorAll("*")) {
             if (element.shadowRoot) {
               queue.push(element.shadowRoot);
@@ -686,6 +728,7 @@
           }
         }
       }
+
       return [...results];
     }
 
@@ -699,7 +742,11 @@
           break;
         }
         const parentRect = parent.getBoundingClientRect();
-        if (parentRect.width > bestRect.width * 1.08 && parentRect.width <= window.innerWidth + 24) {
+        if (
+          parentRect.width > bestRect.width * 1.08 &&
+          parentRect.width <= window.innerWidth + 24 &&
+          parentRect.height > 160
+        ) {
           bestElement = parent;
           bestRect = parentRect;
         }
@@ -717,10 +764,12 @@
       if (rect.left < -16 || rect.right > viewportWidth + 16) {
         return 0;
       }
+
       const tagName = String(element?.tagName || "").toLowerCase();
       const id = String(element?.id || "");
       const className =
         typeof element?.className === "string" ? element.className : "";
+
       let score = rect.width;
       score += Math.min(rect.height, viewportHeight) * 0.15;
       if (tagName === "hui-sections-view") score += 240;
@@ -747,76 +796,6 @@
       return `${tagName}${id}${className}`;
     }
 
-    _rectToDebug(rect) {
-      return {
-        left: Math.round(rect.left),
-        top: Math.round(rect.top),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      };
-    }
-
-    _debugLayout(message, payload) {
-      if (!this._config.debug_layout) {
-        return;
-      }
-      console.debug("[HAGym date selection]", message, payload);
-    }
-
-    _detectContentLeftOffset() {
-      const root = document.querySelector("home-assistant");
-      const searchTargets = [
-        document.querySelector("home-assistant-main"),
-        document.querySelector("ha-panel-lovelace"),
-        document.querySelector("hui-root"),
-      ].filter(Boolean);
-
-      if (root?.shadowRoot) {
-        const rootTargets = [
-          root.shadowRoot.querySelector("home-assistant-main"),
-          root.shadowRoot.querySelector("partial-panel-resolver"),
-          root.shadowRoot.querySelector("ha-drawer"),
-        ].filter(Boolean);
-        searchTargets.push(...rootTargets);
-      }
-
-      let bestLeft = 0;
-      for (const target of searchTargets) {
-        const rect = target?.getBoundingClientRect?.();
-        if (!rect) continue;
-        if (rect.width <= 0) continue;
-        if (rect.left > bestLeft && rect.left < window.innerWidth * 0.6) {
-          bestLeft = rect.left;
-        }
-      }
-      return Math.max(0, Math.round(bestLeft));
-    }
-
-    _detectSidebarWidthFromCssVariables() {
-      const variableNames = [
-        "--mdc-drawer-width",
-        "--sidebar-width",
-        "--app-drawer-width",
-      ];
-      const elements = [
-        document.documentElement,
-        document.body,
-        document.querySelector("home-assistant"),
-      ].filter(Boolean);
-
-      for (const element of elements) {
-        const styles = window.getComputedStyle(element);
-        for (const name of variableNames) {
-          const value = styles.getPropertyValue(name);
-          const parsed = this._parseCssLength(value);
-          if (parsed > 0) {
-            return parsed;
-          }
-        }
-      }
-      return 0;
-    }
-
     _parseCssLength(value) {
       if (!value) return 0;
       const match = String(value).trim().match(/^([0-9.]+)px$/i);
@@ -835,15 +814,38 @@
       this._render();
     }
 
-    _onOutsideClick(event) {
-      if (this._config.placement === "fixed-bottom") {
-        this._schedulePlacement(100);
-        this._schedulePlacement(300);
-      }
+    _onDocumentClick(event) {
+      this._handleGlobalInteraction(event);
       if (!this._menuOpen) return;
       if (event.composedPath().includes(this)) return;
       this._menuOpen = false;
       this._render();
+    }
+
+    _onPointerUp(event) {
+      this._handleGlobalInteraction(event);
+    }
+
+    _handleGlobalInteraction(event) {
+      if (this._config.placement !== "fixed-bottom") {
+        return;
+      }
+      const point = this._eventPoint(event);
+      if (!point) {
+        return;
+      }
+      const nearSidebar = point.x <= Math.max(320, (window.innerWidth || 0) * 0.28) && point.y <= 160;
+      const delays = nearSidebar ? [50, 200, 500] : [100, 300];
+      for (const delay of delays) {
+        this._schedulePlacement(delay);
+      }
+    }
+
+    _eventPoint(event) {
+      if (typeof event?.clientX === "number" && typeof event?.clientY === "number") {
+        return { x: event.clientX, y: event.clientY };
+      }
+      return null;
     }
 
     _emitSelection(selection) {
@@ -867,11 +869,7 @@
     }
 
     _setSelection(periodKey, anchorDate) {
-      this._selection = utils.buildSelection(
-        periodKey,
-        anchorDate,
-        this._config.collection_key
-      );
+      this._selection = utils.buildSelection(periodKey, anchorDate, this._config.collection_key);
       utils.saveSelection(this._config.collection_key, this._selection);
       this._emitSelection(this._selection);
       this._render();
@@ -894,8 +892,53 @@
       this._setSelection(periodKey, new Date());
     }
 
+    _debugLayout(message, payload) {
+      if (!this._config.debug_layout) {
+        return;
+      }
+      console.debug("[HAGym date selection]", message, payload);
+    }
+
     _renderMenuButton(key, label) {
       return `<button class="menu-item" data-period="${key}">${utils.escapeHtml(label)}</button>`;
+    }
+
+    _renderBody(selection, menuPosX, menuPosY) {
+      return `
+        <div class="shell">
+          <div class="bar">
+            <span class="icon" aria-hidden="true">&#128197;</span>
+            <button class="label" data-action="toggle-menu">${utils.escapeHtml(
+              selection.label || "Diese Woche"
+            )}</button>
+            <button class="icon-btn" data-action="prev" title="Vorheriger Zeitraum">&#x2039;</button>
+            <button class="icon-btn" data-action="next" title="Naechster Zeitraum">&#x203A;</button>
+            <button class="now-btn" data-action="now">Jetzt</button>
+            <button class="icon-btn" data-action="toggle-menu" title="Zeitraum waehlen">&#9776;</button>
+          </div>
+          ${
+            this._config.debug_layout
+              ? `<div class="debug-line">${utils.escapeHtml(this._lastLayoutDebug || "layout: unknown")}</div>`
+              : ""
+          }
+          ${
+            this._menuOpen
+              ? `<div class="menu" style="${menuPosX}${menuPosY}">
+                  ${this._renderMenuButton("today", "Heute")}
+                  ${this._renderMenuButton("yesterday", "Gestern")}
+                  ${this._renderMenuButton("this_week", "Diese Woche")}
+                  ${this._renderMenuButton("this_month", "Dieser Monat")}
+                  ${this._renderMenuButton("this_quarter", "Dieses Quartal")}
+                  ${this._renderMenuButton("this_year", "Dieses Jahr")}
+                  ${this._renderMenuButton("last_7_days", "Letzte 7 Tage")}
+                  ${this._renderMenuButton("last_30_days", "Letzte 30 Tage")}
+                  ${this._renderMenuButton("last_12_weeks", "Letzte 12 Wochen")}
+                  ${this._renderMenuButton("last_12_months", "Letzte 12 Monate")}
+                </div>`
+              : ""
+          }
+        </div>
+      `;
     }
 
     _render() {
@@ -908,38 +951,17 @@
           ? "top: calc(100% + 10px);"
           : "bottom: calc(100% + 10px);";
 
+      const body = this._renderBody(selection, menuPosX, menuPosY);
       this.shadowRoot.innerHTML = `
         ${this._style()}
-        <ha-card>
-          <div class="shell">
-            <div class="bar">
-              <span class="icon" aria-hidden="true">&#128197;</span>
-              <button class="label" data-action="toggle-menu">${utils.escapeHtml(
-                selection.label || "Diese Woche"
-              )}</button>
-              <button class="icon-btn" data-action="prev" title="Vorheriger Zeitraum">&#x2039;</button>
-              <button class="icon-btn" data-action="next" title="Naechster Zeitraum">&#x203A;</button>
-              <button class="now-btn" data-action="now">Jetzt</button>
-              <button class="icon-btn" data-action="toggle-menu" title="Zeitraum waehlen">&#9776;</button>
-            </div>
-            ${
-              this._menuOpen
-                ? `<div class="menu" style="${menuPosX}${menuPosY}">
-                    ${this._renderMenuButton("today", "Heute")}
-                    ${this._renderMenuButton("yesterday", "Gestern")}
-                    ${this._renderMenuButton("this_week", "Diese Woche")}
-                    ${this._renderMenuButton("this_month", "Dieser Monat")}
-                    ${this._renderMenuButton("this_quarter", "Dieses Quartal")}
-                    ${this._renderMenuButton("this_year", "Dieses Jahr")}
-                    ${this._renderMenuButton("last_7_days", "Letzte 7 Tage")}
-                    ${this._renderMenuButton("last_30_days", "Letzte 30 Tage")}
-                    ${this._renderMenuButton("last_12_weeks", "Letzte 12 Wochen")}
-                    ${this._renderMenuButton("last_12_months", "Letzte 12 Monate")}
-                  </div>`
-                : ""
-            }
-          </div>
-        </ha-card>
+        ${
+          this._config.placement === "fixed-bottom"
+            ? `<div class="hagym-fixed-row">
+                 <div class="hagym-fixed-backdrop"></div>
+                 <ha-card class="hagym-date-content">${body}</ha-card>
+               </div>`
+            : `<ha-card class="inline-date-content">${body}</ha-card>`
+        }
       `;
 
       this.shadowRoot.querySelectorAll('[data-action="toggle-menu"]').forEach((button) => {
@@ -973,7 +995,14 @@
             display: block;
           }
 
-          ha-card {
+          :host([data-fixed-bottom]) {
+            display: block;
+            height: 0;
+            overflow: visible;
+          }
+
+          .inline-date-content,
+          .hagym-date-content {
             overflow: visible;
             border-radius: 18px;
             background:
@@ -982,9 +1011,43 @@
             backdrop-filter: blur(10px);
           }
 
+          .hagym-fixed-row {
+            position: fixed;
+            left: var(--hagym-content-left, 0px);
+            width: var(--hagym-content-width, 100vw);
+            right: auto;
+            bottom: calc(var(--hagym-bottom-offset, 16px) + env(safe-area-inset-bottom, 0px));
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            padding: 0 16px;
+            pointer-events: none;
+            z-index: var(--hagym-z-index, 10);
+          }
+
+          .hagym-fixed-backdrop {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+          }
+
+          .hagym-date-content {
+            pointer-events: auto;
+            width: min(var(--hagym-max-width, 900px), 100%);
+            border-radius: 22px;
+          }
+
           .shell {
             position: relative;
             padding: 8px;
+          }
+
+          .debug-line {
+            margin-top: 6px;
+            font-size: 0.7rem;
+            color: var(--secondary-text-color);
+            opacity: 0.85;
           }
 
           .bar {
@@ -1072,6 +1135,15 @@
 
           .menu-item:hover {
             background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+          }
+
+          @media (max-width: 870px) {
+            .hagym-fixed-row {
+              left: 0px;
+              width: 100vw;
+              padding: 0 12px;
+              bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+            }
           }
 
           @media (max-width: 600px) {
