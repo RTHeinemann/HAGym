@@ -359,19 +359,9 @@ Resources:
 
 ```yaml
 resources:
-  - url: /hacsfiles/ha_fitness/hagym-date-selection-card.js
+  - url: /hagym_static/hagym-date-selection-card.js
     type: module
-  - url: /hacsfiles/ha_fitness/hagym-period-dashboard-card.js
-    type: module
-```
-
-Alternative path if your setup serves from `/local/community`:
-
-```yaml
-resources:
-  - url: /local/community/ha_fitness/hagym-date-selection-card.js
-    type: module
-  - url: /local/community/ha_fitness/hagym-period-dashboard-card.js
+  - url: /hagym_static/hagym-period-dashboard-card.js
     type: module
 ```
 
@@ -399,6 +389,12 @@ cards:
     collection_key: hagym
   - type: custom:hagym-date-selection
     collection_key: hagym
+    placement: fixed-bottom
+    full_width_row: true
+    desktop_sidebar_offset: auto
+    max_width: 900
+    bottom_offset: 16
+    z_index: 10
     opening_direction: right
     vertical_opening_direction: up
 ```

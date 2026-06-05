@@ -89,15 +89,30 @@ Example:
 type: custom:hagym-date-selection
 collection_key: hagym
 placement: fixed-bottom
-opening_direction: right
-vertical_opening_direction: up
-desktop_sidebar_offset: auto
-content_selector: null
-debug_layout: false
 full_width_row: true
-max_width: 720
+desktop_sidebar_offset: auto
+max_width: 900
 bottom_offset: 16
 z_index: 10
+opening_direction: right
+vertical_opening_direction: up
+content_selector: null
+debug_layout: false
+```
+
+Recommended production config for the Energy-style dashboard:
+
+```yaml
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: fixed-bottom
+full_width_row: true
+desktop_sidebar_offset: auto
+max_width: 900
+bottom_offset: 16
+z_index: 10
+opening_direction: right
+vertical_opening_direction: up
 ```
 
 Advanced selector options:
@@ -107,7 +122,7 @@ Advanced selector options:
   - `0`
   - a fixed number like `256`
 - `max_width`
-  - default `720`
+  - default `900`
 - `bottom_offset`
   - default `16`
 - `z_index`
@@ -310,32 +325,33 @@ placement: fixed-bottom
 
 This is more reliable in the normal Raw configuration editor than relying on `view.footer`.
 
-## Example: Separate Selector + Cards
+Use only one HAGym footer selector per view. The supplied templates already follow that rule.
+
+Inline mode remains useful for simple embedded use, for example inside a compact companion card or a local test layout.
+
+## Dashboard Bottom Spacing
+
+The fixed footer selector floats above the dashboard content. To avoid the last card being visually covered:
+
+- keep some extra vertical space at the bottom of the last section
+- or add a small final spacer card in that view
+- or end the view with a lower-priority card that can sit partly behind the footer without hurting usability
+
+For production dashboards, test the last viewport section on both desktop and mobile after adding the footer.
+
+## Example: Simple Inline Use
 
 ```yaml
 type: vertical-stack
 cards:
-  - type: custom:hagym-top-list-card
-    title: Trainingsvolumen pro Muskelgruppe
-    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
-    collection_key: hagym
-    scope: muscle_groups
-    metric: strength_volume_kg
-  - type: custom:hagym-balance-card
-    title: Balance Push/Pull
-    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
-    collection_key: hagym
-    mode: push_pull
-  - type: custom:hagym-activity-load-card
-    title: Activity Load Ausdauer
-    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
-    collection_key: hagym
-    group_by: day
   - type: custom:hagym-date-selection
     collection_key: hagym
-    placement: fixed-bottom
-    opening_direction: right
-    vertical_opening_direction: up
+  - type: custom:hagym-period-dashboard-card
+    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+    metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
+    volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
+    collection_key: hagym
+    show_embedded_date_selection: false
 ```
 
 ## Troubleshooting
