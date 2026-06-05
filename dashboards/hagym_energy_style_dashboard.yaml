@@ -1,0 +1,166 @@
+title: HAGym Energy Style
+views:
+  - title: Zusammenfassung
+    path: zusammenfassung
+    icon: mdi:chart-box
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: custom:hagym-top-list-card
+            title: Trainingsvolumen pro Muskelgruppe
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: muscle_groups
+            metric: strength_volume_kg
+            limit: 10
+          - type: custom:hagym-top-list-card
+            title: Trainingsvolumen pro Uebung
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: exercises
+            metric: strength_volume_kg
+            limit: 10
+          - type: custom:hagym-top-list-card
+            title: Trainingsvolumen pro Equipment
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: equipment
+            metric: strength_volume_kg
+            limit: 10
+          - type: custom:hagym-balance-card
+            title: Balance Push/Pull
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            mode: push_pull
+          - type: custom:hagym-activity-load-card
+            title: Activity Load Ausdauer
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            group_by: day
+      - type: grid
+        cards:
+          - type: custom:hagym-period-dashboard-card
+            title: HAGym Uebersicht
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
+            volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
+            collection_key: hagym
+            show_embedded_date_selection: false
+          - type: entities
+            title: Kernmetriken
+            entities:
+              - entity: sensor.ha_fitness_personal_core_total_strength_volume
+              - entity: sensor.ha_fitness_personal_core_total_activity_load
+              - entity: sensor.ha_fitness_personal_core_total_duration_minutes
+              - entity: sensor.ha_fitness_personal_core_total_distance_km
+              - entity: sensor.ha_fitness_personal_core_total_reps
+              - entity: sensor.ha_fitness_personal_core_total_sets
+    badges: []
+    cards: []
+    footer:
+      type: custom:hagym-date-selection
+      collection_key: hagym
+      placement: fixed-bottom
+      opening_direction: right
+      vertical_opening_direction: up
+
+  - title: Training
+    path: training
+    icon: mdi:dumbbell
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: entities
+            title: Live Workout
+            entities:
+              - entity: sensor.ha_fitness_status
+              - entity: select.ha_fitness_active_equipment
+              - entity: select.ha_fitness_active_exercise
+              - entity: number.ha_fitness_weight
+              - entity: number.ha_fitness_reps
+              - entity: text.ha_fitness_notes
+              - entity: button.ha_fitness_save_set
+          - type: entities
+            title: Letzte Trainings
+            entities:
+              - entity: sensor.ha_fitness_personal_recent_workouts
+              - entity: sensor.ha_fitness_personal_daily_metric_statistics
+      - type: grid
+        cards:
+          - type: custom:hagym-top-list-card
+            title: Top Uebungen nach Saetzen
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: exercises
+            metric: sets
+            limit: 8
+          - type: custom:hagym-top-list-card
+            title: Top Equipment nach Saetzen
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: equipment
+            metric: sets
+            limit: 8
+    badges: []
+    cards: []
+    footer:
+      type: custom:hagym-date-selection
+      collection_key: hagym
+      placement: fixed-bottom
+      opening_direction: right
+      vertical_opening_direction: up
+
+  - title: Cardio
+    path: cardio
+    icon: mdi:bike
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: entities
+            title: Activity Input
+            entities:
+              - entity: select.ha_fitness_active_exercise
+              - entity: number.ha_fitness_duration_minutes
+              - entity: number.ha_fitness_distance_km
+              - entity: number.ha_fitness_calories
+              - entity: number.ha_fitness_steps
+              - entity: number.ha_fitness_avg_heart_rate
+              - entity: number.ha_fitness_max_heart_rate
+              - entity: select.ha_fitness_intensity
+              - entity: text.ha_fitness_notes
+              - entity: button.ha_fitness_save_activity
+          - type: custom:hagym-activity-load-card
+            title: Cardio Aktivitaetslast
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            group_by: week
+      - type: grid
+        cards:
+          - type: custom:hagym-top-list-card
+            title: Cardio Distanz nach Uebung
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: exercises
+            metric: distance_km
+            limit: 8
+          - type: custom:hagym-top-list-card
+            title: Activity Load nach Uebung
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: exercises
+            metric: activity_load_score
+            limit: 8
+    badges: []
+    cards: []
+    footer:
+      type: custom:hagym-date-selection
+      collection_key: hagym
+      placement: fixed-bottom
+      opening_direction: right
+      vertical_opening_direction: up

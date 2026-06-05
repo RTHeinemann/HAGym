@@ -276,13 +276,25 @@ class HAGymPeriodDashboardCard extends HTMLElement {
         </div>
       </ha-card>
     `;
+
+    this._configureEmbeddedSelector();
   }
 
   _embeddedSelector() {
     if (!this._config.show_embedded_date_selection) return "";
-    return `<div class="embedded"><hagym-date-selection collection_key="${this._escape(
-      this._config.collection_key
-    )}"></hagym-date-selection></div>`;
+    return `<div class="embedded"><hagym-date-selection></hagym-date-selection></div>`;
+  }
+
+  _configureEmbeddedSelector() {
+    const selector = this.shadowRoot?.querySelector("hagym-date-selection");
+    if (!selector || typeof selector.setConfig !== "function") {
+      return;
+    }
+    selector.setConfig({
+      type: "custom:hagym-date-selection",
+      collection_key: this._config.collection_key,
+      default_period: this._selection?.period_key || "this_week",
+    });
   }
 
   _selectWeeksForPeriod(weeks, period) {
@@ -561,12 +573,16 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 }
 
-customElements.define("hagym-period-dashboard-card", HAGymPeriodDashboardCard);
+if (!customElements.get("hagym-period-dashboard-card")) {
+  customElements.define("hagym-period-dashboard-card", HAGymPeriodDashboardCard);
+}
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "hagym-period-dashboard-card",
-  name: "HAGym Period Dashboard Card",
-  description: "HAGym analytics dashboard consuming shared period selection",
-  preview: true,
-});
+if (!window.customCards.some((card) => card.type === "hagym-period-dashboard-card")) {
+  window.customCards.push({
+    type: "hagym-period-dashboard-card",
+    name: "HAGym Period Dashboard Card",
+    description: "HAGym analytics dashboard consuming shared period selection",
+    preview: true,
+  });
+}

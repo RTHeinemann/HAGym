@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
 import sqlite3
 import voluptuous as vol
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
@@ -94,6 +96,8 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "button", "select", "number", "text"]
 LEGACY_DISPLAY_NAMES = {"HAFitness", "HAFintess", "HA Fitness", "HA Fitness Tracker"}
+_STATIC_REGISTERED_KEY = f"{DOMAIN}_static_registered"
+_STATIC_URL = "/hagym_static"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -114,6 +118,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    await _async_register_static_path(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _reassign_equipment_entities_to_equipment_devices(hass, entry, coordinator)
     _reassign_exercise_entities_to_exercise_devices(hass, entry, coordinator)
@@ -142,6 +147,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload entry when options change."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _async_register_static_path(hass: HomeAssistant) -> None:
+    """Expose HAGym Lovelace resources under one stable static path."""
+    if hass.data.get(_STATIC_REGISTERED_KEY):
+        return
+
+    static_dir = Path(__file__).parent / "www"
+    if not static_dir.exists():
+        _LOGGER.debug("HAGym static directory missing, skipping %s registration", _STATIC_URL)
+        return
+
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(_STATIC_URL, str(static_dir), True)]
+    )
+    hass.data[_STATIC_REGISTERED_KEY] = True
 
 
 def _register_services(hass: HomeAssistant) -> None:

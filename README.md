@@ -126,7 +126,14 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - Optional custom Lovelace cards (Energy-inspired period selection pattern):
   - `custom:hagym-date-selection`
   - `custom:hagym-period-dashboard-card`
+  - `custom:hagym-top-list-card`
+  - `custom:hagym-activity-load-card`
+  - `custom:hagym-balance-card`
   - files in `/config/custom_components/ha_fitness/www/`
+  - served directly by the integration under `/hagym_static/*.js`
+- Energy-style dashboard templates:
+  - `dashboards/hagym_energy_style_dashboard.yaml`
+  - `dashboards/hagym_energy_style_dashboard_minimal.yaml`
 
 ### Device model (Phase 2.7)
 

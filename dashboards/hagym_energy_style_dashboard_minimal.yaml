@@ -1,0 +1,49 @@
+title: HAGym Energy Style Minimal
+views:
+  - title: Zusammenfassung
+    path: zusammenfassung
+    icon: mdi:chart-box
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: custom:hagym-top-list-card
+            title: Trainingsvolumen pro Muskelgruppe
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: muscle_groups
+            metric: strength_volume_kg
+            limit: 10
+          - type: custom:hagym-top-list-card
+            title: Trainingsvolumen pro Uebung
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: exercises
+            metric: strength_volume_kg
+            limit: 10
+          - type: custom:hagym-top-list-card
+            title: Trainingsvolumen pro Equipment
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: equipment
+            metric: strength_volume_kg
+            limit: 10
+          - type: custom:hagym-balance-card
+            title: Balance Push/Pull
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            mode: push_pull
+          - type: custom:hagym-activity-load-card
+            title: Activity Load Ausdauer
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            group_by: day
+    badges: []
+    cards: []
+    footer:
+      type: custom:hagym-date-selection
+      collection_key: hagym
+      placement: fixed-bottom
+      opening_direction: right
+      vertical_opening_direction: up

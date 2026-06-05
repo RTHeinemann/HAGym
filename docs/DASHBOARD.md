@@ -1,88 +1,269 @@
 # HAGym Dashboard Cards
 
-HAGym provides two minimal custom Lovelace cards following an Energy-inspired architecture:
+HAGym now ships a modular, Energy-inspired dashboard approach:
 
-1. `custom:hagym-date-selection` (standalone reusable selector)
-2. `custom:hagym-period-dashboard-card` (analytics dashboard)
+- `custom:hagym-date-selection`
+- `custom:hagym-period-dashboard-card`
+- `custom:hagym-top-list-card`
+- `custom:hagym-activity-load-card`
+- `custom:hagym-balance-card`
 
-The selector writes period state to localStorage and dispatches events. The dashboard card reads that shared state and re-renders.
+The architecture stays intentionally small:
 
-## Resources
+- one shared period selector
+- multiple focused cards
+- existing daily metric statistics as primary data source
+- no new backend sensors
+- no per-exercise/per-equipment/per-muscle entity explosion
 
-Use the resource path that matches your setup.
+## Static Resources
 
-HACS-style path:
+HAGym serves its Lovelace card files directly from the integration under:
+
+- `/hagym_static/hagym-date-selection-card.js`
+- `/hagym_static/hagym-period-dashboard-card.js`
+- `/hagym_static/hagym-top-list-card.js`
+- `/hagym_static/hagym-activity-load-card.js`
+- `/hagym_static/hagym-balance-card.js`
+
+Add them in Home Assistant:
+
+`Settings -> Dashboards -> Resources -> Add Resource`
+
+Type:
+
+- `JavaScript Module`
+
+Example:
 
 ```yaml
 resources:
-  - url: /hacsfiles/ha_fitness/hagym-date-selection-card.js
+  - url: /hagym_static/hagym-date-selection-card.js
     type: module
-  - url: /hacsfiles/ha_fitness/hagym-period-dashboard-card.js
+  - url: /hagym_static/hagym-period-dashboard-card.js
+    type: module
+  - url: /hagym_static/hagym-top-list-card.js
+    type: module
+  - url: /hagym_static/hagym-activity-load-card.js
+    type: module
+  - url: /hagym_static/hagym-balance-card.js
     type: module
 ```
 
-Alternative local/community path:
+## Shared Period Selector
+
+All cards react to the same shared selection state:
+
+- localStorage key: `hagym-period-selection:<collection_key>`
+- events:
+  - `hagym-period-changed`
+  - `hagym-date-selection-changed`
+
+Use the same `collection_key` everywhere. The default is:
+
+- `hagym`
+
+The selector also supports:
+
+- `placement: fixed-bottom`
+
+That makes it usable like an Energy-style footer selector on desktop and mobile.
+
+## Card Overview
+
+### `custom:hagym-date-selection`
+
+Reusable selector card with:
+
+- previous / next navigation
+- `Jetzt`
+- period menu
+- `fixed-bottom` placement option
+
+Example:
 
 ```yaml
-resources:
-  - url: /local/community/ha_fitness/hagym-date-selection-card.js
-    type: module
-  - url: /local/community/ha_fitness/hagym-period-dashboard-card.js
-    type: module
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: fixed-bottom
+opening_direction: right
+vertical_opening_direction: up
 ```
 
-## Card Files
+### `custom:hagym-period-dashboard-card`
 
-- `/config/custom_components/ha_fitness/www/hagym-date-selection-card.js`
-- `/config/custom_components/ha_fitness/www/hagym-period-dashboard-card.js`
+Existing overview card. It remains available for broader aggregate summaries and can still embed the selector or follow an external selector.
 
-## Example: Embedded Selector
+Example:
 
 ```yaml
 type: custom:hagym-period-dashboard-card
+title: HAGym Uebersicht
 daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
 metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
 volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
-show_embedded_date_selection: true
 collection_key: hagym
+show_embedded_date_selection: false
 ```
 
-## Example: Separate Selector + Dashboard
+### `custom:hagym-top-list-card`
+
+Generic top-list card for:
+
+- `muscle_groups`
+- `exercises`
+- `equipment`
+
+Supported metrics:
+
+- `strength_volume_kg`
+- `activity_load_score`
+- `duration_minutes`
+- `distance_km`
+- `reps`
+- `entries`
+- `sets`
+
+Examples:
+
+```yaml
+type: custom:hagym-top-list-card
+title: Trainingsvolumen pro Muskelgruppe
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+collection_key: hagym
+scope: muscle_groups
+metric: strength_volume_kg
+limit: 10
+```
+
+```yaml
+type: custom:hagym-top-list-card
+title: Trainingsvolumen pro Uebung
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+collection_key: hagym
+scope: exercises
+metric: strength_volume_kg
+limit: 10
+```
+
+```yaml
+type: custom:hagym-top-list-card
+title: Trainingsvolumen pro Equipment
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+collection_key: hagym
+scope: equipment
+metric: strength_volume_kg
+limit: 10
+```
+
+### `custom:hagym-activity-load-card`
+
+Activity-load visualization using the daily buckets.
+
+Supports:
+
+- `group_by: day`
+- `group_by: week`
+- `group_by: month`
+
+Example:
+
+```yaml
+type: custom:hagym-activity-load-card
+title: Activity Load Ausdauer
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+collection_key: hagym
+group_by: day
+```
+
+### `custom:hagym-balance-card`
+
+Balance card based on the daily `muscle_groups` breakdown.
+
+Modes:
+
+- `push_pull`
+- `push_pull_legs`
+- `upper_lower`
+
+Example:
+
+```yaml
+type: custom:hagym-balance-card
+title: Balance Push/Pull
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+collection_key: hagym
+mode: push_pull
+```
+
+## Official Dashboard Templates
+
+Two ready-made templates are included:
+
+- `dashboards/hagym_energy_style_dashboard.yaml`
+- `dashboards/hagym_energy_style_dashboard_minimal.yaml`
+
+Add a dashboard through:
+
+`Dashboard -> Edit -> Raw configuration editor`
+
+Then paste one of the templates.
+
+## Template Notes
+
+The templates use the stable integration entity ids:
+
+- `sensor.ha_fitness_personal_daily_metric_statistics`
+- `sensor.ha_fitness_personal_weekly_metric_history`
+- `sensor.ha_fitness_personal_weekly_volume_history`
+
+If your instance generated different ids because of renamed entities, adapt them in the YAML.
+
+## Example: Separate Selector + Cards
 
 ```yaml
 type: vertical-stack
 cards:
-  - type: custom:hagym-period-dashboard-card
+  - type: custom:hagym-top-list-card
+    title: Trainingsvolumen pro Muskelgruppe
     daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
-    metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
-    volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
-    show_embedded_date_selection: false
     collection_key: hagym
+    scope: muscle_groups
+    metric: strength_volume_kg
+  - type: custom:hagym-balance-card
+    title: Balance Push/Pull
+    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+    collection_key: hagym
+    mode: push_pull
+  - type: custom:hagym-activity-load-card
+    title: Activity Load Ausdauer
+    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+    collection_key: hagym
+    group_by: day
   - type: custom:hagym-date-selection
     collection_key: hagym
+    placement: fixed-bottom
     opening_direction: right
     vertical_opening_direction: up
 ```
 
-## Selector Config
+## Troubleshooting
 
-- `collection_key` (default: `hagym`)
-- `opening_direction` (`left` or `right`, default `right`)
-- `vertical_opening_direction` (`up` or `down`, default `up`)
-- `default_period` (default `this_week`)
+- If Home Assistant says `Custom element doesn't exist`, do a hard browser refresh and reload the companion app view.
+- Open the resource URLs directly in the browser, for example:
+  - `/hagym_static/hagym-top-list-card.js`
+  - `/hagym_static/hagym-activity-load-card.js`
+  - `/hagym_static/hagym-balance-card.js`
+- If a card shows missing-entity warnings, check the referenced entity ids in Developer Tools -> States.
+- Empty periods are expected to show friendly empty states instead of crashing.
 
-## Dashboard Config
+## Compatibility
 
-- `daily_metric_entity` (optional, preferred for exact period aggregation)
-- `metric_history_entity` (optional fallback when daily data is unavailable)
-- `volume_history_entity` (optional)
-- `collection_key` (default: `hagym`)
-- `title` (default: `HAGym`)
-- `show_embedded_date_selection` (default: `true`)
+The new dashboard layer does not remove or replace:
 
-## Notes
+- existing backend sensors
+- `custom:hagym-period-dashboard-card`
+- existing dashboard YAML files
+- workout input controls
 
-- This pattern is inspired by Home Assistant Energy (`energy-date-selection`) UX.
-- HAGym does not import private Energy frontend modules.
-- If `daily_metric_entity` is available, period aggregation is exact for day/week/month/year ranges.
-- If only weekly history is available, rolling periods are approximated from weekly buckets.
+The minimal Energy-style dashboard works with native Home Assistant plus the HAGym cards only. No `apexcharts-card`, Mushroom, or `button-card` is required.
