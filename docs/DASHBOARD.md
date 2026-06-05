@@ -91,6 +91,8 @@ placement: fixed-bottom
 opening_direction: right
 vertical_opening_direction: up
 desktop_sidebar_offset: auto
+content_selector: null
+debug_layout: false
 max_width: 720
 bottom_offset: 16
 z_index: 10
@@ -108,12 +110,29 @@ Advanced selector options:
   - default `16`
 - `z_index`
   - default `10`
+- `content_selector`
+  - default `null`
+  - if set, HAGym tries this selector first when measuring the Lovelace content area
+- `debug_layout`
+  - default `false`
+  - logs detected layout source and rect via `console.debug`
 
 Desktop centering behavior:
 
 - On desktop, HAGym tries to center the selector relative to the visible dashboard content area.
-- It first tries to detect the actual content/sidebar offset automatically.
+- It prefers measuring the actual Lovelace content rect.
+- If that is not available, it falls back to sidebar-offset logic.
 - If Home Assistant layout detection is not enough in a custom setup, you can override it manually:
+
+Optional content selector hint:
+
+```yaml
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: fixed-bottom
+desktop_sidebar_offset: auto
+content_selector: hui-sections-view
+```
 
 ```yaml
 type: custom:hagym-date-selection

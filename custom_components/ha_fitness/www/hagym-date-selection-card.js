@@ -254,6 +254,8 @@
         default_period: "this_week",
         placement: "inline",
         desktop_sidebar_offset: "auto",
+        content_selector: null,
+        debug_layout: false,
         max_width: 720,
         bottom_offset: 16,
         z_index: 10,
@@ -261,6 +263,10 @@
       this._selection = null;
       this._menuOpen = false;
       this._resizeObserver = null;
+      this._mutationObserver = null;
+      this._contentResizeObserver = null;
+      this._observedContentElement = null;
+      this._pendingPlacementTimers = new Set();
       this._onStorage = this._onStorage.bind(this);
       this._onOutsideClick = this._onOutsideClick.bind(this);
       this._onResize = this._onResize.bind(this);
@@ -275,6 +281,8 @@
         default_period: "this_week",
         placement: "inline",
         desktop_sidebar_offset: "auto",
+        content_selector: null,
+        debug_layout: false,
         max_width: 720,
         bottom_offset: 16,
         z_index: 10,
@@ -286,8 +294,10 @@
       window.addEventListener("click", this._onOutsideClick, true);
       window.addEventListener("resize", this._onResize);
       this._startLayoutObserver();
+      this._startMutationObserver();
       this._selection = this._loadSelection();
       this._applyPlacement();
+      this._scheduleInitialPlacementPasses();
       this._render();
     }
 
@@ -296,24 +306,33 @@
       window.removeEventListener("click", this._onOutsideClick, true);
       window.removeEventListener("resize", this._onResize);
       this._stopLayoutObserver();
+      this._stopMutationObserver();
+      this._stopContentObserver();
+      this._clearPlacementTimers();
     }
 
     setConfig(config) {
       const placement = config?.placement === "fixed-bottom" ? "fixed-bottom" : "inline";
       const rawDesktopOffset = config?.desktop_sidebar_offset;
-      const desktopSidebarOffset =
-        rawDesktopOffset === 0 || rawDesktopOffset === "0"
-          ? 0
-          : typeof rawDesktopOffset === "number"
-            ? Math.max(0, rawDesktopOffset)
-            : rawDesktopOffset === "auto" || rawDesktopOffset === undefined
-              ? "auto"
-              : Number.isFinite(Number(rawDesktopOffset))
-                ? Math.max(0, Number(rawDesktopOffset))
-                : "auto";
+      let desktopSidebarOffset = "auto";
+      if (rawDesktopOffset === 0 || rawDesktopOffset === "0") {
+        desktopSidebarOffset = 0;
+      } else if (typeof rawDesktopOffset === "number") {
+        desktopSidebarOffset = Math.max(0, rawDesktopOffset);
+      } else if (
+        rawDesktopOffset !== "auto" &&
+        rawDesktopOffset !== undefined &&
+        Number.isFinite(Number(rawDesktopOffset))
+      ) {
+        desktopSidebarOffset = Math.max(0, Number(rawDesktopOffset));
+      }
       const maxWidth = Math.max(280, Number(config?.max_width) || 720);
       const bottomOffset = Math.max(0, Number(config?.bottom_offset) || 16);
       const zIndex = Math.max(1, Number(config?.z_index) || 10);
+      const contentSelector =
+        config?.content_selector && String(config.content_selector).trim()
+          ? String(config.content_selector).trim()
+          : null;
       this._config = {
         collection_key:
           config?.collection_key && String(config.collection_key).trim()
@@ -325,12 +344,16 @@
         default_period: utils.normalizePeriod(config?.default_period || "this_week"),
         placement,
         desktop_sidebar_offset: desktopSidebarOffset,
+        content_selector: contentSelector,
+        debug_layout: config?.debug_layout === true,
         max_width: maxWidth,
         bottom_offset: bottomOffset,
         z_index: zIndex,
       };
       this._selection = this._loadSelection();
       this._applyPlacement();
+      this._startMutationObserver();
+      this._scheduleInitialPlacementPasses();
       this._render();
     }
 
@@ -341,6 +364,30 @@
     _onResize() {
       if (this._config.placement !== "fixed-bottom") return;
       this._applyPlacement();
+    }
+
+    _schedulePlacement(delay = 50) {
+      const timer = window.setTimeout(() => {
+        this._pendingPlacementTimers.delete(timer);
+        if (this._config.placement === "fixed-bottom") {
+          this._applyPlacement();
+        }
+      }, delay);
+      this._pendingPlacementTimers.add(timer);
+    }
+
+    _scheduleInitialPlacementPasses() {
+      this._clearPlacementTimers();
+      for (const delay of [0, 100, 300, 700, 1200]) {
+        this._schedulePlacement(delay);
+      }
+    }
+
+    _clearPlacementTimers() {
+      for (const timer of this._pendingPlacementTimers) {
+        window.clearTimeout(timer);
+      }
+      this._pendingPlacementTimers.clear();
     }
 
     _startLayoutObserver() {
@@ -367,6 +414,72 @@
       this._resizeObserver = null;
     }
 
+    _startMutationObserver() {
+      this._stopMutationObserver();
+      if (typeof MutationObserver !== "function") {
+        return;
+      }
+      this._mutationObserver = new MutationObserver((mutations) => {
+        if (this._config.placement !== "fixed-bottom") {
+          return;
+        }
+        let shouldReposition = false;
+        for (const mutation of mutations) {
+          if (mutation.type === "childList") {
+            shouldReposition = true;
+            break;
+          }
+          if (mutation.type === "attributes") {
+            const attr = mutation.attributeName || "";
+            if (attr === "class" || attr === "style" || attr === "aria-expanded") {
+              shouldReposition = true;
+              break;
+            }
+          }
+        }
+        if (shouldReposition) {
+          this._schedulePlacement(50);
+        }
+      });
+
+      for (const target of this._mutationTargets()) {
+        this._mutationObserver.observe(target, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+          attributeFilter: ["class", "style", "aria-expanded"],
+        });
+      }
+    }
+
+    _stopMutationObserver() {
+      this._mutationObserver?.disconnect?.();
+      this._mutationObserver = null;
+    }
+
+    _stopContentObserver() {
+      this._contentResizeObserver?.disconnect?.();
+      this._contentResizeObserver = null;
+      this._observedContentElement = null;
+    }
+
+    _observeContentElement(element) {
+      if (!element || typeof ResizeObserver !== "function") {
+        return;
+      }
+      if (this._observedContentElement === element && this._contentResizeObserver) {
+        return;
+      }
+      this._stopContentObserver();
+      this._observedContentElement = element;
+      this._contentResizeObserver = new ResizeObserver(() => {
+        if (this._config.placement === "fixed-bottom") {
+          this._applyPlacement();
+        }
+      });
+      this._contentResizeObserver.observe(element);
+    }
+
     _layoutTargets() {
       const targets = [
         document.body,
@@ -378,6 +491,18 @@
       if (root?.shadowRoot) {
         targets.push(root.shadowRoot.querySelector("home-assistant-main"));
         targets.push(root.shadowRoot.querySelector("partial-panel-resolver"));
+      }
+      return targets.filter(Boolean);
+    }
+
+    _mutationTargets() {
+      const targets = [document.body, document.documentElement];
+      const root = document.querySelector("home-assistant");
+      if (root) {
+        targets.push(root);
+      }
+      if (root?.shadowRoot) {
+        targets.push(root.shadowRoot);
       }
       return targets.filter(Boolean);
     }
@@ -398,26 +523,66 @@
         this.style.width = "";
         this.style.maxWidth = "";
         this.style.zIndex = "";
+        this.style.setProperty("--hagym-date-selector-left", "");
+        this.style.setProperty("--hagym-date-selector-width", "");
         return;
       }
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
       const isDesktop = viewportWidth >= 870;
-      const sidebarOffset = isDesktop ? this._resolveDesktopSidebarOffset() : 0;
       const maxWidth = this._config.max_width;
       const horizontalPadding = isDesktop ? 32 : 24;
-      const contentWidth = Math.max(280, viewportWidth - sidebarOffset - horizontalPadding);
-      const cardWidth = Math.min(maxWidth, contentWidth);
-      const left = isDesktop
-        ? sidebarOffset + Math.max(0, (viewportWidth - sidebarOffset) / 2)
-        : viewportWidth / 2;
-      const bottomOffset = isDesktop ? this._config.bottom_offset : Math.max(12, this._config.bottom_offset - 4);
+      let left = viewportWidth / 2;
+      let cardWidth = Math.min(maxWidth, Math.max(280, viewportWidth - horizontalPadding));
+      let source = "mobile";
+
+      if (isDesktop) {
+        const contentTarget = this._findBestContentTarget();
+        const contentRect = contentTarget?.rect || null;
+        if (
+          this._config.desktop_sidebar_offset === "auto" &&
+          contentRect &&
+          contentRect.width > 300
+        ) {
+          left = contentRect.left + contentRect.width / 2;
+          cardWidth = Math.min(maxWidth, Math.max(280, contentRect.width - horizontalPadding));
+          source = contentTarget.source;
+          this._observeContentElement(contentTarget.element);
+          this._debugLayout("content-rect", {
+            source,
+            left: Math.round(left),
+            width: Math.round(cardWidth),
+            rect: this._rectToDebug(contentRect),
+          });
+        } else {
+          const sidebarOffset = this._resolveDesktopSidebarOffset();
+          const contentWidth = Math.max(280, viewportWidth - sidebarOffset - horizontalPadding);
+          cardWidth = Math.min(maxWidth, contentWidth);
+          left = sidebarOffset + Math.max(0, (viewportWidth - sidebarOffset) / 2);
+          source = typeof this._config.desktop_sidebar_offset === "number" ? "manual-offset" : "sidebar-offset";
+          this._stopContentObserver();
+          this._debugLayout("offset-fallback", {
+            source,
+            sidebarOffset,
+            left: Math.round(left),
+            width: Math.round(cardWidth),
+          });
+        }
+      } else {
+        this._stopContentObserver();
+      }
+
+      const bottomOffset = isDesktop
+        ? this._config.bottom_offset
+        : Math.max(12, this._config.bottom_offset - 4);
 
       this.style.left = `${Math.round(left)}px`;
       this.style.bottom = `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`;
       this.style.width = `${Math.round(cardWidth)}px`;
       this.style.maxWidth = `${Math.round(cardWidth)}px`;
       this.style.zIndex = String(this._config.z_index);
+      this.style.setProperty("--hagym-date-selector-left", `${Math.round(left)}px`);
+      this.style.setProperty("--hagym-date-selector-width", `${Math.round(cardWidth)}px`);
     }
 
     _resolveDesktopSidebarOffset() {
@@ -439,6 +604,163 @@
       }
 
       return 256;
+    }
+
+    _findBestContentTarget() {
+      const configuredSelectors = this._config.content_selector
+        ? [this._config.content_selector]
+        : [];
+      const candidateSelectors = [
+        ...configuredSelectors,
+        "hui-sections-view",
+        "hui-view",
+        "ha-panel-lovelace",
+        "hui-root",
+        "home-assistant-main",
+        "partial-panel-resolver",
+        "#view",
+        ".view",
+        ".container",
+        "main",
+        "app-drawer-layout",
+        "ha-drawer",
+      ];
+      const seen = new Set();
+      const dedupedSelectors = candidateSelectors.filter((selector) => {
+        if (!selector || seen.has(selector)) {
+          return false;
+        }
+        seen.add(selector);
+        return true;
+      });
+
+      const candidates = [];
+      for (const element of this._findDeep(dedupedSelectors)) {
+        const rect = element.getBoundingClientRect?.();
+        if (!rect) {
+          continue;
+        }
+        const expanded = this._expandToLargeParent(element, rect);
+        const usedRect = expanded?.rect || rect;
+        const usedElement = expanded?.element || element;
+        const score = this._scoreContentCandidate(usedElement, usedRect);
+        if (score <= 0) {
+          continue;
+        }
+        candidates.push({
+          element: usedElement,
+          rect: usedRect,
+          score,
+          source: this._selectorLabelForElement(usedElement),
+        });
+      }
+
+      candidates.sort((left, right) => right.score - left.score);
+      return candidates[0] || null;
+    }
+
+    _findDeep(selectorList) {
+      const results = new Set();
+      const queue = [document];
+      const visitedRoots = new Set();
+      while (queue.length) {
+        const root = queue.shift();
+        if (!root || visitedRoots.has(root)) {
+          continue;
+        }
+        visitedRoots.add(root);
+        if (typeof root.querySelectorAll === "function") {
+          for (const selector of selectorList) {
+            try {
+              for (const element of root.querySelectorAll(selector)) {
+                results.add(element);
+              }
+            } catch (_err) {
+              // Ignore invalid selectors in custom configs.
+            }
+          }
+          for (const element of root.querySelectorAll("*")) {
+            if (element.shadowRoot) {
+              queue.push(element.shadowRoot);
+            }
+          }
+        }
+      }
+      return [...results];
+    }
+
+    _expandToLargeParent(element, rect) {
+      let bestElement = element;
+      let bestRect = rect;
+      let current = element;
+      while (current) {
+        const parent = current.parentElement || current.getRootNode?.().host;
+        if (!parent || typeof parent.getBoundingClientRect !== "function") {
+          break;
+        }
+        const parentRect = parent.getBoundingClientRect();
+        if (parentRect.width > bestRect.width * 1.08 && parentRect.width <= window.innerWidth + 24) {
+          bestElement = parent;
+          bestRect = parentRect;
+        }
+        current = parent;
+      }
+      return { element: bestElement, rect: bestRect };
+    }
+
+    _scoreContentCandidate(element, rect) {
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      if (rect.width < 300 || rect.height < 160) {
+        return 0;
+      }
+      if (rect.left < -16 || rect.right > viewportWidth + 16) {
+        return 0;
+      }
+      const tagName = String(element?.tagName || "").toLowerCase();
+      const id = String(element?.id || "");
+      const className =
+        typeof element?.className === "string" ? element.className : "";
+      let score = rect.width;
+      score += Math.min(rect.height, viewportHeight) * 0.15;
+      if (tagName === "hui-sections-view") score += 240;
+      if (tagName === "hui-view") score += 180;
+      if (tagName === "ha-panel-lovelace") score += 220;
+      if (tagName === "hui-root") score += 160;
+      if (tagName === "home-assistant-main") score += 120;
+      if (id === "view") score += 120;
+      if (className.includes("view")) score += 80;
+      if (className.includes("container")) score += 50;
+      if (rect.width > viewportWidth * 0.92) score -= 220;
+      if (tagName === "body" || tagName === "html") score -= 400;
+      if (rect.left > viewportWidth * 0.45) score -= 200;
+      return score;
+    }
+
+    _selectorLabelForElement(element) {
+      const tagName = String(element?.tagName || "").toLowerCase();
+      const id = element?.id ? `#${element.id}` : "";
+      const className =
+        typeof element?.className === "string" && element.className.trim()
+          ? `.${element.className.trim().split(/\s+/).join(".")}`
+          : "";
+      return `${tagName}${id}${className}`;
+    }
+
+    _rectToDebug(rect) {
+      return {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    }
+
+    _debugLayout(message, payload) {
+      if (!this._config.debug_layout) {
+        return;
+      }
+      console.debug("[HAGym date selection]", message, payload);
     }
 
     _detectContentLeftOffset() {
@@ -514,6 +836,10 @@
     }
 
     _onOutsideClick(event) {
+      if (this._config.placement === "fixed-bottom") {
+        this._schedulePlacement(100);
+        this._schedulePlacement(300);
+      }
       if (!this._menuOpen) return;
       if (event.composedPath().includes(this)) return;
       this._menuOpen = false;
