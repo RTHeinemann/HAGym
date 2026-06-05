@@ -79,6 +79,8 @@ Reusable selector card with:
 - `Jetzt`
 - period menu
 - `fixed-bottom` placement option
+- automatic desktop sidebar offset detection for better centering
+- optional manual desktop override
 
 Example:
 
@@ -88,6 +90,45 @@ collection_key: hagym
 placement: fixed-bottom
 opening_direction: right
 vertical_opening_direction: up
+desktop_sidebar_offset: auto
+max_width: 720
+bottom_offset: 16
+z_index: 10
+```
+
+Advanced selector options:
+
+- `desktop_sidebar_offset`
+  - `auto` (default)
+  - `0`
+  - a fixed number like `256`
+- `max_width`
+  - default `720`
+- `bottom_offset`
+  - default `16`
+- `z_index`
+  - default `10`
+
+Desktop centering behavior:
+
+- On desktop, HAGym tries to center the selector relative to the visible dashboard content area.
+- It first tries to detect the actual content/sidebar offset automatically.
+- If Home Assistant layout detection is not enough in a custom setup, you can override it manually:
+
+```yaml
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: fixed-bottom
+desktop_sidebar_offset: 256
+```
+
+Disable sidebar compensation completely:
+
+```yaml
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: fixed-bottom
+desktop_sidebar_offset: 0
 ```
 
 ### `custom:hagym-period-dashboard-card`

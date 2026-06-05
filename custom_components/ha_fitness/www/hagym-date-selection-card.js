@@ -253,11 +253,17 @@
         vertical_opening_direction: "up",
         default_period: "this_week",
         placement: "inline",
+        desktop_sidebar_offset: "auto",
+        max_width: 720,
+        bottom_offset: 16,
+        z_index: 10,
       };
       this._selection = null;
       this._menuOpen = false;
+      this._resizeObserver = null;
       this._onStorage = this._onStorage.bind(this);
       this._onOutsideClick = this._onOutsideClick.bind(this);
+      this._onResize = this._onResize.bind(this);
     }
 
     static getStubConfig() {
@@ -268,12 +274,18 @@
         vertical_opening_direction: "up",
         default_period: "this_week",
         placement: "inline",
+        desktop_sidebar_offset: "auto",
+        max_width: 720,
+        bottom_offset: 16,
+        z_index: 10,
       };
     }
 
     connectedCallback() {
       window.addEventListener("storage", this._onStorage);
       window.addEventListener("click", this._onOutsideClick, true);
+      window.addEventListener("resize", this._onResize);
+      this._startLayoutObserver();
       this._selection = this._loadSelection();
       this._applyPlacement();
       this._render();
@@ -282,10 +294,26 @@
     disconnectedCallback() {
       window.removeEventListener("storage", this._onStorage);
       window.removeEventListener("click", this._onOutsideClick, true);
+      window.removeEventListener("resize", this._onResize);
+      this._stopLayoutObserver();
     }
 
     setConfig(config) {
       const placement = config?.placement === "fixed-bottom" ? "fixed-bottom" : "inline";
+      const rawDesktopOffset = config?.desktop_sidebar_offset;
+      const desktopSidebarOffset =
+        rawDesktopOffset === 0 || rawDesktopOffset === "0"
+          ? 0
+          : typeof rawDesktopOffset === "number"
+            ? Math.max(0, rawDesktopOffset)
+            : rawDesktopOffset === "auto" || rawDesktopOffset === undefined
+              ? "auto"
+              : Number.isFinite(Number(rawDesktopOffset))
+                ? Math.max(0, Number(rawDesktopOffset))
+                : "auto";
+      const maxWidth = Math.max(280, Number(config?.max_width) || 720);
+      const bottomOffset = Math.max(0, Number(config?.bottom_offset) || 16);
+      const zIndex = Math.max(1, Number(config?.z_index) || 10);
       this._config = {
         collection_key:
           config?.collection_key && String(config.collection_key).trim()
@@ -296,6 +324,10 @@
           config?.vertical_opening_direction === "down" ? "down" : "up",
         default_period: utils.normalizePeriod(config?.default_period || "this_week"),
         placement,
+        desktop_sidebar_offset: desktopSidebarOffset,
+        max_width: maxWidth,
+        bottom_offset: bottomOffset,
+        z_index: zIndex,
       };
       this._selection = this._loadSelection();
       this._applyPlacement();
@@ -306,6 +338,50 @@
       return this._config.placement === "fixed-bottom" ? 1 : 2;
     }
 
+    _onResize() {
+      if (this._config.placement !== "fixed-bottom") return;
+      this._applyPlacement();
+    }
+
+    _startLayoutObserver() {
+      this._stopLayoutObserver();
+      if (typeof ResizeObserver !== "function") {
+        return;
+      }
+      const targets = this._layoutTargets();
+      if (!targets.length) {
+        return;
+      }
+      this._resizeObserver = new ResizeObserver(() => {
+        if (this._config.placement === "fixed-bottom") {
+          this._applyPlacement();
+        }
+      });
+      for (const target of targets) {
+        this._resizeObserver.observe(target);
+      }
+    }
+
+    _stopLayoutObserver() {
+      this._resizeObserver?.disconnect?.();
+      this._resizeObserver = null;
+    }
+
+    _layoutTargets() {
+      const targets = [
+        document.body,
+        document.documentElement,
+        document.querySelector("home-assistant-main"),
+        document.querySelector("ha-panel-lovelace"),
+      ];
+      const root = document.querySelector("home-assistant");
+      if (root?.shadowRoot) {
+        targets.push(root.shadowRoot.querySelector("home-assistant-main"));
+        targets.push(root.shadowRoot.querySelector("partial-panel-resolver"));
+      }
+      return targets.filter(Boolean);
+    }
+
     _loadSelection() {
       return utils.loadSelection(this._config.collection_key, this._config.default_period);
     }
@@ -314,15 +390,117 @@
       const fixed = this._config.placement === "fixed-bottom";
       this.toggleAttribute("data-fixed-bottom", fixed);
       this.style.position = fixed ? "fixed" : "";
-      this.style.left = fixed ? "50%" : "";
-      this.style.bottom = fixed
-        ? "max(12px, calc(env(safe-area-inset-bottom, 0px) + 12px))"
-        : "";
       this.style.transform = fixed ? "translateX(-50%)" : "";
-      this.style.width = fixed ? "min(720px, calc(100vw - 24px))" : "";
-      this.style.maxWidth = fixed ? "720px" : "";
-      this.style.zIndex = fixed ? "7" : "";
       this.style.pointerEvents = "auto";
+      if (!fixed) {
+        this.style.left = "";
+        this.style.bottom = "";
+        this.style.width = "";
+        this.style.maxWidth = "";
+        this.style.zIndex = "";
+        return;
+      }
+
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const isDesktop = viewportWidth >= 870;
+      const sidebarOffset = isDesktop ? this._resolveDesktopSidebarOffset() : 0;
+      const maxWidth = this._config.max_width;
+      const horizontalPadding = isDesktop ? 32 : 24;
+      const contentWidth = Math.max(280, viewportWidth - sidebarOffset - horizontalPadding);
+      const cardWidth = Math.min(maxWidth, contentWidth);
+      const left = isDesktop
+        ? sidebarOffset + Math.max(0, (viewportWidth - sidebarOffset) / 2)
+        : viewportWidth / 2;
+      const bottomOffset = isDesktop ? this._config.bottom_offset : Math.max(12, this._config.bottom_offset - 4);
+
+      this.style.left = `${Math.round(left)}px`;
+      this.style.bottom = `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`;
+      this.style.width = `${Math.round(cardWidth)}px`;
+      this.style.maxWidth = `${Math.round(cardWidth)}px`;
+      this.style.zIndex = String(this._config.z_index);
+    }
+
+    _resolveDesktopSidebarOffset() {
+      if (this._config.desktop_sidebar_offset === 0) {
+        return 0;
+      }
+      if (typeof this._config.desktop_sidebar_offset === "number") {
+        return this._config.desktop_sidebar_offset;
+      }
+
+      const contentLeft = this._detectContentLeftOffset();
+      if (contentLeft > 0) {
+        return contentLeft;
+      }
+
+      const variableOffset = this._detectSidebarWidthFromCssVariables();
+      if (variableOffset > 0) {
+        return variableOffset;
+      }
+
+      return 256;
+    }
+
+    _detectContentLeftOffset() {
+      const root = document.querySelector("home-assistant");
+      const searchTargets = [
+        document.querySelector("home-assistant-main"),
+        document.querySelector("ha-panel-lovelace"),
+        document.querySelector("hui-root"),
+      ].filter(Boolean);
+
+      if (root?.shadowRoot) {
+        const rootTargets = [
+          root.shadowRoot.querySelector("home-assistant-main"),
+          root.shadowRoot.querySelector("partial-panel-resolver"),
+          root.shadowRoot.querySelector("ha-drawer"),
+        ].filter(Boolean);
+        searchTargets.push(...rootTargets);
+      }
+
+      let bestLeft = 0;
+      for (const target of searchTargets) {
+        const rect = target?.getBoundingClientRect?.();
+        if (!rect) continue;
+        if (rect.width <= 0) continue;
+        if (rect.left > bestLeft && rect.left < window.innerWidth * 0.6) {
+          bestLeft = rect.left;
+        }
+      }
+      return Math.max(0, Math.round(bestLeft));
+    }
+
+    _detectSidebarWidthFromCssVariables() {
+      const variableNames = [
+        "--mdc-drawer-width",
+        "--sidebar-width",
+        "--app-drawer-width",
+      ];
+      const elements = [
+        document.documentElement,
+        document.body,
+        document.querySelector("home-assistant"),
+      ].filter(Boolean);
+
+      for (const element of elements) {
+        const styles = window.getComputedStyle(element);
+        for (const name of variableNames) {
+          const value = styles.getPropertyValue(name);
+          const parsed = this._parseCssLength(value);
+          if (parsed > 0) {
+            return parsed;
+          }
+        }
+      }
+      return 0;
+    }
+
+    _parseCssLength(value) {
+      if (!value) return 0;
+      const match = String(value).trim().match(/^([0-9.]+)px$/i);
+      if (!match) return 0;
+      const parsed = Number(match[1]);
+      return Number.isFinite(parsed) ? parsed : 0;
     }
 
     _storageKey() {
