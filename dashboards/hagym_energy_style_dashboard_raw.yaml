@@ -1,4 +1,3 @@
-title: HAGym Energy Style
 views:
   - title: Zusammenfassung
     path: zusammenfassung
@@ -44,8 +43,6 @@ views:
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             group_by: day
-      - type: grid
-        cards:
           - type: custom:hagym-period-dashboard-card
             title: HAGym Uebersicht
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
@@ -53,15 +50,6 @@ views:
             volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
             collection_key: hagym
             show_embedded_date_selection: false
-          - type: entities
-            title: Kernmetriken
-            entities:
-              - entity: sensor.ha_fitness_personal_core_total_strength_volume
-              - entity: sensor.ha_fitness_personal_core_total_activity_load
-              - entity: sensor.ha_fitness_personal_core_total_duration_minutes
-              - entity: sensor.ha_fitness_personal_core_total_distance_km
-              - entity: sensor.ha_fitness_personal_core_total_reps
-              - entity: sensor.ha_fitness_personal_core_total_sets
     badges: []
     cards: []
 

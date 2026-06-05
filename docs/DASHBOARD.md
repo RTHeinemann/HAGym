@@ -198,16 +198,29 @@ mode: push_pull
 
 ## Official Dashboard Templates
 
-Two ready-made templates are included:
+Ready-made templates:
 
+- `dashboards/hagym_energy_style_dashboard_raw.yaml`
+  - for direct paste into the normal Home Assistant `Raw configuration editor`
+  - starts directly with `views:`
+  - does not use a top-level `title`
+  - does not use `view.footer`
 - `dashboards/hagym_energy_style_dashboard.yaml`
+  - for YAML dashboard mode / repo-managed dashboard files
+  - may keep a top-level `title`
 - `dashboards/hagym_energy_style_dashboard_minimal.yaml`
+  - compact raw-safe minimal variant
 
-Add a dashboard through:
+For the normal Raw configuration editor:
 
-`Dashboard -> Edit -> Raw configuration editor`
+1. Create a new empty dashboard first.
+2. Open `Dashboard -> Edit -> Raw configuration editor`.
+3. Paste `dashboards/hagym_energy_style_dashboard_raw.yaml`.
 
-Then paste one of the templates.
+Important:
+
+- Pasting into the Raw configuration editor replaces the current dashboard configuration.
+- Test in a new empty dashboard first before replacing an existing dashboard you already use every day.
 
 ## Template Notes
 
@@ -218,6 +231,16 @@ The templates use the stable integration entity ids:
 - `sensor.ha_fitness_personal_weekly_volume_history`
 
 If your instance generated different ids because of renamed entities, adapt them in the YAML.
+
+The raw template intentionally puts the selector into a normal section card:
+
+```yaml
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: fixed-bottom
+```
+
+This is more reliable in the normal Raw configuration editor than relying on `view.footer`.
 
 ## Example: Separate Selector + Cards
 

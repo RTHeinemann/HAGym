@@ -1,4 +1,3 @@
-title: HAGym Energy Style Minimal
 views:
   - title: Zusammenfassung
     path: zusammenfassung
@@ -8,6 +7,11 @@ views:
     sections:
       - type: grid
         cards:
+          - type: custom:hagym-date-selection
+            collection_key: hagym
+            placement: fixed-bottom
+            opening_direction: right
+            vertical_opening_direction: up
           - type: custom:hagym-top-list-card
             title: Trainingsvolumen pro Muskelgruppe
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
@@ -41,9 +45,3 @@ views:
             group_by: day
     badges: []
     cards: []
-    footer:
-      type: custom:hagym-date-selection
-      collection_key: hagym
-      placement: fixed-bottom
-      opening_direction: right
-      vertical_opening_direction: up
