@@ -38,17 +38,19 @@ Example:
 
 ```yaml
 resources:
-  - url: /hagym_static/hagym-date-selection-card.js
+  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.7
     type: module
-  - url: /hagym_static/hagym-period-dashboard-card.js
+  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.7
     type: module
-  - url: /hagym_static/hagym-top-list-card.js
+  - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.7
     type: module
-  - url: /hagym_static/hagym-activity-load-card.js
+  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.7
     type: module
-  - url: /hagym_static/hagym-balance-card.js
+  - url: /hagym_static/hagym-balance-card.js?v=1.0.3.7
     type: module
 ```
+
+After frontend changes, increment the `?v=` cache-buster and do a hard browser refresh so Home Assistant does not keep serving an older card bundle.
 
 ## Shared Period Selector
 
@@ -63,11 +65,10 @@ Use the same `collection_key` everywhere. The default is:
 
 - `hagym`
 
-The selector also supports:
+The selector supports:
 
-- `placement: fixed-bottom`
-
-That makes it usable like an Energy-style footer selector on desktop and mobile.
+- `placement: inline` for the preferred footer-card setup
+- `placement: fixed-bottom` as an optional HAGym-owned fallback layout
 
 ## Card Overview
 
@@ -75,7 +76,7 @@ That makes it usable like an Energy-style footer selector on desktop and mobile.
 
 Reusable selector card with:
 
-- native Home Assistant `ha-date-range-picker`
+- HAGym-owned period selection menu
 - compact one-row layout
 - previous / next navigation
 - three-dot shortcut menu
@@ -83,14 +84,7 @@ Reusable selector card with:
 - shared period state via `localStorage`
 - optional `fixed-bottom` placement
 
-Notes for the native picker:
-
-- HAGym passes the current Home Assistant `hass` object into `ha-date-range-picker`
-- HAGym first tries safe HA frontend loaders like `loadHaForm` / `loadCardHelpers`
-- if the native picker is still not registered, HAGym shows a loading placeholder briefly
-- after that it falls back to the shortcut menu button without breaking the dashboard
-
-Recommended config when your dashboard mode supports a real footer:
+Recommended production config when your dashboard mode supports a real footer:
 
 ```yaml
 footer:
@@ -99,7 +93,6 @@ footer:
     collection_key: hagym
     placement: inline
     compact: true
-    use_native_date_picker: true
     opening_direction: right
     vertical_opening_direction: up
 ```
@@ -111,7 +104,6 @@ type: custom:hagym-date-selection
 collection_key: hagym
 placement: inline
 compact: true
-use_native_date_picker: true
 opening_direction: right
 vertical_opening_direction: up
 ```
@@ -123,7 +115,6 @@ type: custom:hagym-date-selection
 collection_key: hagym
 placement: fixed-bottom
 compact: true
-use_native_date_picker: true
 full_width_row: true
 desktop_sidebar_offset: auto
 max_width: 900
@@ -299,6 +290,8 @@ collection_key: hagym
 mode: push_pull
 ```
 
+HAGym does not depend on Home Assistant Energy internal lazy-loaded date components. The selector is fully owned by HAGym so direct dashboard loads stay stable without unsupported frontend dependencies.
+
 ## Official Dashboard Templates
 
 Ready-made templates:
@@ -307,7 +300,7 @@ Ready-made templates:
   - for direct paste into the normal Home Assistant `Raw configuration editor`
   - starts directly with `views:`
   - does not use a top-level `title`
-  - does not use `view.footer`
+  - uses `footer.card` for the selector
 - `dashboards/hagym_energy_style_dashboard.yaml`
   - for YAML dashboard mode / repo-managed dashboard files
   - may keep a top-level `title`
@@ -335,17 +328,20 @@ The templates use the stable integration entity ids:
 
 If your instance generated different ids because of renamed entities, adapt them in the YAML.
 
-The raw templates intentionally put the selector into a normal section card:
+The templates use the selector in the view footer:
 
 ```yaml
-type: custom:hagym-date-selection
-collection_key: hagym
-placement: inline
-compact: true
-use_native_date_picker: true
+footer:
+  card:
+    type: custom:hagym-date-selection
+    collection_key: hagym
+    placement: inline
+    compact: true
+    opening_direction: right
+    vertical_opening_direction: up
 ```
 
-This is more reliable in the normal Raw configuration editor than relying on `view.footer`.
+This mirrors the native Energy-style footer behavior, but uses the HAGym-owned selector instead of depending on Energy frontend internals.
 
 Use only one HAGym footer selector per view. The supplied templates already follow that rule.
 
@@ -369,7 +365,6 @@ cards:
   - type: custom:hagym-date-selection
     collection_key: hagym
     compact: true
-    use_native_date_picker: true
   - type: custom:hagym-period-dashboard-card
     daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
     metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history

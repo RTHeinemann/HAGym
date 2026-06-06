@@ -401,7 +401,6 @@
         default_period: "this_week",
         placement: "inline",
         compact: false,
-        use_native_date_picker: true,
         desktop_sidebar_offset: "auto",
         content_selector: null,
         debug_layout: false,
@@ -412,10 +411,6 @@
       };
       this._selection = null;
       this._menuOpen = false;
-      this._nativePickerReady = false;
-      this._nativePickerFallbackActive = false;
-      this._nativePickerFallbackTimer = null;
-      this._nativePickerWarned = false;
       this._resizeObserver = null;
       this._mutationObserver = null;
       this._contentResizeObserver = null;
@@ -438,14 +433,11 @@
         default_period: "this_week",
         placement: "inline",
         compact: true,
-        use_native_date_picker: true,
       };
     }
 
     set hass(hass) {
       this._hass = hass;
-      this._render();
-      this._syncNativePicker();
     }
 
     connectedCallback() {
@@ -459,7 +451,6 @@
       this._applyPlacement();
       this._scheduleInitialPlacementPasses();
       this._render();
-      this._waitForNativePickerDefinition();
     }
 
     disconnectedCallback() {
@@ -471,10 +462,6 @@
       this._stopMutationObserver();
       this._stopContentObserver();
       this._clearPlacementTimers();
-      if (this._nativePickerFallbackTimer) {
-        window.clearTimeout(this._nativePickerFallbackTimer);
-        this._nativePickerFallbackTimer = null;
-      }
     }
 
     setConfig(config) {
@@ -513,7 +500,6 @@
         default_period: normalizedDefault,
         placement,
         compact: config?.compact === true,
-        use_native_date_picker: config?.use_native_date_picker !== false,
         desktop_sidebar_offset: desktopSidebarOffset,
         content_selector: contentSelector,
         debug_layout: config?.debug_layout === true,
@@ -527,7 +513,6 @@
       this._startMutationObserver();
       this._scheduleInitialPlacementPasses();
       this._render();
-      this._waitForNativePickerDefinition();
     }
 
     getCardSize() {
@@ -542,89 +527,6 @@
 
     _language() {
       return this._currentLocale();
-    }
-
-    _nativePickerAvailable() {
-      return (
-        this._config.use_native_date_picker &&
-        !!customElements.get("ha-date-range-picker") &&
-        !!this._hass
-      );
-    }
-
-    async _tryLoadNativePicker() {
-      const loaders = [];
-      if (typeof window.loadHaForm === "function") {
-        loaders.push(window.loadHaForm());
-      }
-      if (typeof window.loadCardHelpers === "function") {
-        loaders.push(
-          Promise.resolve(window.loadCardHelpers()).catch(() => undefined)
-        );
-      }
-      if (!loaders.length) {
-        return false;
-      }
-      try {
-        await Promise.allSettled(loaders);
-      } catch (_err) {
-        // Ignore loader failures and keep fallback path stable.
-      }
-      return !!customElements.get("ha-date-range-picker");
-    }
-
-    _scheduleNativePickerFallback() {
-      if (this._nativePickerFallbackTimer || this._nativePickerAvailable()) {
-        return;
-      }
-      this._nativePickerFallbackTimer = window.setTimeout(() => {
-        this._nativePickerFallbackTimer = null;
-        if (this._nativePickerAvailable()) {
-          return;
-        }
-        this._nativePickerFallbackActive = true;
-        if (this._config.debug_layout && !this._nativePickerWarned) {
-          this._nativePickerWarned = true;
-          console.warn("[HAGym date selection] ha-date-range-picker not available, using fallback");
-        }
-        this._render();
-      }, 1400);
-    }
-
-    _waitForNativePickerDefinition() {
-      if (!this._config.use_native_date_picker) {
-        return;
-      }
-      if (customElements.get("ha-date-range-picker")) {
-        this._nativePickerReady = true;
-        this._nativePickerFallbackActive = false;
-        this._render();
-        this._syncNativePicker();
-        return;
-      }
-      this._scheduleNativePickerFallback();
-      this._tryLoadNativePicker().then((loaded) => {
-        if (loaded && customElements.get("ha-date-range-picker")) {
-          this._nativePickerReady = true;
-          this._nativePickerFallbackActive = false;
-          if (this._nativePickerFallbackTimer) {
-            window.clearTimeout(this._nativePickerFallbackTimer);
-            this._nativePickerFallbackTimer = null;
-          }
-          this._render();
-          this._syncNativePicker();
-        }
-      });
-      customElements.whenDefined("ha-date-range-picker").then(() => {
-        this._nativePickerReady = true;
-        this._nativePickerFallbackActive = false;
-        if (this._nativePickerFallbackTimer) {
-          window.clearTimeout(this._nativePickerFallbackTimer);
-          this._nativePickerFallbackTimer = null;
-        }
-        this._render();
-        this._syncNativePicker();
-      });
     }
 
     _onResize() {
@@ -1188,80 +1090,6 @@
       this._setSelection(periodKey, new Date());
     }
 
-    _syncNativePicker() {
-      const picker = this.shadowRoot?.querySelector("ha-date-range-picker");
-      if (!picker) return;
-      const selection = this._selection || this._loadSelection();
-      const startDate = utils.selectionStartDate(selection) || utils.startOfDay(new Date());
-      const endDate = utils.selectionEndInclusive(selection) || startDate;
-      if (!this._hass) {
-        this._debugLayout("native-picker-sync", {
-          hasHass: false,
-          hasLocalize: false,
-          startDate: utils.toDateOnly(startDate),
-          endDate: utils.toDateOnly(endDate),
-        });
-        return;
-      }
-      picker.hass = this._hass;
-      picker.language = this._language();
-      picker.locale = this._language();
-      picker.startDate = startDate;
-      picker.endDate = endDate;
-      picker.minimal = true;
-      picker.backdrop = true;
-      picker.setAttribute("minimal", "");
-      picker.setAttribute("backdrop", "");
-      this._debugLayout("native-picker-sync", {
-        hasHass: true,
-        hasLocalize: !!this._hass?.localize,
-        startDate: utils.toDateOnly(startDate),
-        endDate: utils.toDateOnly(endDate),
-      });
-    }
-
-    _handleNativeRangeChange(event) {
-      this._debugLayout("native-date-range-event", {
-        type: event?.type || "unknown",
-        detail: event?.detail || null,
-        pickerValue: event?.target?.value || null,
-        pickerStartDate: event?.target?.startDate || null,
-        pickerEndDate: event?.target?.endDate || null,
-        pickerStart: event?.target?.start || null,
-        pickerEnd: event?.target?.end || null,
-      });
-      const detailValue = event?.detail?.value;
-      const detailRange = event?.detail?.range;
-      const detailStart =
-        event?.detail?.startDate || event?.detail?.start || detailRange?.startDate;
-      const detailEnd =
-        event?.detail?.endDate || event?.detail?.end || detailRange?.endDate;
-      const target = event?.target;
-      const startDate =
-        utils.parseDate(detailStart) ||
-        utils.parseDate(detailValue?.startDate) ||
-        utils.parseDate(detailValue?.start) ||
-        utils.parseDate(target?.value?.startDate) ||
-        utils.parseDate(target?.value?.start) ||
-        utils.parseDate(target?.startDate);
-      const endDate =
-        utils.parseDate(detailEnd) ||
-        utils.parseDate(detailValue?.endDate) ||
-        utils.parseDate(detailValue?.end) ||
-        utils.parseDate(target?.value?.endDate) ||
-        utils.parseDate(target?.value?.end) ||
-        utils.parseDate(target?.endDate);
-      if (!startDate || !endDate) {
-        this._debugLayout("native-date-range-event-ignored", {
-          reason: "missing-start-or-end",
-          detail: event?.detail || null,
-        });
-        return;
-      }
-      this._menuOpen = false;
-      this._setCustomRangeSelection(startDate, endDate);
-    }
-
     _debugLayout(message, payload) {
       if (!this._config.debug_layout) {
         return;
@@ -1276,21 +1104,6 @@
     }
 
     _renderDatePickerControl() {
-      if (this._nativePickerAvailable()) {
-        return `
-          <section class="date-picker-icon" aria-label="Zeitraum waehlen">
-            <span class="date-picker-visual" aria-hidden="true">&#128197;</span>
-            <ha-date-range-picker class="native-picker" minimal backdrop></ha-date-range-picker>
-          </section>
-        `;
-      }
-      if (this._config.use_native_date_picker && !this._nativePickerFallbackActive) {
-        return `
-          <section class="date-picker-icon loading" aria-label="Kalender wird geladen">
-            <span class="date-picker-visual" aria-hidden="true">&#128197;</span>
-          </section>
-        `;
-      }
       return `
         <button class="icon-btn calendar-btn" data-action="toggle-menu" title="Zeitraum waehlen" aria-label="Zeitraum waehlen">
           &#128197;
@@ -1330,6 +1143,7 @@
                   ${this._renderMenuButton("last_7_days", "Letzte 7 Tage")}
                   ${this._renderMenuButton("last_30_days", "Letzte 30 Tage")}
                   ${this._renderMenuButton("last_365_days", "Letzte 365 Tage")}
+                  ${this._renderMenuButton("last_12_weeks", "Letzte 12 Wochen")}
                   ${this._renderMenuButton("last_12_months", "Letzte 12 Monate")}
                 </div>`
               : ""
@@ -1384,19 +1198,6 @@
           this._setSelection(action, new Date());
         });
       });
-
-      const picker = this.shadowRoot.querySelector("ha-date-range-picker");
-      if (picker) {
-        for (const eventName of [
-          "value-changed",
-          "date-range-picked",
-          "change",
-          "selected",
-        ]) {
-          picker.addEventListener(eventName, (event) => this._handleNativeRangeChange(event));
-        }
-      }
-      this._syncNativePicker();
     }
 
     _style() {
@@ -1480,50 +1281,6 @@
           .compact .bar {
             gap: 6px;
             padding: 6px;
-          }
-
-          .date-picker-icon {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 34px;
-            min-width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-            overflow: hidden;
-          }
-
-          .compact .date-picker-icon {
-            width: 32px;
-            min-width: 32px;
-            height: 32px;
-          }
-
-          .date-picker-icon.loading {
-            opacity: 0.72;
-          }
-
-          .date-picker-visual {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            font-size: 16px;
-            line-height: 1;
-            color: var(--primary-color);
-            pointer-events: none;
-          }
-
-          ha-date-range-picker.native-picker {
-            position: absolute;
-            inset: 0;
-            display: block;
-            opacity: 0.02;
-            min-width: 0;
-            z-index: 1;
           }
 
           button {

@@ -366,7 +366,6 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       collection_key: this._config.collection_key,
       default_period: this._selection?.period_key || "this_week",
       compact: true,
-      use_native_date_picker: true,
     });
   }
 

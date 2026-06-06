@@ -359,9 +359,9 @@ Resources:
 
 ```yaml
 resources:
-  - url: /hagym_static/hagym-date-selection-card.js
+  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.7
     type: module
-  - url: /hagym_static/hagym-period-dashboard-card.js
+  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.7
     type: module
 ```
 
@@ -379,24 +379,30 @@ collection_key: hagym
 Separate selector + dashboard:
 
 ```yaml
-type: vertical-stack
-cards:
-  - type: custom:hagym-period-dashboard-card
-    daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
-    metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
-    volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
-    show_embedded_date_selection: false
-    collection_key: hagym
-  - type: custom:hagym-date-selection
-    collection_key: hagym
-    placement: inline
-    compact: true
-    use_native_date_picker: true
-    opening_direction: right
-    vertical_opening_direction: up
+views:
+  - title: HAGym
+    path: hagym
+    type: sections
+    footer:
+      card:
+        type: custom:hagym-date-selection
+        collection_key: hagym
+        placement: inline
+        compact: true
+        opening_direction: right
+        vertical_opening_direction: up
+    sections:
+      - type: grid
+        cards:
+          - type: custom:hagym-period-dashboard-card
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
+            volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
+            show_embedded_date_selection: false
+            collection_key: hagym
 ```
 
 Notes:
 
-- The selector is inspired by Home Assistant Energy UX, but does not import Energy internals.
+- The selector is inspired by Home Assistant Energy UX, but is fully HAGym-owned and does not import Energy internals.
 - Periods like `last_7_days` / `last_30_days` are approximated from weekly buckets in v1.

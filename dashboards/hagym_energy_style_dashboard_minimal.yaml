@@ -4,16 +4,17 @@ views:
     icon: mdi:chart-box
     type: sections
     max_columns: 3
+    footer:
+      card:
+        type: custom:hagym-date-selection
+        collection_key: hagym
+        placement: inline
+        compact: true
+        opening_direction: right
+        vertical_opening_direction: up
     sections:
       - type: grid
         cards:
-          - type: custom:hagym-date-selection
-            collection_key: hagym
-            placement: inline
-            compact: true
-            use_native_date_picker: true
-            opening_direction: right
-            vertical_opening_direction: up
           - type: custom:hagym-top-list-card
             title: Trainingsvolumen pro Muskelgruppe
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
