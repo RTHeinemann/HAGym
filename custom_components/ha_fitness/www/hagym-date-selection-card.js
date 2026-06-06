@@ -532,6 +532,10 @@
       return language || "de-DE";
     }
 
+    _nativePickerAvailable() {
+      return this._config.use_native_date_picker && !!customElements.get("ha-date-range-picker");
+    }
+
     _waitForNativePickerDefinition() {
       if (!this._config.use_native_date_picker) {
         return;
@@ -1119,20 +1123,43 @@
       }
       picker.startDate = startDate;
       picker.endDate = endDate;
+      picker.minimal = true;
+      picker.backdrop = true;
+      picker.setAttribute("minimal", "");
+      picker.setAttribute("backdrop", "");
     }
 
     _handleNativeRangeChange(event) {
+      this._debugLayout("native-date-range-event", {
+        type: event?.type || "unknown",
+        detail: event?.detail || null,
+      });
       const detailValue = event?.detail?.value;
+      const detailRange = event?.detail?.range;
+      const detailStart =
+        event?.detail?.startDate || event?.detail?.start || detailRange?.startDate;
+      const detailEnd =
+        event?.detail?.endDate || event?.detail?.end || detailRange?.endDate;
       const target = event?.target;
       const startDate =
+        utils.parseDate(detailStart) ||
         utils.parseDate(detailValue?.startDate) ||
+        utils.parseDate(detailValue?.start) ||
         utils.parseDate(target?.value?.startDate) ||
+        utils.parseDate(target?.value?.start) ||
         utils.parseDate(target?.startDate);
       const endDate =
+        utils.parseDate(detailEnd) ||
         utils.parseDate(detailValue?.endDate) ||
+        utils.parseDate(detailValue?.end) ||
         utils.parseDate(target?.value?.endDate) ||
+        utils.parseDate(target?.value?.end) ||
         utils.parseDate(target?.endDate);
       if (!startDate || !endDate) {
+        this._debugLayout("native-date-range-event-ignored", {
+          reason: "missing-start-or-end",
+          detail: event?.detail || null,
+        });
         return;
       }
       this._menuOpen = false;
@@ -1153,12 +1180,16 @@
     }
 
     _renderDatePickerControl() {
-      if (this._config.use_native_date_picker) {
+      if (this._nativePickerAvailable()) {
         return `
           <section class="date-picker-icon" aria-label="Zeitraum waehlen">
+            <span class="date-picker-visual" aria-hidden="true">&#128197;</span>
             <ha-date-range-picker class="native-picker" minimal backdrop></ha-date-range-picker>
           </section>
         `;
+      }
+      if (this._config.use_native_date_picker && this._config.debug_layout) {
+        console.warn("[HAGym date selection] ha-date-range-picker not available, using fallback");
       }
       return `
         <button class="icon-btn calendar-btn" data-action="toggle-menu" title="Zeitraum waehlen" aria-label="Zeitraum waehlen">
@@ -1256,7 +1287,14 @@
 
       const picker = this.shadowRoot.querySelector("ha-date-range-picker");
       if (picker) {
-        picker.addEventListener("change", (event) => this._handleNativeRangeChange(event));
+        for (const eventName of [
+          "value-changed",
+          "date-range-picked",
+          "change",
+          "selected",
+        ]) {
+          picker.addEventListener(eventName, (event) => this._handleNativeRangeChange(event));
+        }
       }
       this._syncNativePicker();
     }
@@ -1345,6 +1383,7 @@
           }
 
           .date-picker-icon {
+            position: relative;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -1362,11 +1401,25 @@
             height: 32px;
           }
 
-          ha-date-range-picker.native-picker {
+          .date-picker-visual {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-size: 16px;
+            line-height: 1;
+            color: var(--primary-color);
+            pointer-events: none;
+          }
+
+          ha-date-range-picker.native-picker {
+            position: absolute;
+            inset: 0;
+            display: block;
+            opacity: 0.02;
             min-width: 0;
+            z-index: 1;
           }
 
           button {
