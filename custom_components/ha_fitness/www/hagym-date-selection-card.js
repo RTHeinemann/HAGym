@@ -413,6 +413,9 @@
       this._selection = null;
       this._menuOpen = false;
       this._nativePickerReady = false;
+      this._nativePickerFallbackActive = false;
+      this._nativePickerFallbackTimer = null;
+      this._nativePickerWarned = false;
       this._resizeObserver = null;
       this._mutationObserver = null;
       this._contentResizeObserver = null;
@@ -441,6 +444,7 @@
 
     set hass(hass) {
       this._hass = hass;
+      this._render();
       this._syncNativePicker();
     }
 
@@ -467,6 +471,10 @@
       this._stopMutationObserver();
       this._stopContentObserver();
       this._clearPlacementTimers();
+      if (this._nativePickerFallbackTimer) {
+        window.clearTimeout(this._nativePickerFallbackTimer);
+        this._nativePickerFallbackTimer = null;
+      }
     }
 
     setConfig(config) {
@@ -532,8 +540,55 @@
       return language || "de-DE";
     }
 
+    _language() {
+      return this._currentLocale();
+    }
+
     _nativePickerAvailable() {
-      return this._config.use_native_date_picker && !!customElements.get("ha-date-range-picker");
+      return (
+        this._config.use_native_date_picker &&
+        !!customElements.get("ha-date-range-picker") &&
+        !!this._hass
+      );
+    }
+
+    async _tryLoadNativePicker() {
+      const loaders = [];
+      if (typeof window.loadHaForm === "function") {
+        loaders.push(window.loadHaForm());
+      }
+      if (typeof window.loadCardHelpers === "function") {
+        loaders.push(
+          Promise.resolve(window.loadCardHelpers()).catch(() => undefined)
+        );
+      }
+      if (!loaders.length) {
+        return false;
+      }
+      try {
+        await Promise.allSettled(loaders);
+      } catch (_err) {
+        // Ignore loader failures and keep fallback path stable.
+      }
+      return !!customElements.get("ha-date-range-picker");
+    }
+
+    _scheduleNativePickerFallback() {
+      if (this._nativePickerFallbackTimer || this._nativePickerAvailable()) {
+        return;
+      }
+      this._nativePickerFallbackTimer = window.setTimeout(() => {
+        this._nativePickerFallbackTimer = null;
+        if (this._nativePickerAvailable()) {
+          return;
+        }
+        this._nativePickerFallbackActive = true;
+        if (this._config.debug_layout && !this._nativePickerWarned) {
+          this._nativePickerWarned = true;
+          console.warn("[HAGym date selection] ha-date-range-picker not available, using fallback");
+        }
+        this._render();
+      }, 1400);
     }
 
     _waitForNativePickerDefinition() {
@@ -542,12 +597,33 @@
       }
       if (customElements.get("ha-date-range-picker")) {
         this._nativePickerReady = true;
+        this._nativePickerFallbackActive = false;
+        this._render();
         this._syncNativePicker();
         return;
       }
+      this._scheduleNativePickerFallback();
+      this._tryLoadNativePicker().then((loaded) => {
+        if (loaded && customElements.get("ha-date-range-picker")) {
+          this._nativePickerReady = true;
+          this._nativePickerFallbackActive = false;
+          if (this._nativePickerFallbackTimer) {
+            window.clearTimeout(this._nativePickerFallbackTimer);
+            this._nativePickerFallbackTimer = null;
+          }
+          this._render();
+          this._syncNativePicker();
+        }
+      });
       customElements.whenDefined("ha-date-range-picker").then(() => {
         this._nativePickerReady = true;
+        this._nativePickerFallbackActive = false;
+        if (this._nativePickerFallbackTimer) {
+          window.clearTimeout(this._nativePickerFallbackTimer);
+          this._nativePickerFallbackTimer = null;
+        }
         this._render();
+        this._syncNativePicker();
       });
     }
 
@@ -1118,21 +1194,41 @@
       const selection = this._selection || this._loadSelection();
       const startDate = utils.selectionStartDate(selection) || utils.startOfDay(new Date());
       const endDate = utils.selectionEndInclusive(selection) || startDate;
-      if (this._hass) {
-        picker.hass = this._hass;
+      if (!this._hass) {
+        this._debugLayout("native-picker-sync", {
+          hasHass: false,
+          hasLocalize: false,
+          startDate: utils.toDateOnly(startDate),
+          endDate: utils.toDateOnly(endDate),
+        });
+        return;
       }
+      picker.hass = this._hass;
+      picker.language = this._language();
+      picker.locale = this._language();
       picker.startDate = startDate;
       picker.endDate = endDate;
       picker.minimal = true;
       picker.backdrop = true;
       picker.setAttribute("minimal", "");
       picker.setAttribute("backdrop", "");
+      this._debugLayout("native-picker-sync", {
+        hasHass: true,
+        hasLocalize: !!this._hass?.localize,
+        startDate: utils.toDateOnly(startDate),
+        endDate: utils.toDateOnly(endDate),
+      });
     }
 
     _handleNativeRangeChange(event) {
       this._debugLayout("native-date-range-event", {
         type: event?.type || "unknown",
         detail: event?.detail || null,
+        pickerValue: event?.target?.value || null,
+        pickerStartDate: event?.target?.startDate || null,
+        pickerEndDate: event?.target?.endDate || null,
+        pickerStart: event?.target?.start || null,
+        pickerEnd: event?.target?.end || null,
       });
       const detailValue = event?.detail?.value;
       const detailRange = event?.detail?.range;
@@ -1188,8 +1284,12 @@
           </section>
         `;
       }
-      if (this._config.use_native_date_picker && this._config.debug_layout) {
-        console.warn("[HAGym date selection] ha-date-range-picker not available, using fallback");
+      if (this._config.use_native_date_picker && !this._nativePickerFallbackActive) {
+        return `
+          <section class="date-picker-icon loading" aria-label="Kalender wird geladen">
+            <span class="date-picker-visual" aria-hidden="true">&#128197;</span>
+          </section>
+        `;
       }
       return `
         <button class="icon-btn calendar-btn" data-action="toggle-menu" title="Zeitraum waehlen" aria-label="Zeitraum waehlen">
@@ -1399,6 +1499,10 @@
             width: 32px;
             min-width: 32px;
             height: 32px;
+          }
+
+          .date-picker-icon.loading {
+            opacity: 0.72;
           }
 
           .date-picker-visual {

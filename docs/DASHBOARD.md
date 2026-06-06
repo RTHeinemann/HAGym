@@ -83,6 +83,13 @@ Reusable selector card with:
 - shared period state via `localStorage`
 - optional `fixed-bottom` placement
 
+Notes for the native picker:
+
+- HAGym passes the current Home Assistant `hass` object into `ha-date-range-picker`
+- HAGym first tries safe HA frontend loaders like `loadHaForm` / `loadCardHelpers`
+- if the native picker is still not registered, HAGym shows a loading placeholder briefly
+- after that it falls back to the shortcut menu button without breaking the dashboard
+
 Recommended config when your dashboard mode supports a real footer:
 
 ```yaml
