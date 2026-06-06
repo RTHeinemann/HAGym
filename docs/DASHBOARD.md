@@ -75,20 +75,48 @@ That makes it usable like an Energy-style footer selector on desktop and mobile.
 
 Reusable selector card with:
 
+- native Home Assistant `ha-date-range-picker`
+- compact one-row layout
 - previous / next navigation
-- `Jetzt`
-- period menu
-- `fixed-bottom` placement option
-- Energy-inspired fixed row + centered inner pill
-- automatic desktop content-area detection for better centering
-- optional manual desktop override
+- three-dot shortcut menu
+- `Jetzt` inside the shortcut menu
+- shared period state via `localStorage`
+- optional `fixed-bottom` placement
 
-Example:
+Recommended config when your dashboard mode supports a real footer:
+
+```yaml
+footer:
+  card:
+    type: custom:hagym-date-selection
+    collection_key: hagym
+    placement: inline
+    compact: true
+    use_native_date_picker: true
+    opening_direction: right
+    vertical_opening_direction: up
+```
+
+Recommended inline config for the normal Raw configuration editor or a regular section card:
+
+```yaml
+type: custom:hagym-date-selection
+collection_key: hagym
+placement: inline
+compact: true
+use_native_date_picker: true
+opening_direction: right
+vertical_opening_direction: up
+```
+
+Optional advanced fixed-footer config remains available if you want HAGym itself to float the selector:
 
 ```yaml
 type: custom:hagym-date-selection
 collection_key: hagym
 placement: fixed-bottom
+compact: true
+use_native_date_picker: true
 full_width_row: true
 desktop_sidebar_offset: auto
 max_width: 900
@@ -98,21 +126,6 @@ opening_direction: right
 vertical_opening_direction: up
 content_selector: null
 debug_layout: false
-```
-
-Recommended production config for the Energy-style dashboard:
-
-```yaml
-type: custom:hagym-date-selection
-collection_key: hagym
-placement: fixed-bottom
-full_width_row: true
-desktop_sidebar_offset: auto
-max_width: 900
-bottom_offset: 16
-z_index: 10
-opening_direction: right
-vertical_opening_direction: up
 ```
 
 Advanced selector options:
@@ -137,7 +150,7 @@ Advanced selector options:
   - default `true`
   - keeps the fixed bottom row stretched across the detected content area
 
-Desktop centering behavior:
+Desktop centering behavior in `fixed-bottom` mode:
 
 - In `fixed-bottom` mode, HAGym now behaves more like the Energy selector:
   - an internal fixed row is positioned across the detected dashboard content area
@@ -315,23 +328,25 @@ The templates use the stable integration entity ids:
 
 If your instance generated different ids because of renamed entities, adapt them in the YAML.
 
-The raw template intentionally puts the selector into a normal section card:
+The raw templates intentionally put the selector into a normal section card:
 
 ```yaml
 type: custom:hagym-date-selection
 collection_key: hagym
-placement: fixed-bottom
+placement: inline
+compact: true
+use_native_date_picker: true
 ```
 
 This is more reliable in the normal Raw configuration editor than relying on `view.footer`.
 
 Use only one HAGym footer selector per view. The supplied templates already follow that rule.
 
-Inline mode remains useful for simple embedded use, for example inside a compact companion card or a local test layout.
+Inline mode is the preferred mode for normal dashboard sections and footer-card usage. `fixed-bottom` is mainly for advanced floating layouts.
 
 ## Dashboard Bottom Spacing
 
-The fixed footer selector floats above the dashboard content. To avoid the last card being visually covered:
+If you use `placement: fixed-bottom`, the selector floats above the dashboard content. To avoid the last card being visually covered:
 
 - keep some extra vertical space at the bottom of the last section
 - or add a small final spacer card in that view
@@ -346,6 +361,8 @@ type: vertical-stack
 cards:
   - type: custom:hagym-date-selection
     collection_key: hagym
+    compact: true
+    use_native_date_picker: true
   - type: custom:hagym-period-dashboard-card
     daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
     metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history

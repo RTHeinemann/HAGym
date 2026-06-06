@@ -157,6 +157,13 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   _loadSelection() {
+    if (window.HAGymCardUtils?.loadSelection) {
+      return window.HAGymCardUtils.loadSelection(
+        this._config.collection_key,
+        "this_week",
+        document.documentElement.lang || navigator.language
+      );
+    }
     const fallback = this._defaultThisWeekSelection();
     try {
       const raw = localStorage.getItem(this._storageKey());
@@ -358,6 +365,8 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       type: "custom:hagym-date-selection",
       collection_key: this._config.collection_key,
       default_period: this._selection?.period_key || "this_week",
+      compact: true,
+      use_native_date_picker: true,
     });
   }
 

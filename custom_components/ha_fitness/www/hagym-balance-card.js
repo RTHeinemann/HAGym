@@ -1,5 +1,6 @@
 (() => {
   if (!window.HAGymCardUtils) {
+    const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
     const PERIOD_KEYS = new Set([
       "today",
       "yesterday",
@@ -9,8 +10,10 @@
       "this_year",
       "last_7_days",
       "last_30_days",
+      "last_365_days",
       "last_12_weeks",
       "last_12_months",
+      "custom_range",
     ]);
 
     const startOfDay = (date) =>
@@ -45,8 +48,36 @@
 
     const parseDate = (value) => {
       if (!value) return null;
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : new Date(value);
+      }
       const parsed = new Date(value);
       return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const parseDateOnly = (value) => {
+      if (!value || !DATE_ONLY_RE.test(String(value))) return null;
+      const [year, month, day] = String(value).split("-").map(Number);
+      return new Date(year, month - 1, day, 0, 0, 0, 0);
+    };
+
+    const toDateOnly = (value) => {
+      const date = parseDate(value);
+      if (!date) return null;
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+        date.getDate()
+      ).padStart(2, "0")}`;
+    };
+
+    const formatCustomRangeLabel = (start, end) => {
+      const formatter = new Intl.DateTimeFormat(document.documentElement.lang || navigator.language, {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const from = formatter.format(start);
+      const to = formatter.format(end);
+      return from === to ? from : `${from} - ${to}`;
     };
 
     const normalizePeriod = (value) => {
@@ -95,6 +126,11 @@
         start = addDays(todayStart, -29);
         end = addDays(todayStart, 1);
         label = "Letzte 30 Tage";
+      } else if (key === "last_365_days") {
+        const todayStart = startOfDay(anchor);
+        start = addDays(todayStart, -364);
+        end = addDays(todayStart, 1);
+        label = "Letzte 365 Tage";
       } else if (key === "last_12_weeks") {
         const weekStart = startOfWeek(anchor);
         start = addDays(weekStart, -77);
@@ -109,10 +145,29 @@
 
       return {
         period_key: key,
+        type: key,
         anchor_date: anchor.toISOString(),
         label,
         start: start.toISOString(),
         end: end.toISOString(),
+        collection_key: collectionKey,
+      };
+    };
+
+    const buildCustomRangeSelection = (startValue, endValue, collectionKey) => {
+      const start = parseDateOnly(startValue) || startOfDay(parseDate(startValue) || new Date());
+      const end = parseDateOnly(endValue) || start;
+      const orderedStart = start <= end ? start : end;
+      const orderedEnd = start <= end ? end : start;
+      return {
+        period_key: "custom_range",
+        type: "custom_range",
+        anchor_date: orderedStart.toISOString(),
+        label: formatCustomRangeLabel(orderedStart, orderedEnd),
+        start: orderedStart.toISOString(),
+        end: addDays(orderedEnd, 1).toISOString(),
+        start_date: toDateOnly(orderedStart),
+        end_date: toDateOnly(orderedEnd),
         collection_key: collectionKey,
       };
     };
@@ -123,6 +178,24 @@
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
 
+    const selectionStartDate = (selection) => {
+      const startDate = parseDateOnly(selection?.start_date);
+      if (startDate) return startDate;
+      if (typeof selection?.start === "string" && DATE_ONLY_RE.test(selection.start)) {
+        return parseDateOnly(selection.start);
+      }
+      return parseDate(selection?.start);
+    };
+
+    const selectionEndExclusive = (selection) => {
+      const endDate = parseDateOnly(selection?.end_date);
+      if (endDate) return addDays(endDate, 1);
+      if (typeof selection?.end === "string" && DATE_ONLY_RE.test(selection.end)) {
+        return addDays(parseDateOnly(selection.end), 1);
+      }
+      return parseDate(selection?.end);
+    };
+
     const loadSelection = (collectionKey, defaultPeriod) => {
       const fallback = buildSelection(defaultPeriod || "this_week", new Date(), collectionKey);
       try {
@@ -130,11 +203,24 @@
         if (!raw) return fallback;
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") return fallback;
-        return buildSelection(
-          parsed.period_key || defaultPeriod || "this_week",
-          parsed.anchor_date || new Date(),
-          collectionKey
-        );
+        const key = normalizePeriod(parsed.period_key || parsed.type || defaultPeriod || "this_week");
+        if (key === "custom_range") {
+          const startDate =
+            parsed.start_date ||
+            (typeof parsed.start === "string" && DATE_ONLY_RE.test(parsed.start)
+              ? parsed.start
+              : toDateOnly(parsed.start));
+          const endDate =
+            parsed.end_date ||
+            (typeof parsed.end === "string" && DATE_ONLY_RE.test(parsed.end)
+              ? parsed.end
+              : toDateOnly(addDays(parseDate(parsed.end) || new Date(), -1)));
+          if (startDate && endDate) {
+            return buildCustomRangeSelection(startDate, endDate, collectionKey);
+          }
+          return fallback;
+        }
+        return buildSelection(key, parsed.anchor_date || new Date(), collectionKey);
       } catch (_err) {
         return fallback;
       }
@@ -142,8 +228,8 @@
 
     const selectDaysForPeriod = (days, selection) => {
       const rows = Array.isArray(days) ? days : [];
-      const start = parseDate(selection?.start);
-      const end = parseDate(selection?.end);
+      const start = selectionStartDate(selection);
+      const end = selectionEndExclusive(selection);
       if (!start || !end) return [];
       return rows.filter((row) => {
         const dayStart = parseDate(row?.day_start);
@@ -154,11 +240,16 @@
     };
 
     window.HAGymCardUtils = {
+      buildCustomRangeSelection,
       buildSelection,
       escapeHtml,
       loadSelection,
       parseDate,
+      parseDateOnly,
       selectDaysForPeriod,
+      startOfDay,
+      startOfWeek,
+      toDateOnly,
     };
   }
 

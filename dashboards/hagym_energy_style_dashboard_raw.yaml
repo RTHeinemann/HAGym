@@ -9,12 +9,9 @@ views:
         cards:
           - type: custom:hagym-date-selection
             collection_key: hagym
-            placement: fixed-bottom
-            full_width_row: true
-            desktop_sidebar_offset: auto
-            max_width: 900
-            bottom_offset: 16
-            z_index: 10
+            placement: inline
+            compact: true
+            use_native_date_picker: true
             opening_direction: right
             vertical_opening_direction: up
           - type: custom:hagym-top-list-card
@@ -68,12 +65,9 @@ views:
         cards:
           - type: custom:hagym-date-selection
             collection_key: hagym
-            placement: fixed-bottom
-            full_width_row: true
-            desktop_sidebar_offset: auto
-            max_width: 900
-            bottom_offset: 16
-            z_index: 10
+            placement: inline
+            compact: true
+            use_native_date_picker: true
             opening_direction: right
             vertical_opening_direction: up
           - type: entities
@@ -120,12 +114,9 @@ views:
         cards:
           - type: custom:hagym-date-selection
             collection_key: hagym
-            placement: fixed-bottom
-            full_width_row: true
-            desktop_sidebar_offset: auto
-            max_width: 900
-            bottom_offset: 16
-            z_index: 10
+            placement: inline
+            compact: true
+            use_native_date_picker: true
             opening_direction: right
             vertical_opening_direction: up
           - type: entities

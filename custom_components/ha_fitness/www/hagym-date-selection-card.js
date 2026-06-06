@@ -1,5 +1,6 @@
 (() => {
   if (!window.HAGymCardUtils) {
+    const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
     const PERIOD_KEYS = new Set([
       "today",
       "yesterday",
@@ -9,9 +10,26 @@
       "this_year",
       "last_7_days",
       "last_30_days",
+      "last_365_days",
       "last_12_weeks",
       "last_12_months",
+      "custom_range",
     ]);
+
+    const PERIOD_LABELS = {
+      today: "Heute",
+      yesterday: "Gestern",
+      this_week: "Diese Woche",
+      this_month: "Dieser Monat",
+      this_quarter: "Dieses Quartal",
+      this_year: "Dieses Jahr",
+      last_7_days: "Letzte 7 Tage",
+      last_30_days: "Letzte 30 Tage",
+      last_365_days: "Letzte 365 Tage",
+      last_12_weeks: "Letzte 12 Wochen",
+      last_12_months: "Letzte 12 Monate",
+      custom_range: "Benutzerdefinierter Zeitraum",
+    };
 
     const MONTH_LABELS = [
       "Jan",
@@ -60,8 +78,25 @@
 
     const parseDate = (value) => {
       if (!value) return null;
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : new Date(value);
+      }
       const parsed = new Date(value);
       return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const parseDateOnly = (value) => {
+      if (!value || !DATE_ONLY_RE.test(String(value))) return null;
+      const [year, month, day] = String(value).split("-").map(Number);
+      return new Date(year, month - 1, day, 0, 0, 0, 0);
+    };
+
+    const toDateOnly = (value) => {
+      const date = parseDate(value);
+      if (!date) return null;
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+        date.getDate()
+      ).padStart(2, "0")}`;
     };
 
     const escapeHtml = (value) =>
@@ -83,7 +118,18 @@
       return { year: utcDate.getUTCFullYear(), week };
     };
 
-    const buildLabel = (periodKey, start, anchor) => {
+    const formatCustomRangeLabel = (start, end, locale) => {
+      const formatter = new Intl.DateTimeFormat(locale || undefined, {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const from = formatter.format(start);
+      const to = formatter.format(end);
+      return from === to ? from : `${from} - ${to}`;
+    };
+
+    const buildLabel = (periodKey, start, anchor, locale) => {
       if (periodKey === "today") return "Heute";
       if (periodKey === "yesterday") return "Gestern";
       if (periodKey === "this_week") {
@@ -99,12 +145,16 @@
       if (periodKey === "this_year") return String(start.getFullYear());
       if (periodKey === "last_7_days") return "Letzte 7 Tage";
       if (periodKey === "last_30_days") return "Letzte 30 Tage";
+      if (periodKey === "last_365_days") return "Letzte 365 Tage";
       if (periodKey === "last_12_weeks") return "Letzte 12 Wochen";
       if (periodKey === "last_12_months") return "Letzte 12 Monate";
-      return "Diese Woche";
+      if (periodKey === "custom_range") {
+        return formatCustomRangeLabel(start, addDays(end, -1), locale);
+      }
+      return PERIOD_LABELS[periodKey] || "Diese Woche";
     };
 
-    const buildSelection = (periodKey, anchorDate, collectionKey) => {
+    const buildSelection = (periodKey, anchorDate, collectionKey, locale) => {
       const key = normalizePeriod(periodKey);
       const anchor = parseDate(anchorDate) || new Date();
       let start;
@@ -136,6 +186,10 @@
         const todayStart = startOfDay(anchor);
         start = addDays(todayStart, -29);
         end = addDays(todayStart, 1);
+      } else if (key === "last_365_days") {
+        const todayStart = startOfDay(anchor);
+        start = addDays(todayStart, -364);
+        end = addDays(todayStart, 1);
       } else if (key === "last_12_weeks") {
         const weekStart = startOfWeek(anchor);
         start = addDays(weekStart, -77);
@@ -148,28 +202,88 @@
 
       return {
         period_key: key,
+        type: key,
         anchor_date: anchor.toISOString(),
-        label: buildLabel(key, start, anchor),
+        label: buildLabel(key, start, anchor, locale),
         start: start.toISOString(),
         end: end.toISOString(),
         collection_key: collectionKey,
       };
     };
 
+    const buildCustomRangeSelection = (startValue, endValue, collectionKey, locale) => {
+      const startDay = parseDateOnly(startValue) || startOfDay(parseDate(startValue) || new Date());
+      const endDay = parseDateOnly(endValue) || startOfDay(parseDate(endValue) || startDay);
+      const orderedStart = startDay <= endDay ? startDay : endDay;
+      const orderedEnd = startDay <= endDay ? endDay : startDay;
+      const endExclusive = addDays(orderedEnd, 1);
+      return {
+        period_key: "custom_range",
+        type: "custom_range",
+        anchor_date: orderedStart.toISOString(),
+        label: formatCustomRangeLabel(orderedStart, orderedEnd, locale),
+        start: orderedStart.toISOString(),
+        end: endExclusive.toISOString(),
+        start_date: toDateOnly(orderedStart),
+        end_date: toDateOnly(orderedEnd),
+        collection_key: collectionKey,
+      };
+    };
+
     const storageKey = (collectionKey) => `hagym-period-selection:${collectionKey}`;
 
-    const loadSelection = (collectionKey, defaultPeriod) => {
-      const fallback = buildSelection(defaultPeriod || "this_week", new Date(), collectionKey);
+    const selectionStartDate = (selection) => {
+      const startDate = parseDateOnly(selection?.start_date);
+      if (startDate) return startDate;
+      if (typeof selection?.start === "string" && DATE_ONLY_RE.test(selection.start)) {
+        return parseDateOnly(selection.start);
+      }
+      return parseDate(selection?.start);
+    };
+
+    const selectionEndExclusive = (selection) => {
+      const endDate = parseDateOnly(selection?.end_date);
+      if (endDate) return addDays(endDate, 1);
+      if (typeof selection?.end === "string" && DATE_ONLY_RE.test(selection.end)) {
+        return addDays(parseDateOnly(selection.end), 1);
+      }
+      return parseDate(selection?.end);
+    };
+
+    const selectionEndInclusive = (selection) => {
+      const customEnd = parseDateOnly(selection?.end_date);
+      if (customEnd) return customEnd;
+      const endExclusive = selectionEndExclusive(selection);
+      return endExclusive ? addDays(startOfDay(endExclusive), -1) : null;
+    };
+
+    const customRangeLengthDays = (selection) => {
+      const start = selectionStartDate(selection);
+      const end = selectionEndInclusive(selection);
+      if (!start || !end) return 1;
+      const diff = startOfDay(end).getTime() - startOfDay(start).getTime();
+      return Math.max(1, Math.round(diff / 86400000) + 1);
+    };
+
+    const loadSelection = (collectionKey, defaultPeriod, locale) => {
+      const fallback = buildSelection(defaultPeriod || "this_week", new Date(), collectionKey, locale);
       try {
         const raw = localStorage.getItem(storageKey(collectionKey));
         if (!raw) return fallback;
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") return fallback;
-        return buildSelection(
-          parsed.period_key || defaultPeriod || "this_week",
-          parsed.anchor_date || new Date(),
-          collectionKey
-        );
+        const key = normalizePeriod(parsed.period_key || parsed.type || defaultPeriod || "this_week");
+        if (key === "custom_range") {
+          const startDate =
+            parsed.start_date || (typeof parsed.start === "string" && DATE_ONLY_RE.test(parsed.start) ? parsed.start : toDateOnly(parsed.start));
+          const endDate =
+            parsed.end_date || (typeof parsed.end === "string" && DATE_ONLY_RE.test(parsed.end) ? parsed.end : toDateOnly(selectionEndInclusive(parsed)));
+          if (startDate && endDate) {
+            return buildCustomRangeSelection(startDate, endDate, collectionKey, locale);
+          }
+          return fallback;
+        }
+        return buildSelection(key, parsed.anchor_date || new Date(), collectionKey, locale);
       } catch (_err) {
         return fallback;
       }
@@ -185,8 +299,8 @@
 
     const selectDaysForPeriod = (days, selection) => {
       const rows = Array.isArray(days) ? days : [];
-      const start = parseDate(selection?.start);
-      const end = parseDate(selection?.end);
+      const start = selectionStartDate(selection);
+      const end = selectionEndExclusive(selection);
       if (!start || !end) return [];
       return rows.filter((row) => {
         const dayStart = parseDate(row?.day_start);
@@ -196,11 +310,32 @@
       });
     };
 
-    const shiftSelection = (selection, step, collectionKey) => {
-      const current = selection || buildSelection("this_week", new Date(), collectionKey);
-      const key = normalizePeriod(current.period_key);
+    const shiftSelection = (selection, step, collectionKey, locale) => {
+      const current =
+        selection || buildSelection("this_week", new Date(), collectionKey, locale);
+      const key = normalizePeriod(current.period_key || current.type);
       const anchor = parseDate(current.anchor_date) || new Date();
       let nextAnchor = new Date(anchor);
+
+      if (key === "custom_range") {
+        const start = selectionStartDate(current);
+        const end = selectionEndInclusive(current);
+        const length = customRangeLengthDays(current);
+        if (start && end) {
+          return buildCustomRangeSelection(
+            toDateOnly(addDays(start, step * length)),
+            toDateOnly(addDays(end, step * length)),
+            collectionKey,
+            locale
+          );
+        }
+        return buildCustomRangeSelection(
+          toDateOnly(addDays(startOfDay(new Date()), step)),
+          toDateOnly(addDays(startOfDay(new Date()), step)),
+          collectionKey,
+          locale
+        );
+      }
 
       if (key === "today" || key === "yesterday") {
         nextAnchor = addDays(anchor, step);
@@ -216,28 +351,39 @@
         nextAnchor = addDays(anchor, step * 7);
       } else if (key === "last_30_days") {
         nextAnchor = addDays(anchor, step * 30);
+      } else if (key === "last_365_days") {
+        nextAnchor = addDays(anchor, step * 365);
       } else if (key === "last_12_weeks") {
         nextAnchor = addDays(anchor, step * 84);
       } else if (key === "last_12_months") {
         nextAnchor = addMonths(anchor, step * 12);
       }
 
-      return buildSelection(key, nextAnchor, collectionKey);
+      return buildSelection(key, nextAnchor, collectionKey, locale);
     };
 
     window.HAGymCardUtils = {
       addDays,
       addMonths,
+      buildCustomRangeSelection,
       buildSelection,
+      customRangeLengthDays,
       escapeHtml,
+      formatCustomRangeLabel,
       loadSelection,
       normalizePeriod,
       parseDate,
+      parseDateOnly,
       saveSelection,
+      selectionEndExclusive,
+      selectionEndInclusive,
+      selectionStartDate,
       selectDaysForPeriod,
       shiftSelection,
+      startOfDay,
       startOfWeek,
       storageKey,
+      toDateOnly,
     };
   }
 
@@ -247,12 +393,15 @@
     constructor() {
       super();
       this.attachShadow({ mode: "open" });
+      this._hass = null;
       this._config = {
         collection_key: "hagym",
         opening_direction: "right",
         vertical_opening_direction: "up",
         default_period: "this_week",
         placement: "inline",
+        compact: false,
+        use_native_date_picker: true,
         desktop_sidebar_offset: "auto",
         content_selector: null,
         debug_layout: false,
@@ -263,6 +412,7 @@
       };
       this._selection = null;
       this._menuOpen = false;
+      this._nativePickerReady = false;
       this._resizeObserver = null;
       this._mutationObserver = null;
       this._contentResizeObserver = null;
@@ -284,14 +434,14 @@
         vertical_opening_direction: "up",
         default_period: "this_week",
         placement: "inline",
-        desktop_sidebar_offset: "auto",
-        content_selector: null,
-        debug_layout: false,
-        full_width_row: true,
-        max_width: 900,
-        bottom_offset: 16,
-        z_index: 10,
+        compact: true,
+        use_native_date_picker: true,
       };
+    }
+
+    set hass(hass) {
+      this._hass = hass;
+      this._syncNativePicker();
     }
 
     connectedCallback() {
@@ -305,6 +455,7 @@
       this._applyPlacement();
       this._scheduleInitialPlacementPasses();
       this._render();
+      this._waitForNativePickerDefinition();
     }
 
     disconnectedCallback() {
@@ -339,6 +490,10 @@
           ? String(config.content_selector).trim()
           : null;
 
+      const defaultPeriod = String(config?.default_period || "this_week").trim().toLowerCase();
+      const normalizedDefault =
+        defaultPeriod === "custom_range" ? "this_week" : utils.normalizePeriod(defaultPeriod);
+
       this._config = {
         collection_key:
           config?.collection_key && String(config.collection_key).trim()
@@ -347,8 +502,10 @@
         opening_direction: config?.opening_direction === "left" ? "left" : "right",
         vertical_opening_direction:
           config?.vertical_opening_direction === "down" ? "down" : "up",
-        default_period: utils.normalizePeriod(config?.default_period || "this_week"),
+        default_period: normalizedDefault,
         placement,
+        compact: config?.compact === true,
+        use_native_date_picker: config?.use_native_date_picker !== false,
         desktop_sidebar_offset: desktopSidebarOffset,
         content_selector: contentSelector,
         debug_layout: config?.debug_layout === true,
@@ -362,10 +519,32 @@
       this._startMutationObserver();
       this._scheduleInitialPlacementPasses();
       this._render();
+      this._waitForNativePickerDefinition();
     }
 
     getCardSize() {
       return this._config.placement === "fixed-bottom" ? 1 : 2;
+    }
+
+    _currentLocale() {
+      const language =
+        this._hass?.locale?.language || document.documentElement.lang || navigator.language;
+      return language || "de-DE";
+    }
+
+    _waitForNativePickerDefinition() {
+      if (!this._config.use_native_date_picker) {
+        return;
+      }
+      if (customElements.get("ha-date-range-picker")) {
+        this._nativePickerReady = true;
+        this._syncNativePicker();
+        return;
+      }
+      customElements.whenDefined("ha-date-range-picker").then(() => {
+        this._nativePickerReady = true;
+        this._render();
+      });
     }
 
     _onResize() {
@@ -518,7 +697,11 @@
     }
 
     _loadSelection() {
-      return utils.loadSelection(this._config.collection_key, this._config.default_period);
+      return utils.loadSelection(
+        this._config.collection_key,
+        this._config.default_period,
+        this._currentLocale()
+      );
     }
 
     _applyPlacement() {
@@ -767,8 +950,7 @@
 
       const tagName = String(element?.tagName || "").toLowerCase();
       const id = String(element?.id || "");
-      const className =
-        typeof element?.className === "string" ? element.className : "";
+      const className = typeof element?.className === "string" ? element.className : "";
 
       let score = rect.width;
       score += Math.min(rect.height, viewportHeight) * 0.15;
@@ -834,7 +1016,8 @@
       if (!point) {
         return;
       }
-      const nearSidebar = point.x <= Math.max(320, (window.innerWidth || 0) * 0.28) && point.y <= 160;
+      const nearSidebar =
+        point.x <= Math.max(320, (window.innerWidth || 0) * 0.28) && point.y <= 160;
       const delays = nearSidebar ? [50, 200, 500] : [100, 300];
       for (const delay of delays) {
         this._schedulePlacement(delay);
@@ -868,28 +1051,92 @@
       window.dispatchEvent(new CustomEvent("hagym-date-selection-changed", { detail }));
     }
 
-    _setSelection(periodKey, anchorDate) {
-      this._selection = utils.buildSelection(periodKey, anchorDate, this._config.collection_key);
-      utils.saveSelection(this._config.collection_key, this._selection);
-      this._emitSelection(this._selection);
-      this._render();
-    }
-
-    _shift(step) {
-      const selection = utils.shiftSelection(
-        this._selection,
-        step,
-        this._config.collection_key
-      );
+    _saveAndEmit(selection) {
       utils.saveSelection(this._config.collection_key, selection);
       this._selection = selection;
       this._emitSelection(selection);
       this._render();
     }
 
+    _setSelection(periodKey, anchorDate) {
+      const selection =
+        periodKey === "custom_range"
+          ? utils.buildCustomRangeSelection(
+              utils.toDateOnly(anchorDate),
+              utils.toDateOnly(anchorDate),
+              this._config.collection_key,
+              this._currentLocale()
+            )
+          : utils.buildSelection(
+              periodKey,
+              anchorDate,
+              this._config.collection_key,
+              this._currentLocale()
+            );
+      this._saveAndEmit(selection);
+    }
+
+    _setCustomRangeSelection(startDate, endDate) {
+      const selection = utils.buildCustomRangeSelection(
+        utils.toDateOnly(startDate),
+        utils.toDateOnly(endDate),
+        this._config.collection_key,
+        this._currentLocale()
+      );
+      this._saveAndEmit(selection);
+    }
+
+    _shift(step) {
+      const selection = utils.shiftSelection(
+        this._selection,
+        step,
+        this._config.collection_key,
+        this._currentLocale()
+      );
+      this._saveAndEmit(selection);
+    }
+
     _resetNow() {
       const periodKey = this._selection?.period_key || this._config.default_period;
+      if (periodKey === "custom_range") {
+        const length = utils.customRangeLengthDays(this._selection);
+        const endDay = utils.startOfDay(new Date());
+        const startDay = utils.addDays(endDay, -(length - 1));
+        this._setCustomRangeSelection(startDay, endDay);
+        return;
+      }
       this._setSelection(periodKey, new Date());
+    }
+
+    _syncNativePicker() {
+      const picker = this.shadowRoot?.querySelector("ha-date-range-picker");
+      if (!picker) return;
+      const selection = this._selection || this._loadSelection();
+      const startDate = utils.selectionStartDate(selection) || utils.startOfDay(new Date());
+      const endDate = utils.selectionEndInclusive(selection) || startDate;
+      if (this._hass) {
+        picker.hass = this._hass;
+      }
+      picker.startDate = startDate;
+      picker.endDate = endDate;
+    }
+
+    _handleNativeRangeChange(event) {
+      const detailValue = event?.detail?.value;
+      const target = event?.target;
+      const startDate =
+        utils.parseDate(detailValue?.startDate) ||
+        utils.parseDate(target?.value?.startDate) ||
+        utils.parseDate(target?.startDate);
+      const endDate =
+        utils.parseDate(detailValue?.endDate) ||
+        utils.parseDate(target?.value?.endDate) ||
+        utils.parseDate(target?.endDate);
+      if (!startDate || !endDate) {
+        return;
+      }
+      this._menuOpen = false;
+      this._setCustomRangeSelection(startDate, endDate);
     }
 
     _debugLayout(message, payload) {
@@ -899,31 +1146,50 @@
       console.debug("[HAGym date selection]", message, payload);
     }
 
-    _renderMenuButton(key, label) {
-      return `<button class="menu-item" data-period="${key}">${utils.escapeHtml(label)}</button>`;
+    _renderMenuButton(action, label, extra = "") {
+      return `<button class="menu-item" ${extra} data-menu-action="${action}">${utils.escapeHtml(
+        label
+      )}</button>`;
+    }
+
+    _renderDatePickerControl() {
+      if (this._config.use_native_date_picker) {
+        return `
+          <section class="date-picker-icon" aria-label="Zeitraum waehlen">
+            <ha-date-range-picker class="native-picker" minimal backdrop></ha-date-range-picker>
+          </section>
+        `;
+      }
+      return `
+        <button class="icon-btn calendar-btn" data-action="toggle-menu" title="Zeitraum waehlen" aria-label="Zeitraum waehlen">
+          &#128197;
+        </button>
+      `;
     }
 
     _renderBody(selection, menuPosX, menuPosY) {
       return `
-        <div class="shell">
+        <div class="shell ${this._config.compact ? "compact" : ""}">
           <div class="bar">
-            <span class="icon" aria-hidden="true">&#128197;</span>
-            <button class="label" data-action="toggle-menu">${utils.escapeHtml(
+            ${this._renderDatePickerControl()}
+            <div class="label" title="${utils.escapeHtml(selection.label || "Diese Woche")}">${utils.escapeHtml(
               selection.label || "Diese Woche"
-            )}</button>
-            <button class="icon-btn" data-action="prev" title="Vorheriger Zeitraum">&#x2039;</button>
-            <button class="icon-btn" data-action="next" title="Naechster Zeitraum">&#x203A;</button>
-            <button class="now-btn" data-action="now">Jetzt</button>
-            <button class="icon-btn" data-action="toggle-menu" title="Zeitraum waehlen">&#9776;</button>
+            )}</div>
+            <button class="icon-btn" data-action="prev" title="Vorheriger Zeitraum" aria-label="Vorheriger Zeitraum">&#x2039;</button>
+            <button class="icon-btn" data-action="next" title="Naechster Zeitraum" aria-label="Naechster Zeitraum">&#x203A;</button>
+            <button class="icon-btn menu-trigger" data-action="toggle-menu" title="Zeitraum-Menue" aria-label="Zeitraum-Menue">&#8942;</button>
           </div>
           ${
             this._config.debug_layout
-              ? `<div class="debug-line">${utils.escapeHtml(this._lastLayoutDebug || "layout: unknown")}</div>`
+              ? `<div class="debug-line">${utils.escapeHtml(
+                  this._lastLayoutDebug || "layout: unknown"
+                )}</div>`
               : ""
           }
           ${
             this._menuOpen
               ? `<div class="menu" style="${menuPosX}${menuPosY}">
+                  ${this._renderMenuButton("now", "Jetzt")}
                   ${this._renderMenuButton("today", "Heute")}
                   ${this._renderMenuButton("yesterday", "Gestern")}
                   ${this._renderMenuButton("this_week", "Diese Woche")}
@@ -932,7 +1198,7 @@
                   ${this._renderMenuButton("this_year", "Dieses Jahr")}
                   ${this._renderMenuButton("last_7_days", "Letzte 7 Tage")}
                   ${this._renderMenuButton("last_30_days", "Letzte 30 Tage")}
-                  ${this._renderMenuButton("last_12_weeks", "Letzte 12 Wochen")}
+                  ${this._renderMenuButton("last_365_days", "Letzte 365 Tage")}
                   ${this._renderMenuButton("last_12_months", "Letzte 12 Monate")}
                 </div>`
               : ""
@@ -956,7 +1222,7 @@
         ${this._style()}
         ${
           this._config.placement === "fixed-bottom"
-            ? `<div class="hagym-fixed-row">
+            ? `<div class="hagym-fixed-row ${this._config.full_width_row ? "full-row" : ""}">
                  <div class="hagym-fixed-backdrop"></div>
                  <ha-card class="hagym-date-content">${body}</ha-card>
                </div>`
@@ -976,16 +1242,23 @@
       this.shadowRoot.querySelector('[data-action="next"]')?.addEventListener("click", () => {
         this._shift(1);
       });
-      this.shadowRoot.querySelector('[data-action="now"]')?.addEventListener("click", () => {
-        this._resetNow();
-      });
-      this.shadowRoot.querySelectorAll("[data-period]").forEach((button) => {
+      this.shadowRoot.querySelectorAll("[data-menu-action]").forEach((button) => {
         button.addEventListener("click", () => {
-          const period = button.getAttribute("data-period") || this._config.default_period;
+          const action = button.getAttribute("data-menu-action") || this._config.default_period;
           this._menuOpen = false;
-          this._setSelection(period, new Date());
+          if (action === "now") {
+            this._resetNow();
+            return;
+          }
+          this._setSelection(action, new Date());
         });
       });
+
+      const picker = this.shadowRoot.querySelector("ha-date-range-picker");
+      if (picker) {
+        picker.addEventListener("change", (event) => this._handleNativeRangeChange(event));
+      }
+      this._syncNativePicker();
     }
 
     _style() {
@@ -1043,6 +1316,10 @@
             padding: 8px;
           }
 
+          .shell.compact {
+            padding: 6px;
+          }
+
           .debug-line {
             margin-top: 6px;
             font-size: 0.7rem;
@@ -1052,25 +1329,44 @@
 
           .bar {
             display: grid;
-            grid-template-columns: auto minmax(0, 1fr) repeat(4, auto);
+            grid-template-columns: auto minmax(0, 1fr) repeat(3, auto);
             gap: 8px;
             align-items: center;
             padding: 8px;
             border-radius: 999px;
             border: 1px solid var(--divider-color);
             background: color-mix(in srgb, var(--card-background-color, #fff) 76%, transparent);
+            min-width: 0;
           }
 
-          .icon {
+          .compact .bar {
+            gap: 6px;
+            padding: 6px;
+          }
+
+          .date-picker-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 30px;
-            height: 30px;
+            width: 34px;
+            min-width: 34px;
+            height: 34px;
             border-radius: 50%;
-            color: var(--primary-color);
-            background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-            font-size: 16px;
+            background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+            overflow: hidden;
+          }
+
+          .compact .date-picker-icon {
+            width: 32px;
+            min-width: 32px;
+            height: 32px;
+          }
+
+          ha-date-range-picker.native-picker {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
           }
 
           button {
@@ -1094,8 +1390,14 @@
             background: color-mix(in srgb, var(--primary-color) 8%, transparent);
           }
 
+          .compact .label {
+            padding: 7px 10px;
+            font-size: 0.9rem;
+          }
+
           .icon-btn {
             width: 34px;
+            min-width: 34px;
             height: 34px;
             border-radius: 50%;
             background: var(--ha-card-background, var(--card-background-color, #fff));
@@ -1104,14 +1406,10 @@
             font-weight: 700;
           }
 
-          .now-btn {
-            padding: 0 14px;
-            height: 34px;
-            border-radius: 999px;
-            color: var(--text-primary-color, #fff);
-            background: var(--primary-color);
-            font-size: 0.84rem;
-            font-weight: 700;
+          .compact .icon-btn {
+            width: 32px;
+            min-width: 32px;
+            height: 32px;
           }
 
           .menu {
@@ -1148,11 +1446,17 @@
 
           @media (max-width: 600px) {
             .bar {
-              grid-template-columns: auto minmax(0, 1fr) repeat(3, auto);
+              gap: 6px;
             }
 
-            .now-btn {
-              padding: 0 12px;
+            .label {
+              font-size: 0.86rem;
+              padding-left: 10px;
+              padding-right: 10px;
+            }
+
+            .menu {
+              min-width: min(240px, calc(100vw - 32px));
             }
           }
         </style>
