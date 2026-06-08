@@ -256,12 +256,12 @@
 
   const utils = window.HAGymCardUtils;
   const LOAD_SEGMENTS = [
-    ["bodyweight_load_score", "Bodyweight", "#1f8ef1"],
-    ["duration_load_score", "Duration", "#00a980"],
-    ["hold_load_score", "Hold", "#6d5efc"],
-    ["distance_load_score", "Distance", "#ff8a34"],
-    ["cardio_load_score", "Cardio", "#db5461"],
-    ["custom_load_score", "Custom", "#4a4f57"],
+    { id: "bodyweight", metricKey: "bodyweight_load_score", label: "Bodyweight", color: "#1f8ef1" },
+    { id: "duration", metricKey: "duration_load_score", label: "Duration", color: "#00a980" },
+    { id: "hold", metricKey: "hold_load_score", label: "Hold", color: "#6d5efc" },
+    { id: "distance", metricKey: "distance_load_score", label: "Distance", color: "#ff8a34" },
+    { id: "cardio", metricKey: "cardio_load_score", label: "Cardio", color: "#db5461" },
+    { id: "custom", metricKey: "custom_load_score", label: "Custom", color: "#4a4f57" },
   ];
 
   class HAGymActivityLoadCard extends HTMLElement {
@@ -275,8 +275,11 @@
         collection_key: "hagym",
         group_by: "day",
         show_legend: true,
+        interactive_legend: true,
+        persist_legend_state: false,
       };
       this._selection = null;
+      this._disabledSeries = new Set();
       this._onPeriodChanged = this._onPeriodChanged.bind(this);
       this._onStorage = this._onStorage.bind(this);
     }
@@ -288,6 +291,8 @@
         daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
         collection_key: "hagym",
         group_by: "day",
+        interactive_legend: true,
+        persist_legend_state: false,
       };
     }
 
@@ -313,13 +318,23 @@
       const groupBy = ["day", "week", "month"].includes(config.group_by)
         ? config.group_by
         : "day";
+      const nextCollectionKey = config.collection_key ? String(config.collection_key) : "hagym";
+      const nextPersistLegendState = config.persist_legend_state === true;
+      const identityChanged =
+        this._config.collection_key !== nextCollectionKey || this._config.group_by !== groupBy;
+      const persistModeChanged = this._config.persist_legend_state !== nextPersistLegendState;
       this._config = {
         title: config.title ? String(config.title) : "Activity Load",
         daily_metric_entity: String(config.daily_metric_entity),
-        collection_key: config.collection_key ? String(config.collection_key) : "hagym",
+        collection_key: nextCollectionKey,
         group_by: groupBy,
         show_legend: config.show_legend !== false,
+        interactive_legend: config.interactive_legend !== false,
+        persist_legend_state: nextPersistLegendState,
       };
+      if (identityChanged || persistModeChanged) {
+        this._disabledSeries = this._loadDisabledSeries();
+      }
       this._selection = this._loadSelection();
       this._render();
     }
@@ -337,10 +352,67 @@
       return utils.loadSelection(this._config.collection_key, "this_week");
     }
 
-    _onStorage(event) {
-      if (event.key !== `hagym-period-selection:${this._config.collection_key}`) return;
-      this._selection = this._loadSelection();
+    _legendStorageKey() {
+      return `hagym-activity-load-disabled:${this._config.collection_key}:${this._config.group_by}`;
+    }
+
+    _loadDisabledSeries() {
+      if (!this._config.persist_legend_state) {
+        return new Set();
+      }
+      try {
+        const raw = localStorage.getItem(this._legendStorageKey());
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return new Set();
+        return new Set(parsed.map((value) => String(value)));
+      } catch (_err) {
+        return new Set();
+      }
+    }
+
+    _saveDisabledSeries() {
+      if (!this._config.persist_legend_state) return;
+      try {
+        localStorage.setItem(
+          this._legendStorageKey(),
+          JSON.stringify([...this._disabledSeries].sort())
+        );
+      } catch (_err) {
+        // ignore storage failures
+      }
+    }
+
+    _toggleSeries(seriesKey) {
+      const key = String(seriesKey || "").trim();
+      if (!key || !this._config.interactive_legend) return;
+      if (this._disabledSeries.has(key)) {
+        this._disabledSeries.delete(key);
+      } else {
+        this._disabledSeries.add(key);
+      }
+      this._saveDisabledSeries();
       this._render();
+    }
+
+    _allSeries() {
+      return LOAD_SEGMENTS;
+    }
+
+    _activeSeries() {
+      return this._allSeries().filter((segment) => !this._disabledSeries.has(segment.id));
+    }
+
+    _onStorage(event) {
+      if (event.key === `hagym-period-selection:${this._config.collection_key}`) {
+        this._selection = this._loadSelection();
+        this._render();
+        return;
+      }
+      if (this._config.persist_legend_state && event.key === this._legendStorageKey()) {
+        this._disabledSeries = this._loadDisabledSeries();
+        this._render();
+      }
     }
 
     _onPeriodChanged(event) {
@@ -393,7 +465,7 @@
       return Math.ceil(((utcDate - yearStart) / 86400000 + 1) / 7);
     }
 
-    _groupRows(rows) {
+    _groupRows(rows, activeSeries) {
       const grouped = new Map();
       for (const row of rows) {
         const key = this._keyForRow(row);
@@ -407,28 +479,46 @@
             total_steps: 0,
             total_activity_load_score: 0,
           };
-        for (const [metricKey] of LOAD_SEGMENTS) {
+        for (const segment of this._allSeries()) {
+          const metricKey = segment.metricKey;
           current[metricKey] = this._num(current[metricKey]) + this._num(row?.[metricKey]);
         }
-        current.total_minutes += this._num(row?.total_minutes);
-        current.total_distance_km += this._num(row?.total_distance_km);
-        current.total_calories += this._num(row?.total_calories);
-        current.total_steps += this._num(row?.total_steps);
-        current.total_activity_load_score += this._num(row?.total_activity_load_score);
+        current.total_minutes += activeSeries.some((segment) => segment.id === "duration")
+          ? this._num(row?.total_minutes)
+          : 0;
+        current.total_distance_km += activeSeries.some((segment) => segment.id === "distance")
+          ? this._num(row?.total_distance_km)
+          : 0;
+        current.total_calories += activeSeries.some((segment) => segment.id === "cardio")
+          ? this._num(row?.total_calories)
+          : 0;
+        current.total_steps += activeSeries.some((segment) => segment.id === "cardio")
+          ? this._num(row?.total_steps)
+          : 0;
+        current.total_activity_load_score += activeSeries.reduce(
+          (sum, segment) => sum + this._num(row?.[segment.metricKey]),
+          0
+        );
         grouped.set(key, current);
       }
       return [...grouped.values()].sort((left, right) => left.key.localeCompare(right.key));
     }
 
-    _summary(rows) {
+    _summary(rows, activeSeries) {
+      const durationActive = activeSeries.some((segment) => segment.id === "duration");
+      const distanceActive = activeSeries.some((segment) => segment.id === "distance");
+      const cardioActive = activeSeries.some((segment) => segment.id === "cardio");
       return rows.reduce(
         (sum, row) => ({
-          total_activity_load_score:
-            sum.total_activity_load_score + this._num(row.total_activity_load_score),
-          total_minutes: sum.total_minutes + this._num(row.total_minutes),
-          total_distance_km: sum.total_distance_km + this._num(row.total_distance_km),
-          total_calories: sum.total_calories + this._num(row.total_calories),
-          total_steps: sum.total_steps + this._num(row.total_steps),
+          total_activity_load_score: sum.total_activity_load_score + activeSeries.reduce(
+            (metricSum, segment) => metricSum + this._num(row[segment.metricKey]),
+            0
+          ),
+          total_minutes: sum.total_minutes + (durationActive ? this._num(row.total_minutes) : 0),
+          total_distance_km:
+            sum.total_distance_km + (distanceActive ? this._num(row.total_distance_km) : 0),
+          total_calories: sum.total_calories + (cardioActive ? this._num(row.total_calories) : 0),
+          total_steps: sum.total_steps + (cardioActive ? this._num(row.total_steps) : 0),
         }),
         {
           total_activity_load_score: 0,
@@ -440,9 +530,13 @@
       );
     }
 
-    _renderBars(rows) {
+    _renderBars(rows, activeSeries) {
       if (!rows.length) {
         return `<div class="empty">Keine Daten im gewaehlten Zeitraum</div>`;
+      }
+
+      if (this._allSeries().length > 0 && activeSeries.length === 0) {
+        return `<div class="empty">Alle Reihen ausgeblendet</div>`;
       }
 
       const max = Math.max(...rows.map((row) => this._num(row.total_activity_load_score)), 1);
@@ -451,13 +545,13 @@
         <div class="chart">
           ${rows
             .map((row, index) => {
-              const segments = LOAD_SEGMENTS.map(([key, _label, color]) => {
+              const segments = activeSeries.map(({ metricKey, label, color }) => {
                 const total = this._num(row.total_activity_load_score);
-                const value = this._num(row[key]);
+                const value = this._num(row[metricKey]);
                 if (value <= 0 || total <= 0) return "";
                 const height = (value / max) * 100;
                 return `<div class="segment" style="height:${height}%; background:${color};" title="${utils.escapeHtml(
-                  `${_label}: ${value.toFixed(1)}`
+                  `${label}: ${value.toFixed(1)}`
                 )}"></div>`;
               }).join("");
               return `
@@ -474,16 +568,39 @@
 
     _renderLegend() {
       if (!this._config.show_legend) return "";
+      const interactive = this._config.interactive_legend;
       return `
         <div class="legend">
-          ${LOAD_SEGMENTS.map(
-            ([, label, color]) =>
-              `<span class="legend-chip"><span class="legend-dot" style="background:${color}"></span>${utils.escapeHtml(
+          ${this._allSeries()
+            .map(({ id, label, color }) => {
+              const disabled = this._disabledSeries.has(id);
+              if (!interactive) {
+                return `<span class="legend-chip ${disabled ? "disabled" : ""}"><span class="legend-dot" style="background:${color}"></span><span class="legend-label">${utils.escapeHtml(
+                  label
+                )}</span></span>`;
+              }
+              return `<button type="button" class="legend-chip ${disabled ? "disabled" : ""}" data-series-key="${utils.escapeHtml(
+                id
+              )}" aria-pressed="${disabled ? "false" : "true"}" title="${utils.escapeHtml(
+                `${label} ${disabled ? "einblenden" : "ausblenden"}`
+              )}"><span class="legend-dot" style="background:${color}"></span><span class="legend-label">${utils.escapeHtml(
                 label
-              )}</span>`
-          ).join("")}
+              )}</span></button>`;
+            })
+            .join("")}
         </div>
       `;
+    }
+
+    _bindLegendInteractions() {
+      if (!this._config.interactive_legend) return;
+      this.shadowRoot?.querySelectorAll("[data-series-key]").forEach((node) => {
+        node.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const key = node.getAttribute("data-series-key");
+          this._toggleSeries(key);
+        });
+      });
     }
 
     _render() {
@@ -521,8 +638,9 @@
 
       const selection = this._selection || this._loadSelection();
       const selectedRows = utils.selectDaysForPeriod(days, selection);
-      const groupedRows = this._groupRows(selectedRows);
-      const totals = this._summary(selectedRows);
+      const activeSeries = this._activeSeries();
+      const groupedRows = this._groupRows(selectedRows, activeSeries);
+      const totals = this._summary(selectedRows, activeSeries);
 
       this.shadowRoot.innerHTML = `
         ${this._style()}
@@ -532,7 +650,7 @@
               <div class="title">${utils.escapeHtml(this._config.title)}</div>
               <div class="subtitle">${utils.escapeHtml(selection.label || "Diese Woche")}</div>
             </div>
-            ${this._renderBars(groupedRows)}
+            ${this._renderBars(groupedRows, activeSeries)}
             ${this._renderLegend()}
             <div class="tiles">
               <div class="tile"><span>Activity Load</span><strong>${totals.total_activity_load_score.toFixed(
@@ -554,6 +672,7 @@
           </div>
         </ha-card>
       `;
+      this._bindLegendInteractions();
     }
 
     _style() {
@@ -646,6 +765,25 @@
             border-radius: 999px;
             background: color-mix(in srgb, var(--primary-color) 8%, transparent);
             font-size: 0.78rem;
+            border: 1px solid transparent;
+            color: var(--primary-text-color);
+            cursor: pointer;
+            user-select: none;
+          }
+
+          .legend-chip.disabled {
+            opacity: 0.38;
+            filter: grayscale(1);
+          }
+
+          .legend-chip.disabled .legend-dot {
+            opacity: 0.45;
+          }
+
+          .legend-chip:focus-visible {
+            outline: none;
+            border-color: color-mix(in srgb, var(--primary-color) 52%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 18%, transparent);
           }
 
           .legend-dot {

@@ -49,6 +49,8 @@ views:
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             group_by: day
+            interactive_legend: true
+            persist_legend_state: false
           - type: custom:hagym-period-dashboard-card
             title: HAGym Uebersicht
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
@@ -143,6 +145,8 @@ views:
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             group_by: week
+            interactive_legend: true
+            persist_legend_state: false
       - type: grid
         cards:
           - type: custom:hagym-stacked-history-card

@@ -49,5 +49,7 @@ views:
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             group_by: day
+            interactive_legend: true
+            persist_legend_state: false
     badges: []
     cards: []

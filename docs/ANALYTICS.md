@@ -355,6 +355,7 @@ HAGym uses two separate cards:
 - `custom:hagym-date-selection` (reusable period selector)
 - `custom:hagym-period-dashboard-card` (analytics dashboard consuming selected period)
 - `custom:hagym-stacked-history-card` (Energy-style stacked history chart)
+- `custom:hagym-activity-load-card` (activity load chart with optional interactive legend)
 
 Resources:
 
@@ -365,6 +366,8 @@ resources:
   - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.7
     type: module
   - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.12
+    type: module
+  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.14
     type: module
 ```
 
@@ -418,3 +421,4 @@ Notes:
 - The selector is inspired by Home Assistant Energy UX, but is fully HAGym-owned and does not import Energy internals.
 - Periods like `last_7_days` / `last_30_days` are approximated from weekly buckets in v1.
 - `custom:hagym-stacked-history-card` uses the existing daily metric sensor only and does not require new backend entities.
+- `custom:hagym-activity-load-card` can optionally persist disabled metric-type legend chips via localStorage without adding backend sensors.

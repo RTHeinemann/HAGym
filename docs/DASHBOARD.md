@@ -48,7 +48,7 @@ resources:
     type: module
   - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.7
     type: module
-  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.7
+  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.14
     type: module
   - url: /hagym_static/hagym-balance-card.js?v=1.0.3.7
     type: module
@@ -315,7 +315,18 @@ title: Activity Load Ausdauer
 daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
 collection_key: hagym
 group_by: day
+interactive_legend: true
+persist_legend_state: false
 ```
+
+Optional legend behavior:
+
+- `interactive_legend`
+  - default `true`
+  - legend chips can disable or re-enable metric-type series
+- `persist_legend_state`
+  - default `false`
+  - stores disabled metric types in localStorage per `collection_key` and `group_by`
 
 ### `custom:hagym-balance-card`
 
