@@ -124,8 +124,10 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
 - Persistent notification on save errors
 - Native dashboard at `dashboards/ha_fitness_native_dashboard.yaml`
 - Optional custom Lovelace cards (Energy-inspired period selection pattern):
+  - shared frontend utility resource: `/hagym_static/hagym-card-utils.js`
   - `custom:hagym-date-selection`
   - `custom:hagym-period-dashboard-card`
+  - `custom:hagym-stacked-history-card`
   - `custom:hagym-top-list-card`
   - `custom:hagym-activity-load-card`
   - `custom:hagym-balance-card`

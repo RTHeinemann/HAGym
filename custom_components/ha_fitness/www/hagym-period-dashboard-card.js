@@ -1,3 +1,16 @@
+const utils = window.HAGymCardUtils;
+let missingUtilsLogged = false;
+const missingUtilsMessage =
+  "HAGymCardUtils missing. Add /hagym_static/hagym-card-utils.js as a Lovelace resource before HAGym cards.";
+const ensureUtils = () => {
+  if (utils) return true;
+  if (!missingUtilsLogged) {
+    console.error(missingUtilsMessage);
+    missingUtilsLogged = true;
+  }
+  return false;
+};
+
 class HAGymPeriodDashboardCard extends HTMLElement {
   constructor() {
     super();
@@ -29,6 +42,10 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   connectedCallback() {
+    if (!ensureUtils()) {
+      this._renderMissingUtils();
+      return;
+    }
     window.addEventListener("hagym-period-changed", this._onPeriodChanged);
     window.addEventListener("hagym-date-selection-changed", this._onPeriodChanged);
     window.addEventListener("storage", this._onStorage);
@@ -64,7 +81,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       show_embedded_date_selection:
         config.show_embedded_date_selection !== false,
     };
-    this._selection = this._loadSelection();
+    this._selection = ensureUtils() ? this._loadSelection() : null;
     this._render();
   }
 
@@ -77,13 +94,34 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     return 7;
   }
 
+  _renderMissingUtils() {
+    if (!this.shadowRoot) return;
+    this.shadowRoot.innerHTML = `
+      ${this._style()}
+      <ha-card>
+        <div class="wrap">
+          <div class="title">${this._escape(this._config?.title || "HAGym")}</div>
+          <div class="warn">${missingUtilsMessage}</div>
+        </div>
+      </ha-card>
+    `;
+  }
+
   _onStorage(ev) {
+    if (!ensureUtils()) {
+      this._renderMissingUtils();
+      return;
+    }
     if (ev.key !== this._storageKey()) return;
     this._selection = this._loadSelection();
     this._render();
   }
 
   _onPeriodChanged(ev) {
+    if (!ensureUtils()) {
+      this._renderMissingUtils();
+      return;
+    }
     const detail = ev?.detail;
     if (
       detail &&
@@ -97,7 +135,9 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   _storageKey() {
-    return `hagym-period-selection:${this._config.collection_key}`;
+    return ensureUtils()
+      ? utils.storageKey(this._config.collection_key)
+      : `hagym-period-selection:${this._config.collection_key}`;
   }
 
   _metricKey() {
@@ -157,48 +197,20 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   _loadSelection() {
-    if (window.HAGymCardUtils?.loadSelection) {
-      return window.HAGymCardUtils.loadSelection(
-        this._config.collection_key,
-        "this_week",
-        document.documentElement.lang || navigator.language
-      );
-    }
-    const fallback = this._defaultThisWeekSelection();
-    try {
-      const raw = localStorage.getItem(this._storageKey());
-      if (!raw) return fallback;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") return fallback;
-      return {
-        period_key: parsed.period_key || "this_week",
-        anchor_date: parsed.anchor_date || new Date().toISOString(),
-        label: parsed.label || fallback.label,
-        start: parsed.start || fallback.start,
-        end: parsed.end || fallback.end,
-        collection_key: parsed.collection_key || this._config.collection_key,
-      };
-    } catch (_err) {
-      return fallback;
-    }
-  }
-
-  _defaultThisWeekSelection() {
-    const now = new Date();
-    const start = this._startOfWeek(now);
-    const end = this._addDays(start, 7);
-    return {
-      period_key: "this_week",
-      anchor_date: now.toISOString(),
-      label: "Diese Woche",
-      start: start.toISOString(),
-      end: end.toISOString(),
-      collection_key: this._config.collection_key,
-    };
+    if (!ensureUtils()) return null;
+    return utils.loadSelection(
+      this._config.collection_key,
+      "this_week",
+      document.documentElement.lang || navigator.language
+    );
   }
 
   _render() {
     if (!this.shadowRoot) return;
+    if (!ensureUtils()) {
+      this._renderMissingUtils();
+      return;
+    }
     const dailyState = this._config.daily_metric_entity
       ? this._hass?.states?.[this._config.daily_metric_entity]
       : null;

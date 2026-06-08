@@ -361,13 +361,19 @@ Resources:
 
 ```yaml
 resources:
-  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.7
+  - url: /hagym_static/hagym-card-utils.js?v=1.0.3.15
     type: module
-  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.7
+  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.15
     type: module
-  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.12
+  - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.15
     type: module
-  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.14
+  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.15
+    type: module
+  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.15
+    type: module
+  - url: /hagym_static/hagym-balance-card.js?v=1.0.3.15
+    type: module
+  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.15
     type: module
 ```
 
