@@ -1,14 +1,62 @@
-const utils = window.HAGymCardUtils;
-let missingUtilsLogged = false;
+const HAGYM_CARD_VERSION = "1.0.3.17";
+const HAGYM_CARD_UTILS_URL = `/hagym_static/hagym-card-utils.js?v=${HAGYM_CARD_VERSION}`;
+const HAGYM_CARD_UTILS_FALLBACK_URL = "/hagym_static/hagym-card-utils.js";
+const getUtils = () => window.HAGymCardUtils;
+const utils = new Proxy({}, { get: (_target, prop) => getUtils()?.[prop] });
+const loadingUtilsMessage = "Loading HAGym card utilities...";
 const missingUtilsMessage =
-  "HAGymCardUtils missing. Add /hagym_static/hagym-card-utils.js as a Lovelace resource before HAGym cards.";
-const ensureUtils = () => {
-  if (utils) return true;
-  if (!missingUtilsLogged) {
-    console.error(missingUtilsMessage);
-    missingUtilsLogged = true;
-  }
-  return false;
+  "HAGymCardUtils missing. Could not load /hagym_static/hagym-card-utils.js.";
+const loadHAGymCardUtils = () => {
+  if (getUtils()) return Promise.resolve(getUtils());
+  if (window.HAGymCardUtilsLoadingPromise) return window.HAGymCardUtilsLoadingPromise;
+  const waitForUtils = (resolve, reject) => {
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      if (getUtils()) {
+        window.clearInterval(interval);
+        resolve(getUtils());
+      } else if (Date.now() - startedAt > 5000) {
+        window.clearInterval(interval);
+        reject(new Error("Timed out waiting for HAGymCardUtils"));
+      }
+    }, 50);
+  };
+  window.HAGymCardUtilsLoadingPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-hagym-card-utils="true"]');
+    if (existing) {
+      waitForUtils(resolve, reject);
+      return;
+    }
+    const tryLoad = (src) => {
+      const script = document.createElement("script");
+      script.type = "module";
+      script.src = src;
+      script.dataset.hagymCardUtils = "true";
+      script.onload = () => {
+        if (getUtils()) resolve(getUtils());
+        else reject(new Error("hagym-card-utils.js loaded but HAGymCardUtils missing"));
+      };
+      script.onerror = () => {
+        script.remove();
+        if (src !== HAGYM_CARD_UTILS_FALLBACK_URL) {
+          tryLoad(HAGYM_CARD_UTILS_FALLBACK_URL);
+          return;
+        }
+        reject(new Error("Failed to load hagym-card-utils.js"));
+      };
+      document.head.appendChild(script);
+    };
+    tryLoad(HAGYM_CARD_UTILS_URL);
+  })
+    .catch((error) => {
+      window.HAGymCardUtilsLoadingPromise = null;
+      throw error;
+    })
+    .then((loadedUtils) => {
+      window.HAGymCardUtilsLoadingPromise = Promise.resolve(loadedUtils);
+      return loadedUtils;
+    });
+  return window.HAGymCardUtilsLoadingPromise;
 };
 
 class HAGymPeriodDashboardCard extends HTMLElement {
@@ -26,6 +74,8 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     };
     this._selection = null;
     this._visibleMetrics = new Set();
+    this._utilsLoading = false;
+    this._utilsLoadError = null;
     this._onPeriodChanged = this._onPeriodChanged.bind(this);
     this._onStorage = this._onStorage.bind(this);
   }
@@ -49,7 +99,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   connectedCallback() {
-    if (!ensureUtils()) {
+    if (!this._ensureUtilsAvailable()) {
       this._renderMissingUtils();
       return;
     }
@@ -88,7 +138,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       show_embedded_date_selection:
         config.show_embedded_date_selection !== false,
     };
-    this._selection = ensureUtils() ? this._loadSelection() : null;
+    this._selection = this._ensureUtilsAvailable() ? this._loadSelection() : null;
     this._render();
   }
 
@@ -108,14 +158,39 @@ class HAGymPeriodDashboardCard extends HTMLElement {
       <ha-card>
         <div class="wrap">
           <div class="title">${this._escape(this._config?.title || "HAGym")}</div>
-          <div class="warn">${missingUtilsMessage}</div>
+          <div class="warn">${this._utilsLoading ? loadingUtilsMessage : missingUtilsMessage}</div>
         </div>
       </ha-card>
     `;
   }
 
+  _ensureUtilsAvailable() {
+    if (getUtils()) {
+      this._utilsLoading = false;
+      this._utilsLoadError = null;
+      return true;
+    }
+    if (!this._utilsLoading) {
+      this._utilsLoading = true;
+      loadHAGymCardUtils()
+        .then(() => {
+          this._utilsLoading = false;
+          this._utilsLoadError = null;
+          this._selection = this._selection || this._loadSelection();
+          this._render();
+        })
+        .catch((error) => {
+          this._utilsLoading = false;
+          this._utilsLoadError = error;
+          console.error(missingUtilsMessage, error);
+          this._render();
+        });
+    }
+    return false;
+  }
+
   _onStorage(ev) {
-    if (!ensureUtils()) {
+    if (!this._ensureUtilsAvailable()) {
       this._renderMissingUtils();
       return;
     }
@@ -125,7 +200,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   _onPeriodChanged(ev) {
-    if (!ensureUtils()) {
+    if (!this._ensureUtilsAvailable()) {
       this._renderMissingUtils();
       return;
     }
@@ -142,7 +217,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   _storageKey() {
-    return ensureUtils()
+    return this._ensureUtilsAvailable()
       ? utils.storageKey(this._config.collection_key)
       : `hagym-period-selection:${this._config.collection_key}`;
   }
@@ -204,7 +279,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
   }
 
   _loadSelection() {
-    if (!ensureUtils()) return null;
+    if (!this._ensureUtilsAvailable()) return null;
     return utils.loadSelection(
       this._config.collection_key,
       "this_week",
@@ -214,7 +289,7 @@ class HAGymPeriodDashboardCard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    if (!ensureUtils()) {
+    if (!this._ensureUtilsAvailable()) {
       this._renderMissingUtils();
       return;
     }

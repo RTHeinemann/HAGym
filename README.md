@@ -133,6 +133,8 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
   - `custom:hagym-balance-card`
   - files in `/config/custom_components/ha_fitness/www/`
   - served directly by the integration under `/hagym_static/*.js`
+  - add `hagym-card-utils.js` explicitly as a Lovelace resource for faster startup; cards can lazy-load it if needed
+  - visible resource order in Home Assistant's Resources UI is not a reliable dependency mechanism
   - recommended for new dashboards: modular sections view + footer date selection + individual analysis cards
 - Energy-style dashboard templates:
   - `dashboards/hagym_energy_style_dashboard.yaml`

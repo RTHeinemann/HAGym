@@ -361,21 +361,27 @@ Resources:
 
 ```yaml
 resources:
-  - url: /hagym_static/hagym-card-utils.js?v=1.0.3.15
+  - url: /hagym_static/hagym-card-utils.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-balance-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-balance-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.17
     type: module
 ```
+
+Notes:
+
+- Add `hagym-card-utils.js` explicitly for faster startup and simpler cache-busting.
+- HAGym cards can also lazy-load the shared utils file if a card resource executes first.
+- The visible resource order in Home Assistant's Resources UI is not a dependable dependency control.
 
 Embedded selector:
 

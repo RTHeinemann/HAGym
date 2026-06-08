@@ -41,26 +41,29 @@ Example:
 
 ```yaml
 resources:
-  - url: /hagym_static/hagym-card-utils.js?v=1.0.3.15
+  - url: /hagym_static/hagym-card-utils.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-activity-load-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-balance-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-balance-card.js?v=1.0.3.17
     type: module
-  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.15
+  - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.17
     type: module
 ```
 
 Important:
 
-- `hagym-card-utils.js` must be loaded before all other HAGym card resources.
-- If it is missing, HAGym cards now show a clear resource error instead of failing obscurely.
+- Add `hagym-card-utils.js` explicitly as a Lovelace resource. HAGym cards can also lazy-load it if needed, but adding it explicitly is recommended for faster startup.
+- If a card loads before the shared utils resource, it now tries to lazy-load `/hagym_static/hagym-card-utils.js` on demand and shows a temporary loading state instead of failing immediately.
+- The visible sort order in Home Assistant's Resources UI does not necessarily represent dependency priority.
+- Listing `hagym-card-utils.js` first is still a good convention for readability, but cards no longer depend on that visible order to work.
+- If the shared utils still cannot be loaded, HAGym cards show a clear resource error instead of failing obscurely.
 
 After frontend changes, increment the `?v=` cache-buster and do a hard browser refresh so Home Assistant does not keep serving an older card bundle.
 
