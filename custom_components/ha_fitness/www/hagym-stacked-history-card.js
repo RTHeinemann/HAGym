@@ -341,9 +341,12 @@
         unit: null,
         limit: 10,
         chart_mode: "stacked_bar",
+        interactive_legend: true,
+        persist_legend_state: false,
       };
       this._selection = null;
       this._tooltip = null;
+      this._disabledSeries = new Set();
       this._onPeriodChanged = this._onPeriodChanged.bind(this);
       this._onStorage = this._onStorage.bind(this);
       this._onDocumentPointer = this._onDocumentPointer.bind(this);
@@ -360,6 +363,8 @@
         unit: "kg",
         limit: 10,
         chart_mode: "stacked_bar",
+        interactive_legend: true,
+        persist_legend_state: false,
       };
     }
 
@@ -383,16 +388,30 @@
       if (!config?.daily_metric_entity) {
         throw new Error("hagym-stacked-history-card: daily_metric_entity is required");
       }
+      const nextPersistLegendState = config.persist_legend_state === true;
+      const nextCollectionKey = config.collection_key ? String(config.collection_key) : "hagym";
+      const nextScope = SCOPE_META[config.scope] ? config.scope : "muscle_groups";
+      const nextMetric = String(config.metric || "strength_volume_kg");
+      const identityChanged =
+        this._config.collection_key !== nextCollectionKey ||
+        this._config.scope !== nextScope ||
+        this._config.metric !== nextMetric;
+      const persistModeChanged = this._config.persist_legend_state !== nextPersistLegendState;
       this._config = {
         title: config.title ? String(config.title) : "Verlauf",
         daily_metric_entity: String(config.daily_metric_entity),
-        collection_key: config.collection_key ? String(config.collection_key) : "hagym",
-        scope: SCOPE_META[config.scope] ? config.scope : "muscle_groups",
-        metric: String(config.metric || "strength_volume_kg"),
-        unit: config.unit ? String(config.unit) : DEFAULT_UNITS[String(config.metric || "strength_volume_kg")] || "",
+        collection_key: nextCollectionKey,
+        scope: nextScope,
+        metric: nextMetric,
+        unit: config.unit ? String(config.unit) : DEFAULT_UNITS[nextMetric] || "",
         limit: Math.max(1, Number(config.limit) || 10),
         chart_mode: config.chart_mode === "stacked_bar" ? "stacked_bar" : "stacked_bar",
+        interactive_legend: config.interactive_legend !== false,
+        persist_legend_state: nextPersistLegendState,
       };
+      if (identityChanged || persistModeChanged) {
+        this._disabledSeries = this._loadDisabledSeries();
+      }
       this._selection = this._loadSelection();
       this._tooltip = null;
       this._render();
@@ -415,11 +434,66 @@
       );
     }
 
-    _onStorage(event) {
-      if (event.key !== `hagym-period-selection:${this._config.collection_key}`) return;
-      this._selection = this._loadSelection();
+    _legendStorageKey() {
+      return `hagym-stacked-history-disabled:${this._config.collection_key}:${this._config.scope}:${this._config.metric}`;
+    }
+
+    _loadDisabledSeries() {
+      if (!this._config.persist_legend_state) {
+        return new Set();
+      }
+      try {
+        const raw = localStorage.getItem(this._legendStorageKey());
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return new Set();
+        return new Set(parsed.map((value) => String(value)));
+      } catch (_err) {
+        return new Set();
+      }
+    }
+
+    _saveDisabledSeries() {
+      if (!this._config.persist_legend_state) return;
+      try {
+        localStorage.setItem(
+          this._legendStorageKey(),
+          JSON.stringify([...this._disabledSeries].sort())
+        );
+      } catch (_err) {
+        // ignore storage failures
+      }
+    }
+
+    _clearTooltip() {
       this._tooltip = null;
+    }
+
+    _toggleSeries(seriesKey) {
+      const key = String(seriesKey || "").trim();
+      if (!key || !this._config.interactive_legend) return;
+      if (this._disabledSeries.has(key)) {
+        this._disabledSeries.delete(key);
+      } else {
+        this._disabledSeries.add(key);
+      }
+      this._clearTooltip();
+      this._saveDisabledSeries();
       this._render();
+    }
+
+    _onStorage(event) {
+      if (event.key === `hagym-period-selection:${this._config.collection_key}`) {
+        this._selection = this._loadSelection();
+        this._tooltip = null;
+        this._render();
+        return;
+      }
+      if (this._config.persist_legend_state && event.key === this._legendStorageKey()) {
+        this._disabledSeries = this._loadDisabledSeries();
+        this._tooltip = null;
+        this._render();
+      }
     }
 
     _onPeriodChanged(event) {
@@ -767,6 +841,9 @@
         });
       }
 
+      const activeSeries = series.filter((entry) => !this._disabledSeries.has(entry.id));
+      const activeIds = new Set(activeSeries.map((entry) => entry.id));
+
       const bucketRows = buckets.map((bucket) => {
         const values = new Map();
         for (const row of filteredRows) {
@@ -776,7 +853,7 @@
             values.set(targetId, this._num(values.get(targetId)) + item.value);
           }
         }
-        const parts = series
+        const allParts = series
           .map((entry) => ({
             id: entry.id,
             name: entry.name,
@@ -784,9 +861,11 @@
             value: this._num(values.get(entry.id)),
           }))
           .filter((entry) => entry.value > 0);
+        const parts = allParts.filter((entry) => activeIds.has(entry.id));
         const total = parts.reduce((sum, entry) => sum + entry.value, 0);
         return {
           ...bucket,
+          allParts,
           parts,
           total,
         };
@@ -794,6 +873,7 @@
 
       return {
         series,
+        activeSeries,
         buckets: bucketRows,
         maxTotal: Math.max(0, ...bucketRows.map((bucket) => bucket.total)),
       };
@@ -878,6 +958,16 @@
           }
         });
       });
+
+      if (this._config.interactive_legend) {
+        this.shadowRoot?.querySelectorAll("[data-series-key]").forEach((node) => {
+          node.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const key = node.getAttribute("data-series-key");
+            this._toggleSeries(key);
+          });
+        });
+      }
     }
 
     _renderChart(chartData, mode) {
@@ -948,25 +1038,47 @@
         .join("");
 
       const legend = chartData.series
-        .map(
-          (series) => `
-            <span class="legend-chip">
+        .map((series) => {
+          const disabled = this._disabledSeries.has(series.id);
+          if (!this._config.interactive_legend) {
+            return `
+              <span class="legend-chip ${disabled ? "disabled" : ""}">
+                <span class="legend-dot" style="background:${series.color}"></span>
+                <span class="legend-label">${this._escape(series.name)}</span>
+              </span>
+            `;
+          }
+          return `
+            <button
+              type="button"
+              class="legend-chip ${disabled ? "disabled" : ""}"
+              data-series-key="${this._escape(series.id)}"
+              aria-pressed="${disabled ? "false" : "true"}"
+              title="${this._escape(`${series.name} ${disabled ? "einblenden" : "ausblenden"}`)}"
+            >
               <span class="legend-dot" style="background:${series.color}"></span>
-              ${this._escape(series.name)}
-            </span>
-          `
-        )
+              <span class="legend-label">${this._escape(series.name)}</span>
+            </button>
+          `;
+        })
         .join("");
 
-      return `
-        <div class="chart-shell ${this._tooltip ? "has-tooltip" : ""}">
-          <div class="chart-caption">${this._escape(mode === "month" ? "Monatsbuckets" : mode === "week" ? "Wochenbuckets" : "Tagesbuckets")}</div>
+      const allSeriesDisabled = chartData.series.length > 0 && chartData.activeSeries.length === 0;
+      const chartBody = allSeriesDisabled
+        ? `<div class="empty">Alle Reihen ausgeblendet</div>`
+        : `
           <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${this._escape(
             this._config.title
           )}">
             ${gridLines}
             ${bars}
           </svg>
+        `;
+
+      return `
+        <div class="chart-shell ${this._tooltip ? "has-tooltip" : ""}">
+          <div class="chart-caption">${this._escape(mode === "month" ? "Monatsbuckets" : mode === "week" ? "Wochenbuckets" : "Tagesbuckets")}</div>
+          ${chartBody}
           <div class="legend">${legend}</div>
           ${this._renderTooltip()}
         </div>
@@ -1109,6 +1221,25 @@
             border-radius: 999px;
             background: color-mix(in srgb, var(--primary-color) 8%, transparent);
             font-size: 0.78rem;
+            border: 1px solid transparent;
+            color: var(--primary-text-color);
+            cursor: pointer;
+            user-select: none;
+          }
+
+          .legend-chip.disabled {
+            opacity: 0.38;
+            filter: grayscale(1);
+          }
+
+          .legend-chip.disabled .legend-dot {
+            opacity: 0.45;
+          }
+
+          .legend-chip:focus-visible {
+            outline: none;
+            border-color: color-mix(in srgb, var(--primary-color) 52%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 18%, transparent);
           }
 
           .legend-dot {
