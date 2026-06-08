@@ -4,6 +4,7 @@ HAGym now ships a modular, Energy-inspired dashboard approach:
 
 - `custom:hagym-date-selection`
 - `custom:hagym-period-dashboard-card`
+- `custom:hagym-stacked-history-card`
 - `custom:hagym-top-list-card`
 - `custom:hagym-activity-load-card`
 - `custom:hagym-balance-card`
@@ -22,6 +23,7 @@ HAGym serves its Lovelace card files directly from the integration under:
 
 - `/hagym_static/hagym-date-selection-card.js`
 - `/hagym_static/hagym-period-dashboard-card.js`
+- `/hagym_static/hagym-stacked-history-card.js`
 - `/hagym_static/hagym-top-list-card.js`
 - `/hagym_static/hagym-activity-load-card.js`
 - `/hagym_static/hagym-balance-card.js`
@@ -41,6 +43,8 @@ resources:
   - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.7
     type: module
   - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.7
+    type: module
+  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.12
     type: module
   - url: /hagym_static/hagym-top-list-card.js?v=1.0.3.7
     type: module
@@ -199,6 +203,49 @@ volume_history_entity: sensor.ha_fitness_personal_weekly_volume_history
 collection_key: hagym
 show_embedded_date_selection: false
 ```
+
+### `custom:hagym-stacked-history-card`
+
+Energy-style stacked history chart built from the existing daily metric statistics.
+
+Highlights:
+
+- automatic day / week / month buckets based on the shared HAGym footer period
+- stacked bars for top items across the visible range
+- remaining items collapse into `Andere`
+- hover tooltip on desktop
+- tap-to-pin tooltip on mobile
+- no new backend sensors
+
+Example:
+
+```yaml
+type: custom:hagym-stacked-history-card
+title: Trainingsvolumen pro Muskelgruppe
+daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+collection_key: hagym
+scope: muscle_groups
+metric: strength_volume_kg
+unit: kg
+limit: 10
+chart_mode: stacked_bar
+```
+
+Supported scopes:
+
+- `muscle_groups`
+- `exercises`
+- `equipment`
+- `metric_types`
+
+Typical metrics:
+
+- `strength_volume_kg`
+- `activity_load_score`
+- `duration_minutes`
+- `distance_km`
+- `calories`
+- `steps`
 
 ### `custom:hagym-top-list-card`
 
@@ -377,6 +424,7 @@ cards:
 
 - If Home Assistant says `Custom element doesn't exist`, do a hard browser refresh and reload the companion app view.
 - Open the resource URLs directly in the browser, for example:
+  - `/hagym_static/hagym-stacked-history-card.js`
   - `/hagym_static/hagym-top-list-card.js`
   - `/hagym_static/hagym-activity-load-card.js`
   - `/hagym_static/hagym-balance-card.js`

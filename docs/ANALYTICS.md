@@ -354,6 +354,7 @@ HAGym uses two separate cards:
 
 - `custom:hagym-date-selection` (reusable period selector)
 - `custom:hagym-period-dashboard-card` (analytics dashboard consuming selected period)
+- `custom:hagym-stacked-history-card` (Energy-style stacked history chart)
 
 Resources:
 
@@ -362,6 +363,8 @@ resources:
   - url: /hagym_static/hagym-date-selection-card.js?v=1.0.3.7
     type: module
   - url: /hagym_static/hagym-period-dashboard-card.js?v=1.0.3.7
+    type: module
+  - url: /hagym_static/hagym-stacked-history-card.js?v=1.0.3.12
     type: module
 ```
 
@@ -394,6 +397,14 @@ views:
     sections:
       - type: grid
         cards:
+          - type: custom:hagym-stacked-history-card
+            title: Trainingsvolumen pro Muskelgruppe
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: muscle_groups
+            metric: strength_volume_kg
+            unit: kg
+            limit: 10
           - type: custom:hagym-period-dashboard-card
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             metric_history_entity: sensor.ha_fitness_personal_weekly_metric_history
@@ -406,3 +417,4 @@ Notes:
 
 - The selector is inspired by Home Assistant Energy UX, but is fully HAGym-owned and does not import Energy internals.
 - Periods like `last_7_days` / `last_30_days` are approximated from weekly buckets in v1.
+- `custom:hagym-stacked-history-card` uses the existing daily metric sensor only and does not require new backend entities.

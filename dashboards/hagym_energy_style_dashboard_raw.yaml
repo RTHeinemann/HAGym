@@ -15,26 +15,29 @@ views:
     sections:
       - type: grid
         cards:
-          - type: custom:hagym-top-list-card
+          - type: custom:hagym-stacked-history-card
             title: Trainingsvolumen pro Muskelgruppe
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             scope: muscle_groups
             metric: strength_volume_kg
+            unit: kg
             limit: 10
-          - type: custom:hagym-top-list-card
+          - type: custom:hagym-stacked-history-card
             title: Trainingsvolumen pro Uebung
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             scope: exercises
             metric: strength_volume_kg
+            unit: kg
             limit: 10
-          - type: custom:hagym-top-list-card
+          - type: custom:hagym-stacked-history-card
             title: Trainingsvolumen pro Equipment
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
             collection_key: hagym
             scope: equipment
             metric: strength_volume_kg
+            unit: kg
             limit: 10
           - type: custom:hagym-balance-card
             title: Balance Push/Pull
@@ -142,6 +145,14 @@ views:
             group_by: week
       - type: grid
         cards:
+          - type: custom:hagym-stacked-history-card
+            title: Distanz pro Uebung
+            daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
+            collection_key: hagym
+            scope: exercises
+            metric: distance_km
+            unit: km
+            limit: 8
           - type: custom:hagym-top-list-card
             title: Cardio Distanz nach Uebung
             daily_metric_entity: sensor.ha_fitness_personal_daily_metric_statistics
