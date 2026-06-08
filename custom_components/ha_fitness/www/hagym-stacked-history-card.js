@@ -169,6 +169,8 @@
       this._onPeriodChanged = this._onPeriodChanged.bind(this);
       this._onStorage = this._onStorage.bind(this);
       this._onDocumentPointer = this._onDocumentPointer.bind(this);
+      this._onPointerLeave = this._onPointerLeave.bind(this);
+      this._onWindowViewportChange = this._onWindowViewportChange.bind(this);
     }
 
     static getStubConfig(hass) {
@@ -184,6 +186,8 @@
       window.addEventListener("hagym-date-selection-changed", this._onPeriodChanged);
       window.addEventListener("storage", this._onStorage);
       window.addEventListener("pointerdown", this._onDocumentPointer, true);
+      window.addEventListener("scroll", this._onWindowViewportChange, true);
+      window.addEventListener("resize", this._onWindowViewportChange);
       this._selection = this._loadSelection();
       this._render();
     }
@@ -193,6 +197,8 @@
       window.removeEventListener("hagym-date-selection-changed", this._onPeriodChanged);
       window.removeEventListener("storage", this._onStorage);
       window.removeEventListener("pointerdown", this._onDocumentPointer, true);
+      window.removeEventListener("scroll", this._onWindowViewportChange, true);
+      window.removeEventListener("resize", this._onWindowViewportChange);
     }
 
     setConfig(config) {
@@ -316,6 +322,12 @@
     }
 
     _clearTooltip() {
+      if (!this._tooltip) return;
+      this._tooltip = null;
+      this._render();
+    }
+
+    _clearTooltipSilently() {
       this._tooltip = null;
     }
 
@@ -327,7 +339,7 @@
       } else {
         this._disabledSeries.add(key);
       }
-      this._clearTooltip();
+      this._clearTooltipSilently();
       this._saveDisabledSeries();
       this._render();
     }
@@ -339,13 +351,13 @@
       }
       if (event.key === `hagym-period-selection:${this._config.collection_key}`) {
         this._selection = this._loadSelection();
-        this._tooltip = null;
+        this._clearTooltipSilently();
         this._render();
         return;
       }
       if (this._config.persist_legend_state && event.key === this._legendStorageKey()) {
         this._disabledSeries = this._loadDisabledSeries();
-        this._tooltip = null;
+        this._clearTooltipSilently();
         this._render();
       }
     }
@@ -362,15 +374,27 @@
         return;
       }
       this._selection = this._loadSelection();
-      this._tooltip = null;
+      this._clearTooltipSilently();
       this._render();
     }
 
     _onDocumentPointer(event) {
       if (!this._tooltip?.pinned) return;
       if (event.composedPath().includes(this)) return;
-      this._tooltip = null;
-      this._render();
+      this._clearTooltip();
+    }
+
+    _onPointerLeave(event) {
+      if (!this._tooltip) return;
+      const next = event.relatedTarget;
+      if (next && event.currentTarget?.contains?.(next)) return;
+      if (this._tooltip?.pinned && event.type !== "blur" && event.type !== "focusout") return;
+      this._clearTooltip();
+    }
+
+    _onWindowViewportChange() {
+      if (!this._tooltip) return;
+      this._clearTooltip();
     }
 
     _escape(value) {
@@ -790,6 +814,23 @@
     }
 
     _bindChartInteractions(chartData) {
+      const card = this.shadowRoot?.querySelector("ha-card");
+      const chartShell = this.shadowRoot?.querySelector(".chart-shell");
+      const chartSvg = this.shadowRoot?.querySelector(".chart");
+
+      [chartSvg, chartShell, card].forEach((node) => {
+        if (!node) return;
+        node.addEventListener("pointerleave", this._onPointerLeave);
+        node.addEventListener("mouseleave", this._onPointerLeave);
+        node.addEventListener("mouseout", this._onPointerLeave);
+        node.addEventListener("touchcancel", this._onPointerLeave);
+      });
+      [chartShell, card].forEach((node) => {
+        if (!node) return;
+        node.addEventListener("blur", this._onPointerLeave, true);
+        node.addEventListener("focusout", this._onPointerLeave, true);
+      });
+
       this.shadowRoot?.querySelectorAll("[data-bucket-index]").forEach((node) => {
         const index = Number(node.getAttribute("data-bucket-index"));
         const bucket = chartData.buckets[index];
@@ -799,11 +840,6 @@
           if (this._tooltip?.pinned) return;
           this._setTooltip(event, bucket, false);
         });
-        node.addEventListener("mouseleave", () => {
-          if (this._tooltip?.pinned) return;
-          this._tooltip = null;
-          this._render();
-        });
         node.addEventListener("click", (event) => {
           event.stopPropagation();
           this._setTooltip(event, bucket, true);
@@ -811,8 +847,7 @@
         node.addEventListener("focus", (event) => this._setTooltip(event, bucket, true));
         node.addEventListener("keydown", (event) => {
           if (event.key === "Escape") {
-            this._tooltip = null;
-            this._render();
+            this._clearTooltip();
           }
         });
       });
