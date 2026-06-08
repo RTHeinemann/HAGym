@@ -1049,7 +1049,7 @@
     window.customCards.push({
       type: "hagym-date-selection",
       name: "HAGym Date Selection",
-      description: "Reusable Energy-inspired period selector for HAGym cards",
+      description: "Global HAGym period selector, best used as a sections-view footer card.",
       preview: true,
     });
   }

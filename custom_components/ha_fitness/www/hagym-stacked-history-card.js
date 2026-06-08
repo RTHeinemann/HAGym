@@ -99,12 +99,19 @@
       this._onDocumentPointer = this._onDocumentPointer.bind(this);
     }
 
-    static getStubConfig() {
+    static getStubConfig(hass) {
+      const collectionKey = "hagym";
+      const dailyMetricEntity =
+        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+          hass,
+          collectionKey,
+          "sensor.hagym_hagym_personliche_tagesstatistik"
+        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
       return {
         type: "custom:hagym-stacked-history-card",
         title: "Trainingsvolumen pro Muskelgruppe",
-        daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
-        collection_key: "hagym",
+        daily_metric_entity: dailyMetricEntity,
+        collection_key: collectionKey,
         scope: "muscle_groups",
         metric: "strength_volume_kg",
         unit: "kg",
@@ -871,7 +878,7 @@
           <ha-card>
             <div class="wrap">
               <div class="title">${this._escape(this._config.title)}</div>
-              <div class="warning">Daily metric entity not found</div>
+              <div class="warning">Daily metric entity not found. Configure daily_metric_entity.</div>
               <div class="muted"><code>${this._escape(this._config.daily_metric_entity || "")}</code></div>
             </div>
           </ha-card>

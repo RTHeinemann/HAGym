@@ -30,13 +30,20 @@ class HAGymPeriodDashboardCard extends HTMLElement {
     this._onStorage = this._onStorage.bind(this);
   }
 
-  static getStubConfig() {
+  static getStubConfig(hass) {
+    const collectionKey = "hagym";
+    const dailyMetricEntity =
+      window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+        hass,
+        collectionKey,
+        "sensor.hagym_hagym_personliche_tagesstatistik"
+      ) || "sensor.hagym_hagym_personliche_tagesstatistik";
     return {
       type: "custom:hagym-period-dashboard-card",
-      daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
+      daily_metric_entity: dailyMetricEntity,
       metric_history_entity: "sensor.ha_fitness_personal_weekly_metric_history",
       volume_history_entity: "sensor.ha_fitness_personal_weekly_volume_history",
-      collection_key: "hagym",
+      collection_key: collectionKey,
       show_embedded_date_selection: true,
     };
   }
@@ -692,7 +699,7 @@ if (!window.customCards.some((card) => card.type === "hagym-period-dashboard-car
   window.customCards.push({
     type: "hagym-period-dashboard-card",
     name: "HAGym Period Dashboard Card",
-    description: "HAGym analytics dashboard consuming shared period selection",
+    description: "Legacy all-in-one dashboard card. Prefer modular cards for new dashboards.",
     preview: true,
   });
 }

@@ -198,7 +198,15 @@ desktop_sidebar_offset: 0
 
 ### `custom:hagym-period-dashboard-card`
 
-Existing overview card. It remains available for broader aggregate summaries and can still embed the selector or follow an external selector.
+Legacy all-in-one overview card. It remains available for broader aggregate summaries and can still embed the selector or follow an external selector.
+
+For new dashboards, prefer the modular setup:
+
+- `custom:hagym-date-selection` in the sections footer
+- `custom:hagym-stacked-history-card`
+- `custom:hagym-activity-load-card`
+- `custom:hagym-top-list-card`
+- `custom:hagym-balance-card`
 
 Example:
 
@@ -215,6 +223,9 @@ show_embedded_date_selection: false
 ### `custom:hagym-stacked-history-card`
 
 Energy-style stacked history chart built from the existing daily metric statistics.
+
+In the Home Assistant "Add card" dialog, the stub config now tries to detect your existing
+HAGym daily metric entity automatically.
 
 Highlights:
 
@@ -262,6 +273,7 @@ Generic top-list card for:
 - `muscle_groups`
 - `exercises`
 - `equipment`
+- `metric_types`
 
 Supported metrics:
 
@@ -309,6 +321,9 @@ limit: 10
 
 Activity-load visualization using the daily buckets.
 
+In the Home Assistant "Add card" dialog, the stub config now tries to detect your existing
+HAGym daily metric entity automatically.
+
 Supports:
 
 - `group_by: day`
@@ -339,6 +354,9 @@ Optional legend behavior:
 ### `custom:hagym-balance-card`
 
 Balance card based on the daily `muscle_groups` breakdown.
+
+In the Home Assistant "Add card" dialog, the stub config now tries to detect your existing
+HAGym daily metric entity automatically.
 
 Modes:
 

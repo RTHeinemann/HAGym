@@ -144,6 +144,8 @@
     return PERIOD_LABELS[periodKey] || "Diese Woche";
   };
 
+  const buildGenericLabel = (periodKey) => PERIOD_LABELS[periodKey] || "Diese Woche";
+
   const buildSelection = (periodKey, anchorDate, collectionKey, locale, labelMode = "generic") => {
     const key = normalizePeriod(periodKey);
     const anchor = parseDate(anchorDate) || new Date();
@@ -162,19 +164,19 @@
     } else if (key === "this_week") {
       start = startOfWeek(anchor);
       end = addDays(start, 7);
-      label = buildLabel(key, start, anchor, locale);
+      label = labelMode === "compact" ? buildCompactLabel(key, start, anchor, end, locale) : null;
     } else if (key === "this_month") {
       start = startOfMonth(anchor);
       end = addMonths(start, 1);
-      label = buildLabel(key, start, anchor, locale);
+      label = labelMode === "compact" ? buildCompactLabel(key, start, anchor, end, locale) : null;
     } else if (key === "this_quarter") {
       start = startOfQuarter(anchor);
       end = addMonths(start, 3);
-      label = buildLabel(key, start, anchor, locale);
+      label = labelMode === "compact" ? buildCompactLabel(key, start, anchor, end, locale) : null;
     } else if (key === "this_year") {
       start = startOfYear(anchor);
       end = new Date(start.getFullYear() + 1, 0, 1, 0, 0, 0, 0);
-      label = buildLabel(key, start, anchor, locale);
+      label = labelMode === "compact" ? buildCompactLabel(key, start, anchor, end, locale) : null;
     } else if (key === "last_7_days") {
       const todayStart = startOfDay(anchor);
       start = addDays(todayStart, -6);
@@ -210,7 +212,7 @@
           label ||
           (labelMode === "compact"
             ? buildCompactLabel(key, start, anchor, end, locale)
-            : PERIOD_LABELS[key] || "Diese Woche"),
+            : buildGenericLabel(key)),
         start: start.toISOString(),
         end: end.toISOString(),
         collection_key: collectionKey,
@@ -409,6 +411,69 @@
     }
   };
 
+  const hasDailyMetricShape = (attributes, collectionKey) => {
+    if (!attributes || typeof attributes !== "object") return false;
+    if (Array.isArray(attributes.days) || Array.isArray(attributes.history)) return true;
+    if (Array.isArray(attributes.daily_metrics) || Array.isArray(attributes.metric_history)) return true;
+    if (attributes[collectionKey] && typeof attributes[collectionKey] === "object") {
+      const collection = attributes[collectionKey];
+      if (Array.isArray(collection.days) || Array.isArray(collection.history)) return true;
+    }
+    if (attributes.collections && typeof attributes.collections === "object") {
+      const collections = attributes.collections;
+      if (collections[collectionKey]) return true;
+    }
+    if (attributes.hagym && typeof attributes.hagym === "object") return true;
+    return false;
+  };
+
+  const findDefaultDailyMetricEntity = (hass, collectionKey = "hagym") => {
+    const states = hass?.states;
+    if (!states || typeof states !== "object") return "";
+    const normalizedCollectionKey = String(collectionKey || "hagym").toLowerCase();
+    const candidates = [];
+
+    for (const [entityId, stateObj] of Object.entries(states)) {
+      if (!entityId.startsWith("sensor.")) continue;
+      const normalizedEntityId = entityId.toLowerCase();
+      const attributes = stateObj?.attributes || {};
+      const hasKeyword =
+        normalizedEntityId.includes("tagesstatistik") ||
+        normalizedEntityId.includes("daily_metric") ||
+        normalizedEntityId.includes("metric_statistics");
+      const hasShape = hasDailyMetricShape(attributes, normalizedCollectionKey);
+      if (!hasKeyword && !hasShape) continue;
+
+      let score = 0;
+      if (normalizedEntityId.includes(normalizedCollectionKey)) score += 40;
+      if (normalizedEntityId.includes("personliche") || normalizedEntityId.includes("personal")) score += 30;
+      if (
+        normalizedEntityId.includes("tagesstatistik") ||
+        normalizedEntityId.includes("daily_metric_statistics")
+      ) {
+        score += 20;
+      }
+      if (hasShape) score += 15;
+      if (attributes.collection_key && String(attributes.collection_key).toLowerCase() === normalizedCollectionKey) {
+        score += 20;
+      }
+      if (attributes.collections && attributes.collections[normalizedCollectionKey]) {
+        score += 10;
+      }
+
+      candidates.push({ entityId, score });
+    }
+
+    candidates.sort((left, right) => right.score - left.score || left.entityId.localeCompare(right.entityId));
+    return candidates[0]?.entityId || "";
+  };
+
+  const defaultDailyMetricEntity = (
+    hass,
+    collectionKey = "hagym",
+    fallback = "sensor.hagym_hagym_personliche_tagesstatistik"
+  ) => findDefaultDailyMetricEntity(hass, collectionKey) || fallback || "";
+
   window.HAGymCardUtils = {
     DATE_ONLY_RE,
     PERIOD_KEYS,
@@ -420,6 +485,7 @@
     escapeHtml,
     formatCustomRangeLabel,
     legendStorageKey,
+    findDefaultDailyMetricEntity,
     loadDisabledSet,
     loadSelection,
     normalizePeriod,
@@ -427,6 +493,7 @@
     parseDateOnly,
     saveDisabledSet,
     saveSelection,
+    defaultDailyMetricEntity,
     selectionEndExclusive,
     selectionEndInclusive,
     selectionStartDate,

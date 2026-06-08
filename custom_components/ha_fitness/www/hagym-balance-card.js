@@ -34,12 +34,19 @@
       this._onStorage = this._onStorage.bind(this);
     }
 
-    static getStubConfig() {
+    static getStubConfig(hass) {
+      const collectionKey = "hagym";
+      const dailyMetricEntity =
+        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+          hass,
+          collectionKey,
+          "sensor.hagym_hagym_personliche_tagesstatistik"
+        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
       return {
         type: "custom:hagym-balance-card",
         title: "Balance Push/Pull",
-        daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
-        collection_key: "hagym",
+        daily_metric_entity: dailyMetricEntity,
+        collection_key: collectionKey,
         mode: "push_pull",
       };
     }
@@ -246,7 +253,7 @@
           <ha-card>
             <div class="wrap">
               <div class="title">${utils.escapeHtml(this._config.title)}</div>
-              <div class="warning">Daily metric entity not found</div>
+              <div class="warning">Daily metric entity not found. Configure daily_metric_entity.</div>
               <div class="muted"><code>${utils.escapeHtml(
                 this._config.daily_metric_entity || ""
               )}</code></div>
@@ -429,7 +436,7 @@
     window.customCards.push({
       type: "hagym-balance-card",
       name: "HAGym Balance Card",
-      description: "Push/pull/legs balance card powered by daily muscle group buckets",
+      description: "Push/Pull and Push/Pull/Legs balance analysis.",
       preview: true,
     });
   }

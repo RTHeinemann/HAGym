@@ -40,12 +40,19 @@
       this._onStorage = this._onStorage.bind(this);
     }
 
-    static getStubConfig() {
+    static getStubConfig(hass) {
+      const collectionKey = "hagym";
+      const dailyMetricEntity =
+        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+          hass,
+          collectionKey,
+          "sensor.hagym_hagym_personliche_tagesstatistik"
+        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
       return {
         type: "custom:hagym-activity-load-card",
-        title: "Activity Load Ausdauer",
-        daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
-        collection_key: "hagym",
+        title: "Activity Load",
+        daily_metric_entity: dailyMetricEntity,
+        collection_key: collectionKey,
         group_by: "day",
         interactive_legend: true,
         persist_legend_state: false,
@@ -398,7 +405,7 @@
           <ha-card>
             <div class="wrap">
               <div class="title">${utils.escapeHtml(this._config.title)}</div>
-              <div class="warning">Daily metric entity not found</div>
+              <div class="warning">Daily metric entity not found. Configure daily_metric_entity.</div>
               <div class="muted"><code>${utils.escapeHtml(
                 this._config.daily_metric_entity || ""
               )}</code></div>
@@ -631,7 +638,7 @@
     window.customCards.push({
       type: "hagym-activity-load-card",
       name: "HAGym Activity Load Card",
-      description: "Selected-period activity load visualization using daily metric statistics",
+      description: "Activity load timeline with interactive metric-type legend.",
       preview: true,
     });
   }

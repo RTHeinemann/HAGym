@@ -25,7 +25,21 @@
       idField: "muscle_group_id",
       nameField: "muscle_group_name",
     },
+    metric_types: {
+      idField: "metric_type",
+      nameField: "metric_type_name",
+    },
   };
+
+  const METRIC_TYPE_FALLBACKS = [
+    ["strength", "strength_volume_kg", "Kraft"],
+    ["bodyweight", "bodyweight_load_score", "Bodyweight"],
+    ["duration", "duration_load_score", "Dauer"],
+    ["hold", "hold_load_score", "Halten"],
+    ["distance", "distance_load_score", "Distanz"],
+    ["cardio", "cardio_load_score", "Cardio"],
+    ["custom", "custom_load_score", "Custom"],
+  ];
 
   const DEFAULT_UNITS = {
     strength_volume_kg: "kg",
@@ -57,14 +71,22 @@
       this._onStorage = this._onStorage.bind(this);
     }
 
-    static getStubConfig() {
+    static getStubConfig(hass) {
+      const collectionKey = "hagym";
+      const dailyMetricEntity =
+        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+          hass,
+          collectionKey,
+          "sensor.hagym_hagym_personliche_tagesstatistik"
+        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
       return {
         type: "custom:hagym-top-list-card",
         title: "Trainingsvolumen pro Muskelgruppe",
-        daily_metric_entity: "sensor.ha_fitness_personal_daily_metric_statistics",
-        collection_key: "hagym",
+        daily_metric_entity: dailyMetricEntity,
+        collection_key: collectionKey,
         scope: "muscle_groups",
         metric: "strength_volume_kg",
+        unit: "kg",
         limit: 10,
       };
     }
@@ -181,7 +203,12 @@
       const meta = SCOPE_META[this._config.scope];
       const merged = new Map();
       for (const day of rows) {
-        const list = Array.isArray(day?.[this._config.scope]) ? day[this._config.scope] : [];
+        const list =
+          this._config.scope === "metric_types"
+            ? this._metricTypeItems(day)
+            : Array.isArray(day?.[this._config.scope])
+              ? day[this._config.scope]
+              : [];
         for (const item of list) {
           const id = String(item?.[meta.idField] || "").trim();
           if (!id) continue;
@@ -201,6 +228,18 @@
         .filter((row) => row.value > 0)
         .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name))
         .slice(0, this._config.limit);
+    }
+
+    _metricTypeItems(day) {
+      const direct = Array.isArray(day?.metric_types) ? day.metric_types : null;
+      if (direct?.length) {
+        return direct;
+      }
+      return METRIC_TYPE_FALLBACKS.map(([id, field, name]) => ({
+        metric_type: id,
+        metric_type_name: name,
+        [this._config.metric]: this._num(day?.[field]),
+      })).filter((item) => this._itemMetricValue(item) > 0);
     }
 
     _renderRows(rows) {
@@ -240,7 +279,7 @@
           <ha-card>
             <div class="wrap">
               <div class="title">${utils.escapeHtml(this._config.title)}</div>
-              <div class="warning">Daily metric entity not found</div>
+              <div class="warning">Daily metric entity not found. Configure daily_metric_entity.</div>
               <div class="muted"><code>${utils.escapeHtml(
                 this._config.daily_metric_entity || ""
               )}</code></div>
@@ -404,7 +443,7 @@
     window.customCards.push({
       type: "hagym-top-list-card",
       name: "HAGym Top List Card",
-      description: "Reusable top list card for exercises, equipment and muscle groups",
+      description: "Top list ranking for exercises, equipment, muscle groups or metric types.",
       preview: true,
     });
   }
