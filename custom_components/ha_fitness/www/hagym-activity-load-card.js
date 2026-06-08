@@ -85,6 +85,24 @@
     { id: "custom", metricKey: "custom_load_score", label: "Custom", color: "#4a4f57" },
   ];
 
+  const detectDailyMetricEntity = (hass, collectionKey = "hagym") =>
+    window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+      hass,
+      collectionKey,
+      "sensor.hagym_hagym_personliche_tagesstatistik"
+    ) || "sensor.hagym_hagym_personliche_tagesstatistik";
+
+  const activityLoadPresetConfig = (hass, preset = {}) => ({
+    type: "custom:hagym-activity-load-card",
+    title: "Activity Load",
+    daily_metric_entity: detectDailyMetricEntity(hass, "hagym"),
+    collection_key: "hagym",
+    group_by: "day",
+    interactive_legend: true,
+    persist_legend_state: false,
+    ...preset,
+  });
+
   class HAGymActivityLoadCard extends HTMLElement {
     constructor() {
       super();
@@ -108,22 +126,7 @@
     }
 
     static getStubConfig(hass) {
-      const collectionKey = "hagym";
-      const dailyMetricEntity =
-        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
-          hass,
-          collectionKey,
-          "sensor.hagym_hagym_personliche_tagesstatistik"
-        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
-      return {
-        type: "custom:hagym-activity-load-card",
-        title: "Activity Load",
-        daily_metric_entity: dailyMetricEntity,
-        collection_key: collectionKey,
-        group_by: "day",
-        interactive_legend: true,
-        persist_legend_state: false,
-      };
+      return activityLoadPresetConfig(hass);
     }
 
     connectedCallback() {
@@ -169,7 +172,7 @@
       if (identityChanged || persistModeChanged) {
         this._disabledSeries = this._loadDisabledSeries();
       }
-      this._selection = ensureUtils() ? this._loadSelection() : null;
+      this._selection = this._ensureUtilsAvailable() ? this._loadSelection() : null;
       this._render();
     }
 
@@ -721,16 +724,43 @@
     }
   }
 
+  class HAGymActivityLoadReadyCard extends HAGymActivityLoadCard {
+    static getStubConfig(hass) {
+      return {
+        ...activityLoadPresetConfig(hass),
+        type: "custom:hagym-activity-load-ready-card",
+      };
+    }
+
+    setConfig(config) {
+      super.setConfig({
+        ...activityLoadPresetConfig(this._hass),
+        ...config,
+      });
+    }
+  }
+
   if (!customElements.get("hagym-activity-load-card")) {
     customElements.define("hagym-activity-load-card", HAGymActivityLoadCard);
+  }
+  if (!customElements.get("hagym-activity-load-ready-card")) {
+    customElements.define("hagym-activity-load-ready-card", HAGymActivityLoadReadyCard);
   }
 
   window.customCards = window.customCards || [];
   if (!window.customCards.some((card) => card.type === "hagym-activity-load-card")) {
     window.customCards.push({
       type: "hagym-activity-load-card",
-      name: "HAGym Activity Load Card",
-      description: "Activity load timeline with interactive metric-type legend.",
+      name: "HAGym Activity Load Card (advanced)",
+      description: "Advanced activity load card with configurable grouping and legend behavior.",
+      preview: true,
+    });
+  }
+  if (!window.customCards.some((card) => card.type === "hagym-activity-load-ready-card")) {
+    window.customCards.push({
+      type: "hagym-activity-load-ready-card",
+      name: "HAGym Activity Load",
+      description: "Prepared activity load chart with interactive legend.",
       preview: true,
     });
   }

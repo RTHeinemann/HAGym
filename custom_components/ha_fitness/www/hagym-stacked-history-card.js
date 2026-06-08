@@ -122,6 +122,28 @@
     "#26c6da",
   ];
 
+  const detectDailyMetricEntity = (hass, collectionKey = "hagym") =>
+    window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+      hass,
+      collectionKey,
+      "sensor.hagym_hagym_personliche_tagesstatistik"
+    ) || "sensor.hagym_hagym_personliche_tagesstatistik";
+
+  const stackedHistoryPresetConfig = (hass, preset = {}) => ({
+    type: "custom:hagym-stacked-history-card",
+    title: "Trainingsvolumen pro Muskelgruppe",
+    daily_metric_entity: detectDailyMetricEntity(hass, "hagym"),
+    collection_key: "hagym",
+    scope: "muscle_groups",
+    metric: "strength_volume_kg",
+    unit: "kg",
+    limit: 10,
+    chart_mode: "stacked_bar",
+    interactive_legend: true,
+    persist_legend_state: false,
+    ...preset,
+  });
+
   class HAGymStackedHistoryCard extends HTMLElement {
     constructor() {
       super();
@@ -150,26 +172,7 @@
     }
 
     static getStubConfig(hass) {
-      const collectionKey = "hagym";
-      const dailyMetricEntity =
-        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
-          hass,
-          collectionKey,
-          "sensor.hagym_hagym_personliche_tagesstatistik"
-        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
-      return {
-        type: "custom:hagym-stacked-history-card",
-        title: "Trainingsvolumen pro Muskelgruppe",
-        daily_metric_entity: dailyMetricEntity,
-        collection_key: collectionKey,
-        scope: "muscle_groups",
-        metric: "strength_volume_kg",
-        unit: "kg",
-        limit: 10,
-        chart_mode: "stacked_bar",
-        interactive_legend: true,
-        persist_legend_state: false,
-      };
+      return stackedHistoryPresetConfig(hass);
     }
 
     connectedCallback() {
@@ -220,7 +223,7 @@
       if (identityChanged || persistModeChanged) {
         this._disabledSeries = this._loadDisabledSeries();
       }
-      this._selection = ensureUtils() ? this._loadSelection() : null;
+      this._selection = this._ensureUtilsAvailable() ? this._loadSelection() : null;
       this._tooltip = null;
       this._render();
     }
@@ -1176,16 +1179,109 @@
     }
   }
 
+  class HAGymMuscleVolumeCard extends HAGymStackedHistoryCard {
+    static getStubConfig(hass) {
+      return {
+        ...stackedHistoryPresetConfig(hass),
+        type: "custom:hagym-muscle-volume-card",
+      };
+    }
+
+    setConfig(config) {
+      super.setConfig({
+        ...stackedHistoryPresetConfig(this._hass),
+        ...config,
+      });
+    }
+  }
+
+  class HAGymExerciseVolumeCard extends HAGymStackedHistoryCard {
+    static getStubConfig(hass) {
+      return {
+        ...stackedHistoryPresetConfig(hass, {
+          title: "Trainingsvolumen pro Uebung",
+          scope: "exercises",
+        }),
+        type: "custom:hagym-exercise-volume-card",
+      };
+    }
+
+    setConfig(config) {
+      super.setConfig({
+        ...stackedHistoryPresetConfig(this._hass, {
+          title: "Trainingsvolumen pro Uebung",
+          scope: "exercises",
+        }),
+        ...config,
+      });
+    }
+  }
+
+  class HAGymEquipmentVolumeCard extends HAGymStackedHistoryCard {
+    static getStubConfig(hass) {
+      return {
+        ...stackedHistoryPresetConfig(hass, {
+          title: "Trainingsvolumen pro Equipment",
+          scope: "equipment",
+        }),
+        type: "custom:hagym-equipment-volume-card",
+      };
+    }
+
+    setConfig(config) {
+      super.setConfig({
+        ...stackedHistoryPresetConfig(this._hass, {
+          title: "Trainingsvolumen pro Equipment",
+          scope: "equipment",
+        }),
+        ...config,
+      });
+    }
+  }
+
   if (!customElements.get("hagym-stacked-history-card")) {
     customElements.define("hagym-stacked-history-card", HAGymStackedHistoryCard);
+  }
+  if (!customElements.get("hagym-muscle-volume-card")) {
+    customElements.define("hagym-muscle-volume-card", HAGymMuscleVolumeCard);
+  }
+  if (!customElements.get("hagym-exercise-volume-card")) {
+    customElements.define("hagym-exercise-volume-card", HAGymExerciseVolumeCard);
+  }
+  if (!customElements.get("hagym-equipment-volume-card")) {
+    customElements.define("hagym-equipment-volume-card", HAGymEquipmentVolumeCard);
   }
 
   window.customCards = window.customCards || [];
   if (!window.customCards.some((card) => card.type === "hagym-stacked-history-card")) {
     window.customCards.push({
       type: "hagym-stacked-history-card",
-      name: "HAGym Stacked History Card",
-      description: "Energy-style stacked bar history for HAGym metrics",
+      name: "HAGym Stacked History Card (advanced)",
+      description: "Advanced stacked history card for custom HAGym scopes and metrics.",
+      preview: true,
+    });
+  }
+  if (!window.customCards.some((card) => card.type === "hagym-muscle-volume-card")) {
+    window.customCards.push({
+      type: "hagym-muscle-volume-card",
+      name: "HAGym Trainingsvolumen pro Muskelgruppe",
+      description: "Prepared stacked training volume chart by muscle group.",
+      preview: true,
+    });
+  }
+  if (!window.customCards.some((card) => card.type === "hagym-exercise-volume-card")) {
+    window.customCards.push({
+      type: "hagym-exercise-volume-card",
+      name: "HAGym Trainingsvolumen pro Uebung",
+      description: "Prepared stacked training volume chart by exercise.",
+      preview: true,
+    });
+  }
+  if (!window.customCards.some((card) => card.type === "hagym-equipment-volume-card")) {
+    window.customCards.push({
+      type: "hagym-equipment-volume-card",
+      name: "HAGym Trainingsvolumen pro Equipment",
+      description: "Prepared stacked training volume chart by equipment.",
       preview: true,
     });
   }

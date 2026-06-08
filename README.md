@@ -131,6 +131,13 @@ This repository provides **Phase 2 (SQLite-backed native persistence)** with:
   - `custom:hagym-top-list-card`
   - `custom:hagym-activity-load-card`
   - `custom:hagym-balance-card`
+  - prepared Add-card presets:
+    - `custom:hagym-muscle-volume-card`
+    - `custom:hagym-exercise-volume-card`
+    - `custom:hagym-equipment-volume-card`
+    - `custom:hagym-activity-load-ready-card`
+    - `custom:hagym-balance-push-pull-card`
+    - `custom:hagym-balance-push-pull-legs-card`
   - files in `/config/custom_components/ha_fitness/www/`
   - served directly by the integration under `/hagym_static/*.js`
   - add `hagym-card-utils.js` explicitly as a Lovelace resource for faster startup; cards can lazy-load it if needed

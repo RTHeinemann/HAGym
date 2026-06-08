@@ -178,7 +178,7 @@
           ? String(config.empty_text)
           : "Keine Daten im gewaehlten Zeitraum",
       };
-      this._selection = ensureUtils() ? this._loadSelection() : null;
+      this._selection = this._ensureUtilsAvailable() ? this._loadSelection() : null;
       this._render();
     }
 

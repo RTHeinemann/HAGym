@@ -66,6 +66,22 @@
     core: new Set(["abs", "core", "obliques"]),
   };
 
+  const detectDailyMetricEntity = (hass, collectionKey = "hagym") =>
+    window.HAGymCardUtils?.defaultDailyMetricEntity?.(
+      hass,
+      collectionKey,
+      "sensor.hagym_hagym_personliche_tagesstatistik"
+    ) || "sensor.hagym_hagym_personliche_tagesstatistik";
+
+  const balancePresetConfig = (hass, preset = {}) => ({
+    type: "custom:hagym-balance-card",
+    title: "Balance Push/Pull",
+    daily_metric_entity: detectDailyMetricEntity(hass, "hagym"),
+    collection_key: "hagym",
+    mode: "push_pull",
+    ...preset,
+  });
+
   class HAGymBalanceCard extends HTMLElement {
     constructor() {
       super();
@@ -85,20 +101,7 @@
     }
 
     static getStubConfig(hass) {
-      const collectionKey = "hagym";
-      const dailyMetricEntity =
-        window.HAGymCardUtils?.defaultDailyMetricEntity?.(
-          hass,
-          collectionKey,
-          "sensor.hagym_hagym_personliche_tagesstatistik"
-        ) || "sensor.hagym_hagym_personliche_tagesstatistik";
-      return {
-        type: "custom:hagym-balance-card",
-        title: "Balance Push/Pull",
-        daily_metric_entity: dailyMetricEntity,
-        collection_key: collectionKey,
-        mode: "push_pull",
-      };
+      return balancePresetConfig(hass);
     }
 
     connectedCallback() {
@@ -133,7 +136,7 @@
         collection_key: config.collection_key ? String(config.collection_key) : "hagym",
         mode,
       };
-      this._selection = ensureUtils() ? this._loadSelection() : null;
+      this._selection = this._ensureUtilsAvailable() ? this._loadSelection() : null;
       this._render();
     }
 
@@ -502,16 +505,76 @@
     }
   }
 
+  class HAGymBalancePushPullCard extends HAGymBalanceCard {
+    static getStubConfig(hass) {
+      return {
+        ...balancePresetConfig(hass),
+        type: "custom:hagym-balance-push-pull-card",
+      };
+    }
+
+    setConfig(config) {
+      super.setConfig({
+        ...balancePresetConfig(this._hass),
+        ...config,
+      });
+    }
+  }
+
+  class HAGymBalancePushPullLegsCard extends HAGymBalanceCard {
+    static getStubConfig(hass) {
+      return {
+        ...balancePresetConfig(hass, {
+          title: "Balance Push/Pull/Legs",
+          mode: "push_pull_legs",
+        }),
+        type: "custom:hagym-balance-push-pull-legs-card",
+      };
+    }
+
+    setConfig(config) {
+      super.setConfig({
+        ...balancePresetConfig(this._hass, {
+          title: "Balance Push/Pull/Legs",
+          mode: "push_pull_legs",
+        }),
+        ...config,
+      });
+    }
+  }
+
   if (!customElements.get("hagym-balance-card")) {
     customElements.define("hagym-balance-card", HAGymBalanceCard);
+  }
+  if (!customElements.get("hagym-balance-push-pull-card")) {
+    customElements.define("hagym-balance-push-pull-card", HAGymBalancePushPullCard);
+  }
+  if (!customElements.get("hagym-balance-push-pull-legs-card")) {
+    customElements.define("hagym-balance-push-pull-legs-card", HAGymBalancePushPullLegsCard);
   }
 
   window.customCards = window.customCards || [];
   if (!window.customCards.some((card) => card.type === "hagym-balance-card")) {
     window.customCards.push({
       type: "hagym-balance-card",
-      name: "HAGym Balance Card",
-      description: "Push/Pull and Push/Pull/Legs balance analysis.",
+      name: "HAGym Balance Card (advanced)",
+      description: "Advanced balance card with configurable push/pull and upper/lower modes.",
+      preview: true,
+    });
+  }
+  if (!window.customCards.some((card) => card.type === "hagym-balance-push-pull-card")) {
+    window.customCards.push({
+      type: "hagym-balance-push-pull-card",
+      name: "HAGym Balance Push/Pull",
+      description: "Prepared Push/Pull balance card.",
+      preview: true,
+    });
+  }
+  if (!window.customCards.some((card) => card.type === "hagym-balance-push-pull-legs-card")) {
+    window.customCards.push({
+      type: "hagym-balance-push-pull-legs-card",
+      name: "HAGym Balance Push/Pull/Legs",
+      description: "Prepared Push/Pull/Legs balance card.",
       preview: true,
     });
   }

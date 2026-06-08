@@ -17,6 +17,10 @@ The architecture stays intentionally small:
 - no new backend sensors
 - no per-exercise/per-equipment/per-muscle entity explosion
 
+For normal dashboard building, prefer the prepared preset cards from the Home Assistant
+`Add card` dialog. The advanced generic cards remain available when you want custom
+scopes, metrics, titles, or modes.
+
 ## Static Resources
 
 HAGym serves its Lovelace card files directly from the integration under:
@@ -230,6 +234,12 @@ Energy-style stacked history chart built from the existing daily metric statisti
 In the Home Assistant "Add card" dialog, the stub config now tries to detect your existing
 HAGym daily metric entity automatically.
 
+Prepared presets available in the card picker:
+
+- `custom:hagym-muscle-volume-card`
+- `custom:hagym-exercise-volume-card`
+- `custom:hagym-equipment-volume-card`
+
 Highlights:
 
 - automatic day / week / month buckets based on the shared HAGym footer period
@@ -327,6 +337,10 @@ Activity-load visualization using the daily buckets.
 In the Home Assistant "Add card" dialog, the stub config now tries to detect your existing
 HAGym daily metric entity automatically.
 
+Prepared preset available in the card picker:
+
+- `custom:hagym-activity-load-ready-card`
+
 Supports:
 
 - `group_by: day`
@@ -360,6 +374,11 @@ Balance card based on the daily `muscle_groups` breakdown.
 
 In the Home Assistant "Add card" dialog, the stub config now tries to detect your existing
 HAGym daily metric entity automatically.
+
+Prepared presets available in the card picker:
+
+- `custom:hagym-balance-push-pull-card`
+- `custom:hagym-balance-push-pull-legs-card`
 
 Modes:
 
