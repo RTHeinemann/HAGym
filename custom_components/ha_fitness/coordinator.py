@@ -1,12 +1,12 @@
 """HAGym coordinator."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
 import sqlite3
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -59,6 +59,33 @@ _LEGS_MUSCLE_GROUP_IDS = {
     "abductors",
 }
 _CORE_MUSCLE_GROUP_IDS = {"core", "abs", "obliques"}
+
+
+def calculate_effective_weight(
+    entered_weight: float,
+    body_weight: float | None,
+    uses_bodyweight: bool,
+    bodyweight_factor: float,
+) -> float:
+    """Calculate effective training weight including optional body weight component.
+
+    NOTE: This function is prepared for future use only. It is NOT called anywhere
+    in the current codebase until a body weight source (sensor/manual input) exists.
+    Current volume calculation remains unchanged: set_volume = entered_weight * repetitions
+
+    Args:
+        entered_weight: Weight manually entered by user for this set
+        body_weight: User's current body weight (None if not available)
+        uses_bodyweight: Whether this exercise uses body weight
+        bodyweight_factor: Fraction of body weight to include (0.0-1.0)
+
+    Returns:
+        Effective weight including body weight component, or just entered_weight
+    """
+    if not uses_bodyweight or body_weight is None:
+        return entered_weight
+
+    return entered_weight + body_weight * bodyweight_factor
 _CONFIRM_ACTION_START = "start_workout"
 _CONFIRM_ACTION_FINISH = "finish_workout"
 _STATE_START_CONFIRM = "start_confirm"
@@ -2258,6 +2285,8 @@ class HAFitnessCoordinator:
         metric_type: str | None = None,
         enabled: bool = True,
         sort_order: int = 0,
+        uses_bodyweight: bool = False,
+        bodyweight_factor: float = 1.0,
     ) -> None:
         """Add one exercise and refresh runtime exercise/stat caches."""
         await self._store.async_add_exercise(
@@ -2270,6 +2299,8 @@ class HAFitnessCoordinator:
             metric_type=metric_type,
             enabled=enabled,
             sort_order=sort_order,
+            uses_bodyweight=uses_bodyweight,
+            bodyweight_factor=bodyweight_factor,
         )
         await self.async_refresh_exercises(notify=False)
         await self.async_refresh_statistics(notify=False)
@@ -2286,6 +2317,8 @@ class HAFitnessCoordinator:
         metric_type: str | None = None,
         enabled: bool | None = None,
         sort_order: int | None = None,
+        uses_bodyweight: bool | None = None,
+        bodyweight_factor: float | None = None,
     ) -> bool:
         """Update one exercise and refresh runtime caches if changed."""
         updated = await self._store.async_update_exercise(
@@ -2298,6 +2331,8 @@ class HAFitnessCoordinator:
             metric_type=metric_type,
             enabled=enabled,
             sort_order=sort_order,
+            uses_bodyweight=uses_bodyweight,
+            bodyweight_factor=bodyweight_factor,
         )
         if updated:
             await self.async_refresh_exercises(notify=False)
@@ -2790,9 +2825,7 @@ class HAFitnessCoordinator:
         fallback_display_name = context_user_id if context_user_id else resolved
         await self._store.async_upsert_user(resolved, fallback_display_name)
 
-        if context_user_id:
-            self._current_user_id = resolved
-        elif self._current_user_id is None:
+        if context_user_id or self._current_user_id is None:
             self._current_user_id = resolved
 
         if self._selected_user_id is None:
@@ -3441,7 +3474,7 @@ class HAFitnessCoordinator:
             )
             raise HomeAssistantError(message)
 
-        duration_seconds = int(round(self._duration_minutes * 60.0)) if self._duration_minutes > 0 else None
+        duration_seconds = round(self._duration_minutes * 60.0) if self._duration_minutes > 0 else None
         distance_m = round(self._distance_km * 1000.0, 3) if self._distance_km > 0 else None
         equipment_id = self._active_equipment_id
         if equipment_id == IDLE_EQUIPMENT_ID:
@@ -3787,23 +3820,22 @@ class HAFitnessCoordinator:
                         "Reps must be at least 1.",
                     )
                 )
-        elif metric_type == METRIC_TYPE_CUSTOM:
-            if not any(
-                (
-                    has_duration,
-                    has_distance,
-                    has_calories,
-                    has_steps,
-                    has_reps,
-                    has_added_weight,
+        elif metric_type == METRIC_TYPE_CUSTOM and not any(
+            (
+                has_duration,
+                has_distance,
+                has_calories,
+                has_steps,
+                has_reps,
+                has_added_weight,
+            )
+        ):
+            errors.append(
+                self._localized_text(
+                    "Bitte mindestens ein Aktivitätsfeld ausfüllen.",
+                    "Please provide at least one activity field.",
                 )
-            ):
-                errors.append(
-                    self._localized_text(
-                        "Bitte mindestens ein Aktivitätsfeld ausfüllen.",
-                        "Please provide at least one activity field.",
-                    )
-                )
+            )
 
         return errors
 

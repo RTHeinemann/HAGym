@@ -42,7 +42,9 @@
           "metric_type": "Metric type",
           "sort_order": "Sort order",
           "enabled": "Enabled",
-          "equipment_id": "Equipment ID"
+          "equipment_id": "Equipment ID",
+          "uses_bodyweight": "Include body weight",
+          "bodyweight_factor": "Body-weight percentage"
         }
       }
     },
@@ -118,7 +120,9 @@
           "metric_type": "Metric type",
           "sort_order": "Sort order",
           "enabled": "Enabled",
-          "equipment_id": "Equipment ID"
+          "equipment_id": "Equipment ID",
+          "uses_bodyweight": "Include body weight",
+          "bodyweight_factor": "Body-weight percentage"
         }
       },
       "edit_exercise_select": {
@@ -139,7 +143,9 @@
           "metric_type": "Metric type",
           "sort_order": "Sort order",
           "enabled": "Enabled",
-          "equipment_id": "Equipment ID"
+          "equipment_id": "Equipment ID",
+          "uses_bodyweight": "Include body weight",
+          "bodyweight_factor": "Body-weight percentage"
         }
       },
       "toggle_exercise_select": {
@@ -461,7 +467,8 @@
       "muscle_group_mapping_empty": "Please select at least one muscle group.",
       "muscle_group_weights_sum": "Weight values must add up to exactly 100%. Current total: {total}%.",
       "invalid_weight_value": "Enter a valid number between 0 and 100.",
-      "invalid_weight_range": "Value must be between 0% and 100%."
+      "invalid_weight_range": "Value must be between 0% and 100%.",
+      "invalid_bodyweight_range": "The percentage must be between 0 and 100."
     },
     "abort": {
       "exercise_not_found": "Exercise not found.",

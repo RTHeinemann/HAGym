@@ -90,6 +90,8 @@ ATTR_LOAD_SCORE = "load_score"
 ATTR_INTENSITY = "intensity"
 ATTR_SOURCE = "source"
 ATTR_ADDED_WEIGHT = "added_weight"
+ATTR_USES_BODYWEIGHT = "uses_bodyweight"
+ATTR_BODYWEIGHT_FACTOR = "bodyweight_factor"
 
 # Exercise/set metric types
 METRIC_TYPE_STRENGTH = "strength"
