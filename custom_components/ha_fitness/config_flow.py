@@ -2724,7 +2724,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 elif n > 0:
                     self._assign_weight_factors[mg_id] = round(share / n, 4)
 
-    async def _build_weight_schema(self) -> vol.Schema:
+    def _build_weight_schema(self) -> vol.Schema:
         """Build a dynamic schema with integer fields for each selected muscle group."""
         coordinator = self._coordinator
         mg_display: dict[str, str] = {}
