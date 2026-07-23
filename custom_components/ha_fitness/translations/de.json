@@ -436,6 +436,10 @@
         "data": {
           "muscle_group_id": "Stabilisierende Muskelgruppen"
         }
+      },
+      "assign_muscle_groups_set_weights": {
+        "title": "Muskelgruppen-Gewichtung festlegen",
+        "description": "Passe die Gewichtsverteilung für jede ausgewählte Muskelgruppe an. Die Werte sind Prozentsätze und müssen exakt 100% ergeben."
       }
     },
     "error": {
@@ -453,7 +457,11 @@
       "set_not_found": "Satz nicht gefunden.",
       "invalid_muscle_group_id": "Die Muskelgruppen-ID darf nur Kleinbuchstaben, Zahlen oder Unterstriche enthalten.",
       "muscle_group_exists": "Die Muskelgruppe existiert bereits.",
-      "muscle_group_not_found": "Muskelgruppe nicht gefunden."
+      "muscle_group_not_found": "Muskelgruppe nicht gefunden.",
+      "muscle_group_mapping_empty": "Bitte wähle mindestens eine Muskelgruppe aus.",
+      "muscle_group_weights_sum": "Die Gewichtungswerte müssen exakt 100% ergeben. Aktueller Gesamtwert: {total}%.",
+      "invalid_weight_value": "Gib einen gültigen Wert zwischen 0 und 100 ein.",
+      "invalid_weight_range": "Der Wert muss zwischen 0% und 100% liegen."
     },
     "abort": {
       "exercise_not_found": "Übung nicht gefunden.",
@@ -1076,9 +1084,9 @@
       "name": "Satz löschen",
       "description": "Löscht einen Satz per set_id."
     },
-      "save_activity": {
-        "name": "Aktivität speichern",
-        "description": "Speichert einen Nicht-Kraft-Trainingseintrag (z. B. Cardio, Dauer, Hold) in set_logs.",
+    "save_activity": {
+      "name": "Aktivität speichern",
+      "description": "Speichert einen Nicht-Kraft-Trainingseintrag (z. B. Cardio, Dauer, Hold) in set_logs.",
       "fields": {
         "exercise_id": {
           "name": "Übungs-ID",

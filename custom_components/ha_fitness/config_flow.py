@@ -485,6 +485,8 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         self._assign_primary_muscle_group_ids: list[str] = []
         self._assign_secondary_muscle_group_ids: list[str] = []
         self._assign_stabilizer_muscle_group_ids: list[str] = []
+        # Normalized weight factors (0.0-1.0) keyed by muscle_group_id
+        self._assign_weight_factors: dict[str, float] = {}
 
     @property
     def _coordinator(self):
@@ -2579,7 +2581,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
     async def async_step_assign_muscle_groups_select_stabilizer(
         self, user_input: dict | None = None
     ) -> FlowResult:
-        """Select stabilizer muscle groups and save exercise assignments."""
+        """Select stabilizer muscle groups and proceed to weight assignment."""
         coordinator = self._coordinator
         if coordinator is None:
             return self.async_abort(reason="coordinator_unavailable")
@@ -2591,19 +2593,13 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         defaults = self._assign_stabilizer_muscle_group_ids
         if user_input is not None:
             stabilizer_ids = [str(item) for item in user_input.get(ATTR_MUSCLE_GROUP_ID, [])]
-            try:
-                await coordinator.async_replace_muscle_groups_for_exercise(
-                    exercise_id=self._assign_muscle_exercise_id,
-                    primary_ids=self._assign_primary_muscle_group_ids,
-                    secondary_ids=self._assign_secondary_muscle_group_ids,
-                    stabilizer_ids=stabilizer_ids,
-                )
-            except Exception:
-                _LOGGER.exception(
-                    "HAGym options flow assign_muscle_groups_select_stabilizer failed"
-                )
-                return self.async_abort(reason="options_flow_error")
-            return await self.async_step_manage_muscle_groups()
+            await self._compute_normalized_weight_defaults(
+                coordinator,
+                self._assign_primary_muscle_group_ids,
+                self._assign_secondary_muscle_group_ids,
+                stabilizer_ids,
+            )
+            return await self.async_step_assign_muscle_groups_set_weights()
         return self.async_show_form(
             step_id="assign_muscle_groups_select_stabilizer",
             data_schema=vol.Schema(
@@ -2620,6 +2616,241 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             ),
             description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
         )
+
+
+    # ---- Normalized muscle-group weighting helpers ----
+
+    async def _compute_normalized_weight_defaults(
+        self,
+        coordinator: Any,
+        primary_ids: list[str],
+        secondary_ids: list[str],
+        stabilizer_ids: list[str],
+    ) -> None:
+        """Compute pre-filled normalized weight factors for the selected muscle groups.
+
+        If existing mappings have non-zero weights, normalize proportionally.
+        Otherwise use role-based defaults (primary 60%, secondary 30%, stabilizer 10%).
+        """
+        all_ids = primary_ids + secondary_ids + stabilizer_ids
+        if not all_ids:
+            self._assign_weight_factors = {}
+            return
+
+        # Try to load existing weight factors from DB for proportional normalization
+        try:
+            rows = await coordinator.async_get_muscle_groups_for_exercise(  # type: ignore[attr-defined]
+                self._assign_muscle_exercise_id,
+            )
+        except Exception:
+            rows = []
+
+        existing_factors: dict[str, float] = {}
+        for row in rows or []:
+            mg_id = str(row.get("muscle_group_id") or "")
+            wf = float(row.get("weight_factor", 0.0))
+            if mg_id and wf > 0:
+                existing_factors[mg_id] = wf
+
+        total_existing = sum(existing_factors.values())
+
+        self._assign_weight_factors: dict[str, float] = {}
+        role_map: dict[str, str] = {}
+        for mg in primary_ids:
+            role_map[mg] = "primary"
+        for mg in secondary_ids:
+            role_map[mg] = "secondary"
+        for mg in stabilizer_ids:
+            role_map[mg] = "stabilizer"
+
+        if total_existing > 0.01 and existing_factors:
+            # Proportional normalization from existing factors (for IDs that still exist)
+            raw: dict[str, float] = {}
+            for mg_id in all_ids:
+                raw[mg_id] = existing_factors.get(mg_id, 0.5)
+            total_raw = sum(raw.values())
+            if total_raw > 0:
+                self._assign_weight_factors = {k: round(v / total_raw, 4) for k, v in raw.items()}
+        else:
+            # Role-based defaults: primary=60%, secondary=30%, stabilizer=10%
+            counts: dict[str, int] = {"primary": 0, "secondary": 0, "stabilizer": 0}
+            for role in role_map.values():
+                counts[role] += 1
+
+            shares: dict[str, float] = {
+                "primary": 0.6, "secondary": 0.3, "stabilizer": 0.1,
+            }
+            active_roles = [r for r in counts if counts[r] > 0]
+            inactive_share = sum(
+                shares.get(r, 0)
+                for r in ("primary", "secondary", "stabilizer")
+                if r not in active_roles
+            )
+            active_total = sum(shares.get(r, 0) for r in active_roles) or 1.0
+
+            redistributed_shares: dict[str, float] = {}
+            for r in active_roles:
+                base_share = shares.get(r, 0.0)
+                if len(active_roles) > 1 and inactive_share > 0:
+                    redistributed_shares[r] = round(
+                        base_share + (inactive_share * base_share / active_total), 4
+                    )
+                else:
+                    redistributed_shares[r] = shares.get(r, 0.0)
+
+            # Normalize so sum == 1.0 exactly
+            redist_total = sum(redistributed_shares.values()) or 1.0
+            if abs(redist_total - 1.0) > 0.001:
+                for r in active_roles:
+                    redistributed_shares[r] /= redist_total
+
+            self._assign_weight_factors = {}
+            last_in_role: dict[str, str | None] = {
+                "primary": None, "secondary": None, "stabilizer": None,
+            }
+            for mg_id in all_ids:
+                role = role_map.get(mg_id, "primary")
+                if counts[role] > 0:
+                    last_in_role[role] = mg_id
+
+            for mg_id in all_ids:
+                role = role_map.get(mg_id, "primary")
+                share = redistributed_shares.get(role, 0.3)
+                n = counts[role] or 1
+                if n > 1 and last_in_role[role] == mg_id:
+                    base_per_item = round(share / (n - 1), 4) if n > 2 else share
+                    remainder = round(share - base_per_item * (n - 1), 4)
+                    self._assign_weight_factors[mg_id] = max(remainder, 0.0)
+                elif n > 0:
+                    self._assign_weight_factors[mg_id] = round(share / n, 4)
+
+    async def _build_weight_schema(self) -> vol.Schema:
+        """Build a dynamic schema with integer fields for each selected muscle group."""
+        coordinator = self._coordinator
+        mg_display: dict[str, str] = {}
+        for mg_id in self._assign_weight_factors:
+            display_name = mg_id
+            if coordinator is not None:
+                row = coordinator.get_muscle_group(mg_id)  # type: ignore[attr-defined]
+                if row:
+                    name_de = row.get("name_de") or ""
+                    name_en = row.get("name_en") or mg_id
+                    display_name = str(name_de or name_en)
+            mg_display[mg_id] = display_name
+
+        schema_fields: dict[vol.Optional, type] = {}  # type: ignore[type-arg]
+        for mg_id in self._assign_weight_factors:
+            pct_default = round(self._assign_weight_factors.get(mg_id, 0.5) * 100)
+            label_key = f"weight_{mg_id}"
+            schema_fields[vol.Optional(label_key, default=pct_default)] = int
+
+        return vol.Schema(schema_fields)
+
+    async def _validate_and_save_muscle_group_weights(
+        self, coordinator: Any, user_input: dict[str, Any]
+    ) -> FlowResult | None:
+        """Validate weight inputs and save. Returns a FlowResult on error (re-show form), else None."""
+        errors: dict[str, str] = {}
+
+        all_ids = list(self._assign_weight_factors.keys())
+        if not all_ids:
+            errors["base"] = "muscle_group_mapping_empty"
+            return self.async_show_form(
+                step_id="assign_muscle_groups_set_weights",
+                data_schema=self._build_weight_schema(),
+                errors=errors,
+                description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+            )
+
+        parsed: dict[str, float] = {}
+        for mg_id in all_ids:
+            raw_val = user_input.get(f"weight_{mg_id}", 50)
+            try:
+                pct = float(raw_val)
+            except (TypeError, ValueError):
+                errors[f"weight_{mg_id}"] = "invalid_weight_value"
+                continue
+            if pct < 0 or pct > 100:
+                errors[f"weight_{mg_id}"] = "invalid_weight_range"
+                continue
+            parsed[mg_id] = round(pct / 100.0, 4)
+
+        if errors:
+            return self.async_show_form(
+                step_id="assign_muscle_groups_set_weights",
+                data_schema=self._build_weight_schema(),
+                errors=errors,
+                description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+            )
+
+        total = round(sum(parsed.values()), 4)
+        if abs(total - 1.0) > 0.001:
+            errors["base"] = "muscle_group_weights_sum"
+            return self.async_show_form(
+                step_id="assign_muscle_groups_set_weights",
+                data_schema=self._build_weight_schema(),
+                errors=errors,
+                description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+            )
+
+        try:
+            mappings = []
+            for mg_id in all_ids:
+                if mg_id in self._assign_primary_muscle_group_ids:
+                    role = "primary"
+                elif mg_id in self._assign_secondary_muscle_group_ids:
+                    role = "secondary"
+                else:
+                    role = "stabilizer"
+                mappings.append({
+                    "muscle_group_id": mg_id,
+                    "role": role,
+                    "weight_factor": parsed[mg_id],
+                })
+            await coordinator.async_replace_muscle_groups_with_weights(  # type: ignore[attr-defined]
+                exercise_id=self._assign_muscle_exercise_id,
+                mappings=mappings,
+            )
+        except ValueError as exc:
+            _LOGGER.warning("HAGym muscle group weight validation failed: %s", exc)
+            errors["base"] = str(exc.args[0]) if exc.args else "muscle_group_weights_sum"
+            return self.async_show_form(
+                step_id="assign_muscle_groups_set_weights",
+                data_schema=self._build_weight_schema(),
+                errors=errors,
+            )
+        except Exception:
+            _LOGGER.exception("HAGym options flow assign_muscle_groups_set_weights failed")
+            return self.async_abort(reason="options_flow_error")
+        return None
+
+    async def async_step_assign_muscle_groups_set_weights(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Set normalized weight factors for each selected muscle group."""
+        coordinator = self._coordinator
+        if coordinator is None:
+            return self.async_abort(reason="coordinator_unavailable")
+        if not self._assign_muscle_exercise_id:
+            return await self.async_step_assign_muscle_groups_select_exercise()
+
+        errors: dict[str, str] | None = None
+        if user_input is not None:
+            result = await self._validate_and_save_muscle_group_weights(
+                coordinator, user_input
+            )
+            if result is not None:
+                return result
+            return await self.async_step_manage_muscle_groups()
+
+        schema = self._build_weight_schema()
+        return self.async_show_form(
+            step_id="assign_muscle_groups_set_weights",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"exercise_id": self._assign_muscle_exercise_id},
+        )
+
 
 
 def _optional_str(value: Any) -> str | None:

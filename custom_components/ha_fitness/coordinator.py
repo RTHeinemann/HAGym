@@ -2421,13 +2421,38 @@ class HAFitnessCoordinator:
         secondary_ids: list[str],
         stabilizer_ids: list[str],
     ) -> None:
-        """Replace all muscle-group mappings for one exercise."""
+        """Replace all muscle-group mappings for one exercise (role-bucket API)."""
         await self._store.async_replace_muscle_groups_for_exercise(
             exercise_id=exercise_id,
             primary_ids=primary_ids,
             secondary_ids=secondary_ids,
             stabilizer_ids=stabilizer_ids,
         )
+        # Refresh caches
+        rows = await self._store.async_get_muscle_groups_for_exercise(exercise_id)
+        self._exercise_muscle_group_map_by_exercise[exercise_id] = list(rows)
+        await self.async_refresh_statistics(notify=False)
+        self._notify_listeners()
+
+    async def async_replace_muscle_groups_with_weights(
+        self,
+        exercise_id: str,
+        mappings: list[dict[str, Any]],
+    ) -> None:
+        """Replace all muscle-group mappings for one exercise with explicit weight factors.
+
+        Each mapping dict must contain at least:
+            - 'muscle_group_id' (str)
+            - 'role' ('primary', 'secondary', or 'stabilizer')
+            - 'weight_factor' (float 0.0-1.0, will be normalized so sum == 1.0)
+        """
+        await self._store.async_replace_muscle_groups_with_weights(
+            exercise_id=exercise_id,
+            mappings=mappings,
+        )
+        # Refresh caches
+        rows = await self._store.async_get_muscle_groups_for_exercise(exercise_id)
+        self._exercise_muscle_group_map_by_exercise[exercise_id] = list(rows)
         await self.async_refresh_statistics(notify=False)
         self._notify_listeners()
 

@@ -54,6 +54,9 @@ _WEEKLY_HISTORY_LEGS_IDS = {
 }
 _WEEKLY_HISTORY_CORE_IDS = {"core", "abs", "obliques"}
 
+# Tolerance for normalized muscle-group weight sums (1.0 ± tolerance)
+_MUSCLE_WEIGHT_TOLERANCE = 0.001
+
 
 class HAFitnessStore:
     """SQLite-backed persistence helper for HAGym."""
@@ -621,13 +624,36 @@ class HAFitnessStore:
         secondary_ids: list[str],
         stabilizer_ids: list[str],
     ) -> None:
-        """Replace all muscle mappings for one exercise from role buckets."""
+        """Replace all muscle mappings for one exercise from role buckets.
+
+        Backward-compatible wrapper that auto-normalizes weight factors so they sum to 1.0.
+        """
         await self._hass.async_add_executor_job(
             self._replace_muscle_groups_for_exercise,
             exercise_id,
             primary_ids,
             secondary_ids,
             stabilizer_ids,
+        )
+
+    async def async_replace_muscle_groups_with_weights(
+        self,
+        exercise_id: str,
+        mappings: list[dict[str, Any]],
+    ) -> None:
+        """Replace all muscle-group mappings for one exercise with explicit weight factors.
+
+        Each mapping dict must contain at least:
+            - 'muscle_group_id' (str)
+            - 'role' ('primary', 'secondary', or 'stabilizer')
+            - 'weight_factor' (float 0.0-1.0, will be normalized so sum == 1.0)
+
+        Raises ValueError on validation failure.
+        """
+        await self._hass.async_add_executor_job(
+            self._replace_muscle_groups_with_weights,
+            exercise_id,
+            mappings,
         )
 
     async def async_get_muscle_groups_for_exercise(self, exercise_id: str) -> list[dict[str, Any]]:
@@ -2324,6 +2350,76 @@ class HAFitnessStore:
                 (muscle_group_id,),
             ).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _replace_muscle_groups_with_weights(
+        self,
+        exercise_id: str,
+        mappings: list[dict[str, Any]],
+    ) -> None:
+        """Replace all muscle-group mappings for one exercise with explicit weight factors.
+
+        Validates and normalizes so that the sum of weight_factors equals 1.0 (± tolerance).
+        Raises ValueError on validation failure.
+        """
+        # --- Validation ---
+        if not mappings:
+            raise ValueError("muscle_group_mapping_empty")
+
+        seen_ids: set[str] = set()
+        validated_rows: list[tuple[str, str, float]] = []
+        for mapping in mappings:
+            mg_id = str(mapping.get("muscle_group_id", "")).strip()
+            if not mg_id:
+                continue
+            role = _normalize_muscle_role(str(mapping.get("role") or MUSCLE_ROLE_PRIMARY))
+            weight_factor = float(mapping.get("weight_factor", 0.0))
+
+            # Clamp to [0, 1]
+            if weight_factor < 0:
+                weight_factor = 0.0
+            elif weight_factor > 1:
+                weight_factor = 1.0
+
+            # Duplicate check
+            if mg_id in seen_ids:
+                raise ValueError(f"muscle_group_duplicate:{mg_id}")
+            seen_ids.add(mg_id)
+
+            validated_rows.append((mg_id, role, round(weight_factor, 4)))
+
+        if not validated_rows:
+            raise ValueError("muscle_group_mapping_empty")
+
+        # --- Normalize so sum == 1.0 (with rounding compensation) ---
+        total = sum(f for _, _, f in validated_rows)
+        if abs(total - 1.0) > _MUSCLE_WEIGHT_TOLERANCE:
+            raise ValueError("muscle_group_weights_sum")
+
+        # Distribute any rounding remainder to the last entry so sum is exactly 1.0
+        normalized_factors: list[float] = [f for _, _, f in validated_rows]
+        current_sum = round(sum(normalized_factors), 4)
+        diff = round(1.0 - current_sum, 4)
+        if abs(diff) > 0:
+            last_idx = len(normalized_factors) - 1
+            normalized_factors[last_idx] = round(normalized_factors[last_idx] + diff, 4)
+
+        now = _isoformat(datetime.now(timezone.utc))
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM exercise_muscle_groups WHERE exercise_id = ?",
+                (exercise_id,),
+            )
+            for idx, (mg_id, role, _) in enumerate(validated_rows):
+                conn.execute(
+                    """
+                    INSERT INTO exercise_muscle_groups(
+                        exercise_id, muscle_group_id, role, weight_factor,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (exercise_id, mg_id, role, normalized_factors[idx], now, now),
+                )
+            conn.commit()
 
     def _get_muscle_group_statistics(
         self, user_id: str | None, household_user_ids: list[str] | None
