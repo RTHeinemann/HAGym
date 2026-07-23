@@ -15,7 +15,7 @@ from .const import (
     LEGACY_USER_NAME,
 )
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -62,6 +62,9 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 8:
         _apply_v8(conn)
+
+    if current_version < 9:
+        _apply_v9(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -563,7 +566,7 @@ def _apply_v7(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
-        (7, now),
+        (8, now),
     )
 
 
@@ -621,4 +624,28 @@ def _apply_v8(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
         (8, now),
+    )
+
+
+def _apply_v9(conn: sqlite3.Connection) -> None:
+    """Add bodyweight support columns to exercises table.
+
+    Prepares for future body-weight-aware volume calculations without
+    changing current behavior. Existing exercises get defaults that keep
+    them functioning unchanged.
+    """
+    if not _column_exists(conn, "exercises", "uses_bodyweight"):
+        conn.execute(
+            "ALTER TABLE exercises ADD COLUMN uses_bodyweight INTEGER NOT NULL DEFAULT 0"
+        )
+
+    if not _column_exists(conn, "exercises", "bodyweight_factor"):
+        conn.execute(
+            "ALTER TABLE exercises ADD COLUMN bodyweight_factor REAL NOT NULL DEFAULT 1.0"
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (9, now),
     )

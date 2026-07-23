@@ -42,7 +42,9 @@
           "metric_type": "Metriktyp",
           "sort_order": "Sortierreihenfolge",
           "enabled": "Aktiv",
-          "equipment_id": "Equipment-ID"
+          "equipment_id": "Equipment-ID",
+          "uses_bodyweight": "Eigenes Körpergewicht berücksichtigen",
+          "bodyweight_factor": "Anteil des Körpergewichts"
         }
       }
     },
@@ -118,7 +120,9 @@
           "metric_type": "Metriktyp",
           "sort_order": "Sortierreihenfolge",
           "enabled": "Aktiv",
-          "equipment_id": "Equipment-ID"
+          "equipment_id": "Equipment-ID",
+          "uses_bodyweight": "Eigenes Körpergewicht berücksichtigen",
+          "bodyweight_factor": "Anteil des Körpergewichts"
         }
       },
       "edit_exercise_select": {
@@ -139,7 +143,9 @@
           "metric_type": "Metriktyp",
           "sort_order": "Sortierreihenfolge",
           "enabled": "Aktiv",
-          "equipment_id": "Equipment-ID"
+          "equipment_id": "Equipment-ID",
+          "uses_bodyweight": "Eigenes Körpergewicht berücksichtigen",
+          "bodyweight_factor": "Anteil des Körpergewichts"
         }
       },
       "toggle_exercise_select": {
@@ -461,7 +467,8 @@
       "muscle_group_mapping_empty": "Bitte wähle mindestens eine Muskelgruppe aus.",
       "muscle_group_weights_sum": "Die Gewichtungswerte müssen exakt 100% ergeben. Aktueller Gesamtwert: {total}%.",
       "invalid_weight_value": "Gib einen gültigen Wert zwischen 0 und 100 ein.",
-      "invalid_weight_range": "Der Wert muss zwischen 0% und 100% liegen."
+      "invalid_weight_range": "Der Wert muss zwischen 0% und 100% liegen.",
+      "invalid_bodyweight_range": "Der Anteil muss zwischen 0 und 100 Prozent liegen."
     },
     "abort": {
       "exercise_not_found": "Übung nicht gefunden.",

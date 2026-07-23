@@ -315,6 +315,8 @@ class HAFitnessStore:
         metric_type: str | None = None,
         enabled: bool = True,
         sort_order: int = 0,
+        uses_bodyweight: bool = False,
+        bodyweight_factor: float = 1.0,
     ) -> None:
         """Insert one exercise row or reactivate/update if it already exists."""
         await self._hass.async_add_executor_job(
@@ -328,6 +330,8 @@ class HAFitnessStore:
             metric_type,
             enabled,
             sort_order,
+            uses_bodyweight,
+            bodyweight_factor,
         )
 
     async def async_update_exercise(
@@ -341,6 +345,8 @@ class HAFitnessStore:
         metric_type: str | None = None,
         enabled: bool | None = None,
         sort_order: int | None = None,
+        uses_bodyweight: bool | None = None,
+        bodyweight_factor: float | None = None,
     ) -> bool:
         """Update one exercise row and return whether a row was modified."""
         return await self._hass.async_add_executor_job(
@@ -354,6 +360,8 @@ class HAFitnessStore:
             metric_type,
             enabled,
             sort_order,
+            uses_bodyweight,
+            bodyweight_factor,
         )
 
     async def async_get_exercise_metric_type(self, exercise_id: str) -> str:
@@ -1705,7 +1713,8 @@ class HAFitnessStore:
 
     def _get_exercises(self, enabled_only: bool) -> list[dict[str, Any]]:
         sql = """
-            SELECT id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type, enabled, sort_order, created_at
+            SELECT id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type,
+                   enabled, sort_order, uses_bodyweight, bodyweight_factor, created_at
             FROM exercises
         """
         params: tuple[Any, ...] = ()
@@ -1720,7 +1729,8 @@ class HAFitnessStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type, enabled, sort_order, created_at
+                SELECT id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type,
+                       enabled, sort_order, uses_bodyweight, bodyweight_factor, created_at
                 FROM exercises
                 WHERE id = ?
                 LIMIT 1
@@ -1769,15 +1779,18 @@ class HAFitnessStore:
         metric_type: str | None,
         enabled: bool,
         sort_order: int,
+        uses_bodyweight: bool = False,
+        bodyweight_factor: float = 1.0,
     ) -> None:
         resolved_metric_type = _normalize_metric_type(metric_type)
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO exercises(
-                    id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type, enabled, sort_order, created_at
+                    id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type,
+                    enabled, sort_order, uses_bodyweight, bodyweight_factor, created_at
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name_en = excluded.name_en,
                     name_de = excluded.name_de,
@@ -1786,7 +1799,9 @@ class HAFitnessStore:
                     equipment_id = COALESCE(excluded.equipment_id, exercises.equipment_id),
                     metric_type = excluded.metric_type,
                     enabled = excluded.enabled,
-                    sort_order = excluded.sort_order
+                    sort_order = excluded.sort_order,
+                    uses_bodyweight = excluded.uses_bodyweight,
+                    bodyweight_factor = excluded.bodyweight_factor
                 """,
                 (
                     exercise_id,
@@ -1798,6 +1813,8 @@ class HAFitnessStore:
                     resolved_metric_type,
                     1 if enabled else 0,
                     sort_order,
+                    1 if uses_bodyweight else 0,
+                    bodyweight_factor,
                     _isoformat(datetime.now(timezone.utc)),
                 ),
             )
@@ -1814,6 +1831,8 @@ class HAFitnessStore:
         metric_type: str | None,
         enabled: bool | None,
         sort_order: int | None,
+        uses_bodyweight: bool | None = None,
+        bodyweight_factor: float | None = None,
     ) -> bool:
         updates: list[str] = []
         params: list[Any] = []
@@ -1841,6 +1860,12 @@ class HAFitnessStore:
         if sort_order is not None:
             updates.append("sort_order = ?")
             params.append(sort_order)
+        if uses_bodyweight is not None:
+            updates.append("uses_bodyweight = ?")
+            params.append(1 if uses_bodyweight else 0)
+        if bodyweight_factor is not None:
+            updates.append("bodyweight_factor = ?")
+            params.append(bodyweight_factor)
         if not updates:
             return False
 

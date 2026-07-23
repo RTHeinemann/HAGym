@@ -1,13 +1,12 @@
 """Config flow for HAGym."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
@@ -20,26 +19,29 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
-    ATTR_METRIC_TYPE,
-    ATTR_ENABLED,
+    ATTR_BODY_REGION,
+    ATTR_BODYWEIGHT_FACTOR,
     ATTR_DESCRIPTION,
+    ATTR_ENABLED,
     ATTR_EQUIPMENT,
     ATTR_EQUIPMENT_ID,
     ATTR_EXERCISE_ID,
     ATTR_ICON,
     ATTR_LOCATION,
+    ATTR_METRIC_TYPE,
     ATTR_MUSCLE_GROUP,
     ATTR_MUSCLE_GROUP_ID,
-    ATTR_NOTES,
     ATTR_NAME_DE,
     ATTR_NAME_EN,
-    ATTR_BODY_REGION,
+    ATTR_NOTES,
     ATTR_REPS,
     ATTR_SORT_ORDER,
+    ATTR_USES_BODYWEIGHT,
     ATTR_WEIGHT,
     CONF_DISPLAY_NAME,
     CONF_INCLUDED_USER_IDS,
     DEFAULT_DISPLAY_NAME,
+    DOMAIN,
     METRIC_TYPE_BODYWEIGHT,
     METRIC_TYPE_CARDIO,
     METRIC_TYPE_CUSTOM,
@@ -47,7 +49,6 @@ from .const import (
     METRIC_TYPE_DURATION,
     METRIC_TYPE_HOLD,
     METRIC_TYPE_STRENGTH,
-    DOMAIN,
 )
 from .storage import HAFitnessStore
 
@@ -306,6 +307,15 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
                 sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
 
+                # Bodyweight fields
+                uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
+                bodyweight_pct_raw = user_input.get(ATTR_BODYWEIGHT_FACTOR, 100)
+                try:
+                    bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
+                except (TypeError, ValueError):
+                    bodyweight_factor = 1.0
+                bodyweight_factor = max(0.0, min(1.0, bodyweight_factor))
+
                 if not normalized_exercise_id:
                     errors[ATTR_EXERCISE_ID] = "invalid_exercise_id"
                 elif (
@@ -341,6 +351,8 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             metric_type=metric_type,
                             enabled=enabled,
                             sort_order=sort_order,
+                            uses_bodyweight=uses_bodyweight,
+                            bodyweight_factor=bodyweight_factor,
                         )
                     else:
                         store = HAFitnessStore(self.hass)
@@ -355,6 +367,8 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             metric_type=metric_type,
                             enabled=enabled,
                             sort_order=sort_order,
+                            uses_bodyweight=uses_bodyweight,
+                            bodyweight_factor=bodyweight_factor,
                         )
 
                     self.hass.async_create_task(
@@ -460,6 +474,26 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         if user_input
                         else True,
                     ): bool,
+                    # Bodyweight support fields (ConfigFlow add_exercise)
+                    vol.Optional(
+                        ATTR_USES_BODYWEIGHT,
+                        default=bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
+                        if user_input
+                        else False,
+                    ): bool,
+                    vol.Optional(
+                        ATTR_BODYWEIGHT_FACTOR,
+                        default=round(float(user_input.get(ATTR_BODYWEIGHT_FACTOR, 100)))
+                        if user_input is not None and ATTR_BODYWEIGHT_FACTOR in user_input
+                        else 100,
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0,
+                            max=100,
+                            step=1,
+                            mode="box",
+                        )
+                    ),
                 }
             ),
             errors=errors,
@@ -467,7 +501,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "HAFitnessOptionsFlow":
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> HAFitnessOptionsFlow:
         """Return options flow for HAGym."""
         return HAFitnessOptionsFlow()
 
@@ -1363,6 +1397,15 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             sort_order_raw = user_input.get(ATTR_SORT_ORDER, _DEFAULT_SORT_ORDER)
             sort_order = _coerce_int(sort_order_raw, _DEFAULT_SORT_ORDER)
 
+            # Bodyweight fields (OptionsFlow add_exercise)
+            uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
+            bodyweight_pct_raw = user_input.get(ATTR_BODYWEIGHT_FACTOR, 100)
+            try:
+                bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
+            except (TypeError, ValueError):
+                bodyweight_factor = 1.0
+            bodyweight_factor = max(0.0, min(1.0, bodyweight_factor))
+
             if not normalized_exercise_id:
                 errors[ATTR_EXERCISE_ID] = "invalid_exercise_id"
             elif coordinator is not None and coordinator.get_exercise(normalized_exercise_id):
@@ -1389,6 +1432,8 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     metric_type=metric_type,
                     enabled=enabled,
                     sort_order=sort_order,
+                    uses_bodyweight=uses_bodyweight,
+                    bodyweight_factor=bodyweight_factor,
                 )
                 return await self.async_step_manage_exercises()
 
@@ -1477,6 +1522,26 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         if user_input
                         else True,
                     ): bool,
+                    # Bodyweight support fields (OptionsFlow add_exercise)
+                    vol.Optional(
+                        ATTR_USES_BODYWEIGHT,
+                        default=bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
+                        if user_input
+                        else False,
+                    ): bool,
+                    vol.Optional(
+                        ATTR_BODYWEIGHT_FACTOR,
+                        default=round(float(user_input.get(ATTR_BODYWEIGHT_FACTOR, 100)))
+                        if user_input is not None and ATTR_BODYWEIGHT_FACTOR in user_input
+                        else 100,
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0,
+                            max=100,
+                            step=1,
+                            mode="box",
+                        )
+                    ),
                 }
             ),
             errors=errors,
@@ -1545,6 +1610,17 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             sort_order_raw = user_input.get(ATTR_SORT_ORDER, exercise.get("sort_order", 0))
             sort_order = _coerce_int(sort_order_raw, int(exercise.get("sort_order", 0)))
 
+            # Bodyweight fields
+            uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
+            bodyweight_pct_raw = user_input.get(ATTR_BODYWEIGHT_FACTOR,
+                                                exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
+            try:
+                bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
+            except (TypeError, ValueError):
+                bodyweight_factor = float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0))
+            # Clamp to [0.0, 1.0]
+            bodyweight_factor = max(0.0, min(1.0, bodyweight_factor))
+
             if not name_en:
                 errors[ATTR_NAME_EN] = "name_required"
             if metric_type is not None and metric_type not in _METRIC_TYPE_OPTIONS:
@@ -1563,6 +1639,8 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     metric_type=metric_type,
                     enabled=enabled,
                     sort_order=sort_order,
+                    uses_bodyweight=uses_bodyweight,
+                    bodyweight_factor=bodyweight_factor,
                 )
                 return await self.async_step_manage_exercises()
 
@@ -1670,6 +1748,30 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         if user_input
                         else bool(exercise.get(ATTR_ENABLED, 1)),
                     ): bool,
+                    # Bodyweight support fields
+                    vol.Optional(
+                        ATTR_USES_BODYWEIGHT,
+                        default=bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
+                        if user_input
+                        else bool(int(exercise.get(ATTR_USES_BODYWEIGHT, 0) or 0)),
+                    ): bool,
+                    vol.Optional(
+                        ATTR_BODYWEIGHT_FACTOR,
+                        default=round(
+                            float(user_input.get(ATTR_BODYWEIGHT_FACTOR, 1.0)) * 100
+                        )
+                        if user_input is not None and ATTR_BODYWEIGHT_FACTOR in user_input
+                        else int(round(
+                            float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
+                        ) * 100),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0,
+                            max=100,
+                            step=1,
+                            mode="box",
+                        )
+                    ),
                 }
             ),
             errors=errors,
