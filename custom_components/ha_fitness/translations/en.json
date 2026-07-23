@@ -436,6 +436,10 @@
         "data": {
           "muscle_group_id": "Stabilizer muscle groups"
         }
+      },
+      "assign_muscle_groups_set_weights": {
+        "title": "Set muscle group weights",
+        "description": "Adjust the weight distribution for each selected muscle group. Values are percentages and must add up to exactly 100%."
       }
     },
     "error": {
@@ -453,7 +457,11 @@
       "set_not_found": "Set not found.",
       "invalid_muscle_group_id": "Muscle group ID must contain only lowercase letters, numbers, or underscore.",
       "muscle_group_exists": "Muscle group already exists.",
-      "muscle_group_not_found": "Muscle group not found."
+      "muscle_group_not_found": "Muscle group not found.",
+      "muscle_group_mapping_empty": "Please select at least one muscle group.",
+      "muscle_group_weights_sum": "Weight values must add up to exactly 100%. Current total: {total}%.",
+      "invalid_weight_value": "Enter a valid number between 0 and 100.",
+      "invalid_weight_range": "Value must be between 0% and 100%."
     },
     "abort": {
       "exercise_not_found": "Exercise not found.",
@@ -1076,9 +1084,9 @@
       "name": "Delete Set",
       "description": "Deletes one set by set_id."
     },
-      "save_activity": {
-        "name": "Save Activity",
-        "description": "Saves a non-strength activity entry (for example cardio, duration, hold) into set_logs.",
+    "save_activity": {
+      "name": "Save Activity",
+      "description": "Saves a non-strength activity entry (for example cardio, duration, hold) into set_logs.",
       "fields": {
         "exercise_id": {
           "name": "Exercise ID",
