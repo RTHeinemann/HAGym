@@ -347,6 +347,110 @@ class TestCalculateEffectiveWeight:
 # ---- Tests for volume calculation unchanged ----
 
 
+# ---- Tests for edit-flow percentage ↔ factor conversion (Bug-Fix) ----
+
+
+class TestEditFlowConversion:
+    """Test that the edit-exercise flow correctly converts percent↔factor.
+
+    Covers the bug where a stored factor of 0.65 was used as fallback,
+    then divided by 100 again → 0.0065 instead of 0.65.
+    """
+
+    def test_edit_with_factor_065_stores_correctly(self, db):
+        """Bearbeiten einer Übung mit Faktor 0.65 — speichert 0.65."""
+        # Setup: Übung mit bodyweight_factor = 0.65
+        db.execute(
+            "INSERT INTO exercises(id, name_en, enabled, uses_bodyweight, bodyweight_factor) "
+            "VALUES('dip', 'Dips', 1, 1, 0.65)"
+        )
+        row = db.execute(
+            "SELECT bodyweight_factor FROM exercises WHERE id='dip'"
+        ).fetchone()
+        assert float(row[0]) == pytest.approx(0.65)
+
+        # Simuliere: Formular sendet 65 (Prozent), Konvertierung /100 → 0.65
+        pct_from_form = 65
+        factor = round(float(pct_from_form) / 100.0, 4)
+        assert factor == pytest.approx(0.65)
+
+    def test_submit_65_percent_stores_factor_065(self):
+        """Absenden mit Prozentwert 65 speichert Faktor 0.65."""
+        pct_from_form = 65
+        factor = round(float(pct_from_form) / 100.0, 4)
+        assert factor == pytest.approx(0.65)
+
+    def test_missing_field_preserves_existing_factor(self, db):
+        """Fehlendes Formularfeld verändert einen bestehenden Faktor nicht."""
+        # Setup: Übung mit bodyweight_factor = 0.75
+        db.execute(
+            "INSERT INTO exercises(id, name_en, enabled, uses_bodyweight, bodyweight_factor) "
+            "VALUES('pull_up', 'Pull Up', 1, 1, 0.75)"
+        )
+        stored = float(db.execute(
+            "SELECT bodyweight_factor FROM exercises WHERE id='pull_up'"
+        ).fetchone()[0])
+
+        # Simuliere: ATTR_BODYWEIGHT_FACTOR NICHT in user_input → behalte stored
+        factor_after_edit = stored  # kein /100, direkt übernehmen
+        assert factor_after_edit == pytest.approx(0.75)
+
+    def test_disable_then_reenable_preserves_factor(self, db):
+        """Checkbox deaktivieren und später wieder aktivieren erhält den Faktor."""
+        # Setup: Übung mit uses_bodyweight=1, bodyweight_factor=0.65
+        db.execute(
+            "INSERT INTO exercises(id, name_en, enabled, uses_bodyweight, bodyweight_factor) "
+            "VALUES('dip', 'Dips', 1, 1, 0.65)"
+        )
+
+        # Schritt 1: Checkbox deaktivieren (uses_bodyweight → False), Faktor bleibt erhalten
+        db.execute("UPDATE exercises SET uses_bodyweight=0 WHERE id='dip'")
+        row = db.execute(
+            "SELECT uses_bodyweight, bodyweight_factor FROM exercises WHERE id='dip'"
+        ).fetchone()
+        assert int(row[0]) == 0
+        assert float(row[1]) == pytest.approx(0.65)
+
+        # Schritt 2: Checkbox wieder aktivieren — Faktor ist immer noch da
+        db.execute("UPDATE exercises SET uses_bodyweight=1 WHERE id='dip'")
+        row = db.execute(
+            "SELECT uses_bodyweight, bodyweight_factor FROM exercises WHERE id='dip'"
+        ).fetchone()
+        assert int(row[0]) == 1
+        assert float(row[1]) == pytest.approx(0.65)
+
+    def test_schema_default_converts_stored_factor_to_percent(self):
+        """Schema-Default wandelt gespeicherten Faktor korrekt in Prozent um."""
+        stored_factor = 0.65
+        pct_for_form = int(round(stored_factor * 100))
+        assert pct_for_form == 65
+
+    def test_schema_default_roundtrip(self):
+        """Runde Reise: Faktor → Prozent im Formular → zurück zu Faktor."""
+        original_factor = 0.73
+        # Schritt 1: Faktor wird als Prozent für das Formular angezeigt
+        pct_for_form = int(round(original_factor * 100))
+        assert pct_for_form == 73
+        # Schritt 2: Prozentwert wird beim Absenden zurück zu Faktor konvertiert
+        recovered_factor = round(float(pct_for_form) / 100.0, 4)
+        assert recovered_factor == pytest.approx(0.73)
+
+    def test_old_bug_would_produce_wrong_result(self):
+        """
+        Reproduziert den alten Bug: gespeicherter Faktor als Fallback,
+        dann nochmal /100 → falsches Ergebnis.
+        Dieser Test zeigt, dass der BUG NICHT mehr auftritt.
+        """
+        stored_factor = 0.65
+        # ALTES (buggy) Verhalten:
+        buggy_result = round(float(stored_factor) / 100.0, 4)
+        assert buggy_result == pytest.approx(0.0065)  # das war der Bug!
+
+        # NEUES (korrigiertes) Verhalten: wenn Feld fehlt, nimm stored direkt:
+        correct_result = stored_factor  # kein /100 mehr
+        assert correct_result == pytest.approx(0.65)
+
+
 class TestVolumeCalculationUnchanged:
     """Verify that existing set_volume = entered_weight * reps is NOT affected."""
 

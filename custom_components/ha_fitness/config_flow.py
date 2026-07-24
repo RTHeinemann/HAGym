@@ -1612,12 +1612,17 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
 
             # Bodyweight fields
             uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
-            bodyweight_pct_raw = user_input.get(ATTR_BODYWEIGHT_FACTOR,
-                                                exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
-            try:
-                bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
-            except (TypeError, ValueError):
-                bodyweight_factor = float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0))
+            stored_factor = float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
+            if ATTR_BODYWEIGHT_FACTOR in user_input:
+                # Formular sendet Prozent (0–100), konvertiere zu Faktor
+                bodyweight_pct_raw = user_input[ATTR_BODYWEIGHT_FACTOR]
+                try:
+                    bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
+                except (TypeError, ValueError):
+                    bodyweight_factor = stored_factor
+            else:
+                # Feld nicht im Formular — behalte den gespeicherten Faktor unverändert
+                bodyweight_factor = stored_factor
             # Clamp to [0.0, 1.0]
             bodyweight_factor = max(0.0, min(1.0, bodyweight_factor))
 
@@ -1757,9 +1762,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         ATTR_BODYWEIGHT_FACTOR,
-                        default=round(
-                            float(user_input.get(ATTR_BODYWEIGHT_FACTOR, 1.0)) * 100
-                        )
+                        default=int(round(user_input[ATTR_BODYWEIGHT_FACTOR]))
                         if user_input is not None and ATTR_BODYWEIGHT_FACTOR in user_input
                         else int(round(
                             float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
