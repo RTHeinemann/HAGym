@@ -91,6 +91,23 @@ _METRIC_TYPE_OPTIONS = [
 ]
 
 
+def _get_stored_bodyweight_factor(exercise: dict[str, Any]) -> float:
+    """Return stored bodyweight factor from exercise dict.
+
+    Returns 1.0 only when the key is truly missing or None (legacy row).
+    A stored value of 0.0 is preserved — never replaced by the default.
+    """
+    raw = exercise.get(ATTR_BODYWEIGHT_FACTOR)
+    if raw is None:
+        return 1.0
+    return float(raw)
+
+
+def _bodyweight_factor_to_percent(exercise: dict[str, Any]) -> int:
+    """Convert stored factor to percentage for form display (0–100)."""
+    return int(round(_get_stored_bodyweight_factor(exercise) * 100))
+
+
 class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HAGym."""
 
@@ -1612,7 +1629,8 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
 
             # Bodyweight fields
             uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
-            stored_factor = float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
+            stored_factor_raw = exercise.get(ATTR_BODYWEIGHT_FACTOR)
+            stored_factor = 1.0 if stored_factor_raw is None else float(stored_factor_raw)
             if ATTR_BODYWEIGHT_FACTOR in user_input:
                 # Formular sendet Prozent (0–100), konvertiere zu Faktor
                 bodyweight_pct_raw = user_input[ATTR_BODYWEIGHT_FACTOR]
@@ -1764,9 +1782,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                         ATTR_BODYWEIGHT_FACTOR,
                         default=int(round(user_input[ATTR_BODYWEIGHT_FACTOR]))
                         if user_input is not None and ATTR_BODYWEIGHT_FACTOR in user_input
-                        else int(round(
-                            float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
-                        ) * 100),
+                        else _bodyweight_factor_to_percent(exercise),
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=0,
