@@ -89,6 +89,7 @@ from .const import (
     SERVICE_SAVE_ACTIVITY,
     SERVICE_DEBUG_STATE,
     SERVICE_SET_BODYWEIGHT,
+    SERVICE_BIND_USER,
     ATTR_BODYWEIGHT,
     ATTR_SOURCE,
     SUPPORTED_METRIC_TYPES,
@@ -199,6 +200,7 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_SAVE_ACTIVITY,
         SERVICE_DEBUG_STATE,
         SERVICE_SET_BODYWEIGHT,
+        SERVICE_BIND_USER,
     )
     if all(hass.services.has_service(DOMAIN, service) for service in required_services):
         return
@@ -273,6 +275,29 @@ def _register_services(hass: HomeAssistant) -> None:
         for coordinator in _all_coordinators():
             await coordinator.async_set_user_bodyweight(user_id, weight, source)
             await coordinator.async_refresh_statistics(notify=False)
+
+
+    async def handle_bind_user(call: ServiceCall) -> None:
+        """Bind a HAGym user to an HA user."""
+        hagym_user_id = (call.data.get("hagym_user_id") or "").strip()
+        ha_user_id = (call.data.get("ha_user_id") or "").strip()
+        if not hagym_user_id or not ha_user_id:
+            raise HomeAssistantError("hagym_user_id and ha_user_id are required.")
+        for coordinator in _all_coordinators():
+            # Look up the HA user to get display name + username
+            ha_user = coordinator._get_ha_user(ha_user_id)
+            display_name = ha_user.name if ha_user and ha_user.name else ha_user_id
+            ha_username = coordinator._ha_username(ha_user) if ha_user else None
+            # Upsert the HAGym user row with the HA binding
+            await coordinator._store.async_upsert_user(
+                hagym_user_id, display_name, ha_username
+            )
+            coordinator._user_bodyweights[hagym_user_id] = (
+                coordinator._user_bodyweights.get(ha_user_id)
+                or coordinator._user_bodyweights.get(hagym_user_id)
+            )
+            await coordinator.async_refresh_statistics(notify=False)
+            coordinator._notify_listeners()
 
     async def handle_start_workout(call: ServiceCall) -> None:
         force = bool(call.data.get(ATTR_FORCE, False))
@@ -1091,6 +1116,19 @@ def _register_services(hass: HomeAssistant) -> None:
     )
 
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_BIND_USER,
+        handle_bind_user,
+        schema=vol.Schema(
+            {
+                vol.Required("hagym_user_id"): cv.string,
+                vol.Required("ha_user_id"): cv.string,
+            }
+        ),
+    )
+
+
 def _unregister_services(hass: HomeAssistant) -> None:
     """Remove integration services when last entry unloads."""
     for service in (
@@ -1121,6 +1159,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_DELETE_SET,
         SERVICE_DEBUG_STATE,
         SERVICE_SET_BODYWEIGHT,
+        SERVICE_BIND_USER,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

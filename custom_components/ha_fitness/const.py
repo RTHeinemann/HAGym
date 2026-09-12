@@ -47,6 +47,7 @@ SERVICE_DELETE_SET = "delete_set"
 SERVICE_SAVE_ACTIVITY = "save_activity"
 SERVICE_DEBUG_STATE = "debug_state"
 SERVICE_SET_BODYWEIGHT = "set_bodyweight"
+SERVICE_BIND_USER = "bind_user"
 
 # Service field names
 ATTR_EXERCISE = "exercise"
