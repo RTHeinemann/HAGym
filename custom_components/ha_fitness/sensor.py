@@ -126,6 +126,8 @@ async def async_setup_entry(
         if not user.get("in_hagym"):
             continue
         entities.extend(_build_per_user_entities(coordinator, entry, user))
+        for exercise_id in coordinator.enabled_exercise_ids:
+            entities.extend(_build_per_user_exercise_entities(coordinator, entry, user, exercise_id))
 
     async_add_entities(entities)
 
@@ -2188,4 +2190,112 @@ def _build_per_user_entities(
     return [
         HAFitnessPerUserSensor(coordinator, entry, user, metric_key)
         for metric_key in _PER_USER_METRICS
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Per-user exercise sensors: one entity set per user per exercise
+# ---------------------------------------------------------------------------
+
+class HAFitnessPerUserExerciseSensor(_HAFitnessSensorBase):
+    """Sensor for a single exercise metric of one HA user."""
+
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        user: dict[str, Any],
+        exercise_id: str,
+        field: str,
+        translation_key: str,
+        unit: str | None = None,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._user_id = user["id"]
+        self._exercise_id = exercise_id
+        self._field = field
+        self._exercise_key = _exercise_key(exercise_id)
+        self._attr_translation_key = translation_key
+        if unit:
+            self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_unique_id = (
+            f"{entry.entry_id}_user_{self._user_id}_"
+            f"exercise_{self._exercise_key}_{field}"
+        )
+
+    @property
+    def _stats(self) -> dict[str, Any]:
+        user_stats = self._coordinator._exercise_metric_stats_per_user.get(
+            self._user_id, {}
+        )
+        return user_stats.get(self._exercise_id, {})
+
+    @property
+    def native_value(self) -> float | int | None:
+        value = self._stats.get(self._field)
+        if value is None:
+            return None
+        return float(value)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "user_id": self._user_id,
+            "exercise_id": self._exercise_id,
+            "exercise_key": self._exercise_key,
+        }
+
+
+def _build_per_user_exercise_entities(
+    coordinator: HAFitnessCoordinator,
+    entry: ConfigEntry,
+    user: dict[str, Any],
+    exercise_id: str,
+) -> list[SensorEntity]:
+    """Build all per-user exercise sensors for one user + one exercise."""
+    metric_type = coordinator.exercise_metric_type(exercise_id)
+    exercise_key = _exercise_key(exercise_id)
+    base = f"{entry.entry_id}_user_{user['id']}"
+
+    if metric_type == METRIC_TYPE_STRENGTH:
+        return [
+            HAFitnessPerUserExerciseSensor(
+                coordinator, entry, user, exercise_id,
+                field="total_volume",
+                translation_key="user_exercise_total_volume",
+                unit=UnitOfMass.KILOGRAMS,
+            ),
+            HAFitnessPerUserExerciseSensor(
+                coordinator, entry, user, exercise_id,
+                field="total_sets",
+                translation_key="user_exercise_total_sets",
+                unit="count",
+            ),
+            HAFitnessPerUserExerciseSensor(
+                coordinator, entry, user, exercise_id,
+                field="pr_weight",
+                translation_key="user_exercise_pr",
+                unit=UnitOfMass.KILOGRAMS,
+            ),
+        ]
+
+    if metric_type == METRIC_TYPE_BODYWEIGHT:
+        return [
+            HAFitnessPerUserExerciseSensor(
+                coordinator, entry, user, exercise_id,
+                field="total_reps",
+                translation_key="user_exercise_total_reps",
+                unit="count",
+            ),
+        ]
+
+    # CARDIO / DURATION / DISTANCE / HOLD
+    return [
+        HAFitnessPerUserExerciseSensor(
+            coordinator, entry, user, exercise_id,
+            field="total_duration",
+            translation_key="user_exercise_total_duration",
+            unit=UnitOfTime.MINUTES,
+        ),
     ]

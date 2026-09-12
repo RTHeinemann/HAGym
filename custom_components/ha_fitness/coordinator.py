@@ -212,6 +212,8 @@ class HAFitnessCoordinator:
         self._exercise_metric_stats_global: dict[str, dict[str, Any]] = {}
         self._exercise_metric_stats_personal: dict[str, dict[str, Any]] = {}
         self._exercise_metric_stats_household: dict[str, dict[str, Any]] = {}
+        # Per-user exercise metrics: {user_id: {exercise_id: {pr_weight, total_volume, total_sets, ...}}}
+        self._exercise_metric_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
         self._listeners: list[Callable[[], None]] = []
         self._pending_confirmation_action: str | None = None
         self._pending_confirmation_expires_at: datetime | None = None
@@ -3251,6 +3253,23 @@ class HAFitnessCoordinator:
         self._exercise_metric_stats_global = global_stats
         self._exercise_metric_stats_personal = personal_stats
         self._exercise_metric_stats_household = household_stats
+
+        # Per-user exercise metrics for all HAGym users
+        per_user_stats: dict[str, dict[str, dict[str, Any]]] = {}
+        for user_row in self._users:
+            uid = user_row.get("id")
+            if not uid:
+                continue
+            user_exercises: dict[str, dict[str, Any]] = {}
+            for exercise_id in exercise_ids:
+                metric_type = self.exercise_metric_type(exercise_id)
+                user_exercises[exercise_id] = await self._store.async_get_exercise_metric_statistics(
+                    exercise_id=exercise_id,
+                    metric_type=metric_type,
+                    user_id=uid,
+                )
+            per_user_stats[uid] = user_exercises
+        self._exercise_metric_stats_per_user = per_user_stats
 
         if notify:
             self._notify_listeners()

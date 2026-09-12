@@ -908,6 +908,21 @@
       },
       "user_weekly_sets": {
         "name": "Benutzer weekly sets"
+      },
+      "user_exercise_total_volume": {
+        "name": "Benutzerübung Gesamtvolumen"
+      },
+      "user_exercise_total_sets": {
+        "name": "Benutzerübung Gesamt-Sets"
+      },
+      "user_exercise_pr": {
+        "name": "Benutzerübung PR"
+      },
+      "user_exercise_total_reps": {
+        "name": "Benutzerübung Gesamt-Reps"
+      },
+      "user_exercise_total_duration": {
+        "name": "Benutzerübung Gesamtdauer"
       }
     },
     "button": {

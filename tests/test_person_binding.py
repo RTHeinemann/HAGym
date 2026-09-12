@@ -386,3 +386,93 @@ class TestPerUserSensor:
         entities = _build_per_user_entities(coord, entry, user)
         vol_sensor = [e for e in entities if e._metric_key == "total_volume"][0]
         assert vol_sensor.native_value == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Per-user exercise sensors (Block 2)
+# ---------------------------------------------------------------------------
+
+class TestPerUserExerciseSensor:
+    def _setup(self):
+        coord = MagicMock()
+        coord.display_name = "Test"
+        coord._exercise_metric_stats_per_user = {
+            "uuid-felicitas": {
+                "bench_press": {
+                    "pr_weight": 100.0,
+                    "total_volume": 2000.0,
+                    "total_sets": 50,
+                },
+                "squat": {
+                    "pr_weight": 140.0,
+                    "total_volume": 1500.0,
+                    "total_sets": 30,
+                },
+            }
+        }
+        coord.exercise_metric_type = MagicMock(return_value="strength")
+        entry = MagicMock()
+        entry.entry_id = "entry-1"
+        return coord, entry
+
+    def test_build_strength_exercise_entities(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_exercise_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        entities = _build_per_user_exercise_entities(coord, entry, user, "bench_press")
+        fields = [e._field for e in entities]
+        assert "total_volume" in fields
+        assert "total_sets" in fields
+        assert "pr_weight" in fields
+        assert len(entities) == 3
+
+    def test_unique_ids_are_stable(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_exercise_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-aaron", "name": "Aaron", "in_hagym": True}
+        e1 = _build_per_user_exercise_entities(coord, entry, user, "bench_press")
+        e2 = _build_per_user_exercise_entities(coord, entry, user, "bench_press")
+        assert [e._attr_unique_id for e in e1] == [e._attr_unique_id for e in e2]
+        assert all(e._attr_unique_id.startswith("entry-1_user_uuid-aaron_exercise_bench_press_") for e in e1)
+
+    def test_native_value_reads_per_user_stats(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_exercise_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        entities = _build_per_user_exercise_entities(coord, entry, user, "bench_press")
+        pr_sensor = [e for e in entities if e._field == "pr_weight"][0]
+        assert pr_sensor.native_value == 100.0
+        vol_sensor = [e for e in entities if e._field == "total_volume"][0]
+        assert vol_sensor.native_value == 2000.0
+        sets_sensor = [e for e in entities if e._field == "total_sets"][0]
+        assert sets_sensor.native_value == 50
+
+    def test_native_value_returns_none_when_user_not_in_cache(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_exercise_entities
+        coord, entry = self._setup()
+        coord._exercise_metric_stats_per_user = {}
+        user = {"id": "uuid-unknown", "name": "Unknown", "in_hagym": True}
+        entities = _build_per_user_exercise_entities(coord, entry, user, "bench_press")
+        for e in entities:
+            assert e.native_value is None
+
+    def test_bodyweight_exercise_gets_reps_sensor(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_exercise_entities
+        from custom_components.ha_fitness.const import METRIC_TYPE_BODYWEIGHT
+        coord, entry = self._setup()
+        coord.exercise_metric_type = MagicMock(return_value=METRIC_TYPE_BODYWEIGHT)
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        entities = _build_per_user_exercise_entities(coord, entry, user, "pushup")
+        assert len(entities) == 1
+        assert entities[0]._field == "total_reps"
+
+    def test_extra_state_attributes(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_exercise_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        entities = _build_per_user_exercise_entities(coord, entry, user, "bench_press")
+        pr_sensor = [e for e in entities if e._field == "pr_weight"][0]
+        attrs = pr_sensor.extra_state_attributes
+        assert attrs["user_id"] == "uuid-felicitas"
+        assert attrs["exercise_id"] == "bench_press"
+        assert attrs["exercise_key"] == "bench_press"

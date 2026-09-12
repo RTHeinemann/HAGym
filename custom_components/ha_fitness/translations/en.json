@@ -908,6 +908,21 @@
       },
       "user_weekly_sets": {
         "name": "User weekly sets"
+      },
+      "user_exercise_total_volume": {
+        "name": "User exercise total volume"
+      },
+      "user_exercise_total_sets": {
+        "name": "User exercise total sets"
+      },
+      "user_exercise_pr": {
+        "name": "User exercise PR"
+      },
+      "user_exercise_total_reps": {
+        "name": "User exercise total reps"
+      },
+      "user_exercise_total_duration": {
+        "name": "User exercise total duration"
       }
     },
     "button": {
