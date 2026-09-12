@@ -216,6 +216,8 @@ class HAFitnessCoordinator:
         self._exercise_metric_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
         # Per-user equipment metrics: {user_id: {equipment_id: {total_volume, total_sets, total_trainings, ...}}}
         self._equipment_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per-user muscle-group stats: {user_id: {muscle_group_id: {total_volume, total_sets, ...}}}
+        self._muscle_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
         self._listeners: list[Callable[[], None]] = []
         self._pending_confirmation_action: str | None = None
         self._pending_confirmation_expires_at: datetime | None = None
@@ -1274,6 +1276,25 @@ class HAFitnessCoordinator:
             for row in rows
             if row.get("muscle_group_id")
         }
+        # Per-user muscle-group stats cache
+        mg_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        for user_row in self._users:
+            uid = user_row.get("id")
+            if not uid:
+                continue
+            user_rows = await self._store.async_get_muscle_group_statistics(uid)
+            mg_stats_per_user[uid] = {
+                str(row.get("muscle_group_id")):
+                    {
+                        "total_volume": float(row.get("personal_volume", 0.0)),
+                        "total_sets": int(row.get("personal_sets", 0)),
+                        "last_used": row.get("personal_last_used"),
+                        "top_exercise": row.get("personal_top_exercise"),
+                    }
+                for row in user_rows
+                if row.get("muscle_group_id")
+            }
+        self._muscle_stats_per_user = mg_stats_per_user
         if notify:
             self._notify_listeners()
 

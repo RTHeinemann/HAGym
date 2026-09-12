@@ -560,3 +560,87 @@ class TestPerUserEquipmentSensor:
         attrs = sensor.extra_state_attributes
         assert attrs["user_id"] == "uuid-felicitas"
         assert attrs["equipment_id"] == "bench_press_rack"
+
+
+# --- Per-user muscle group sensors (Block 4) ---
+
+class TestPerUserMuscleGroupSensor:
+    def _setup(self):
+        from unittest.mock import MagicMock
+        coord = MagicMock()
+        coord._muscle_stats_per_user = {}
+        coord.enabled_muscle_group_ids = ["chest", "back"]
+        coord.list_persons.return_value = [
+            {"id": "uuid-lucas", "name": "Lucas", "in_hagym": True},
+            {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True},
+        ]
+        entry = MagicMock()
+        entry.entry_id = "entry-123"
+        return coord, entry
+
+    def test_build_muscle_group_entities(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_muscle_group_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-lucas", "name": "Lucas", "in_hagym": True}
+        entities = _build_per_user_muscle_group_entities(coord, entry, user, "chest")
+        assert len(entities) == 2
+        fields = {e._field for e in entities}
+        assert fields == {"total_volume", "total_sets"}
+
+    def test_unique_ids_are_stable(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserMuscleGroupSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-lucas", "name": "Lucas", "in_hagym": True}
+        s1 = HAFitnessPerUserMuscleGroupSensor(
+            coord, entry, user, "chest",
+            field="total_volume", translation_key="user_muscle_total_volume",
+        )
+        s2 = HAFitnessPerUserMuscleGroupSensor(
+            coord, entry, user, "chest",
+            field="total_volume", translation_key="user_muscle_total_volume",
+        )
+        assert s1._attr_unique_id == s2._attr_unique_id
+        assert s1._attr_unique_id == "entry-123_user_uuid-lucas_muscle_chest_total_volume"
+
+    def test_native_value_reads_per_user_stats(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserMuscleGroupSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        coord._muscle_stats_per_user = {
+            "uuid-felicitas": {
+                "chest": {
+                    "total_volume": 12500.0,
+                    "total_sets": 60,
+                    "last_used": "2026-09-10T08:00:00Z",
+                    "top_exercise": "bench_press",
+                }
+            }
+        }
+        sensor = HAFitnessPerUserMuscleGroupSensor(
+            coord, entry, user, "chest",
+            field="total_volume", translation_key="user_muscle_total_volume",
+        )
+        assert sensor.native_value == 12500.0
+
+    def test_native_value_returns_none_when_user_not_in_cache(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserMuscleGroupSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        coord._muscle_stats_per_user = {}
+        sensor = HAFitnessPerUserMuscleGroupSensor(
+            coord, entry, user, "chest",
+            field="total_volume", translation_key="user_muscle_total_volume",
+        )
+        assert sensor.native_value is None
+
+    def test_extra_state_attributes(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserMuscleGroupSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessPerUserMuscleGroupSensor(
+            coord, entry, user, "chest",
+            field="total_volume", translation_key="user_muscle_total_volume",
+        )
+        attrs = sensor.extra_state_attributes
+        assert attrs["user_id"] == "uuid-felicitas"
+        assert attrs["muscle_group_id"] == "chest"

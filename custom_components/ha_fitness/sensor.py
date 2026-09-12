@@ -130,6 +130,8 @@ async def async_setup_entry(
             entities.extend(_build_per_user_exercise_entities(coordinator, entry, user, exercise_id))
         for equipment_id in coordinator.enabled_equipment_ids:
             entities.extend(_build_per_user_equipment_entities(coordinator, entry, user, equipment_id))
+        for muscle_group_id in coordinator.enabled_muscle_group_ids:
+            entities.extend(_build_per_user_muscle_group_entities(coordinator, entry, user, muscle_group_id))
 
     async_add_entities(entities)
 
@@ -2375,6 +2377,77 @@ def _build_per_user_equipment_entities(
             coordinator, entry, user, equipment_id,
             field="total_trainings",
             translation_key="user_equipment_total_trainings",
+            unit="count",
+        ),
+    ]
+
+
+class HAFitnessPerUserMuscleGroupSensor(_HAFitnessSensorBase):
+    """Sensor for a single muscle-group metric of one HA user."""
+
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        user: dict[str, Any],
+        muscle_group_id: str,
+        field: str,
+        translation_key: str,
+        unit: str | None = None,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._user_id = user["id"]
+        self._muscle_group_id = muscle_group_id
+        self._field = field
+        self._attr_translation_key = translation_key
+        if unit:
+            self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_unique_id = (
+            f"{entry.entry_id}_user_{self._user_id}_"
+            f"muscle_{muscle_group_id}_{field}"
+        )
+
+    @property
+    def _stats(self) -> dict[str, Any]:
+        user_stats = self._coordinator._muscle_stats_per_user.get(
+            self._user_id, {}
+        )
+        return user_stats.get(self._muscle_group_id, {})
+
+    @property
+    def native_value(self) -> float | int | None:
+        value = self._stats.get(self._field)
+        if value is None:
+            return None
+        return float(value)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "user_id": self._user_id,
+            "muscle_group_id": self._muscle_group_id,
+        }
+
+
+def _build_per_user_muscle_group_entities(
+    coordinator: HAFitnessCoordinator,
+    entry: ConfigEntry,
+    user: dict[str, Any],
+    muscle_group_id: str,
+) -> list[SensorEntity]:
+    """Build per-user muscle-group sensors for one user + one muscle group."""
+    return [
+        HAFitnessPerUserMuscleGroupSensor(
+            coordinator, entry, user, muscle_group_id,
+            field="total_volume",
+            translation_key="user_muscle_total_volume",
+            unit=UnitOfMass.KILOGRAMS,
+        ),
+        HAFitnessPerUserMuscleGroupSensor(
+            coordinator, entry, user, muscle_group_id,
+            field="total_sets",
+            translation_key="user_muscle_total_sets",
             unit="count",
         ),
     ]

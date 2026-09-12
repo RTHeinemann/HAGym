@@ -1193,6 +1193,8 @@
   "sensor": {
     "user_equipment_total_volume": "Total Volume",
     "user_equipment_total_sets": "Total Sets",
-    "user_equipment_total_trainings": "Training Count"
+    "user_equipment_total_trainings": "Training Count",
+    "user_muscle_total_volume": "Total Volume",
+    "user_muscle_total_sets": "Total Sets"
   }
 }

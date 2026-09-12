@@ -1193,6 +1193,8 @@
   "sensor": {
     "user_equipment_total_volume": "Gesamtes Volumen",
     "user_equipment_total_sets": "Gesamt-Sätze",
-    "user_equipment_total_trainings": "Trainingsanzahl"
+    "user_equipment_total_trainings": "Trainingsanzahl",
+    "user_muscle_total_volume": "Gesamtes Volumen",
+    "user_muscle_total_sets": "Gesamt-Sätze"
   }
 }
