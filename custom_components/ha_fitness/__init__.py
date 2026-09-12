@@ -252,7 +252,7 @@ def _register_services(hass: HomeAssistant) -> None:
             # Fire an event with the debug payload
             hass.bus.fire(
                 f"{DOMAIN}_debug_state",
-                {"entry_id": coordinator._entry_id, "state": state},
+                {"state": state},
             )
             _LOGGER.warning("HAGym debug state: %s", json.dumps(state, indent=2, default=str))
 
