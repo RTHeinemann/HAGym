@@ -284,9 +284,16 @@ class HAFitnessStore:
         """Return most recent set rows, optionally filtered by user."""
         return await self._hass.async_add_executor_job(self._get_recent_sets, limit, user_id)
 
-    async def async_upsert_user(self, user_id: str, display_name: str | None = None) -> None:
+    async def async_upsert_user(
+        self,
+        user_id: str,
+        display_name: str | None = None,
+        ha_username: str | None = None,
+    ) -> None:
         """Insert or update one user row."""
-        await self._hass.async_add_executor_job(self._upsert_user, user_id, display_name)
+        await self._hass.async_add_executor_job(
+            self._upsert_user, user_id, display_name, ha_username
+        )
 
     async def async_get_users(self) -> list[dict[str, Any]]:
         """Return known users sorted by display_name/id."""
@@ -295,6 +302,29 @@ class HAFitnessStore:
     async def async_get_user(self, user_id: str) -> dict[str, Any] | None:
         """Return one user row by id."""
         return await self._hass.async_add_executor_job(self._get_user, user_id)
+
+    async def async_set_user_bodyweight(
+        self, user_id: str, weight_kg: float, source: str | None = None
+    ) -> None:
+        """Set current bodyweight and record a history entry."""
+        await self._hass.async_add_executor_job(
+            self._set_user_bodyweight, user_id, weight_kg, source
+        )
+
+    async def async_get_user_bodyweight(self, user_id: str) -> float | None:
+        """Return current bodyweight for one user, or None."""
+        user = await self.async_get_user(user_id)
+        if user is None:
+            return None
+        return user.get("bodyweight")
+
+    async def async_get_user_bodyweight_history(
+        self, user_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Return bodyweight history for one user, newest first."""
+        return await self._hass.async_add_executor_job(
+            self._get_user_bodyweight_history, user_id, limit
+        )
 
     async def async_get_exercises(self, enabled_only: bool = False) -> list[dict[str, Any]]:
         """Return exercise catalog rows."""
@@ -1669,21 +1699,70 @@ class HAFitnessStore:
             rows = conn.execute(sql, params).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
 
-    def _upsert_user(self, user_id: str, display_name: str | None = None) -> None:
+    def _set_user_bodyweight(
+        self,
+        user_id: str,
+        weight_kg: float,
+        source: str | None = None,
+    ) -> None:
+        weight = float(weight_kg)
+        now = _isoformat(datetime.now(timezone.utc))
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO users(id, display_name, enabled, created_at)
+                INSERT INTO users(id, bodyweight, enabled, created_at)
                 VALUES(?, ?, 1, ?)
+                ON CONFLICT(id) DO UPDATE SET bodyweight = excluded.bodyweight
+                """,
+                (user_id, weight, now),
+            )
+            conn.execute(
+                "INSERT INTO bodyweight_history(user_id, weight_kg, created_at, source) VALUES(?, ?, ?, ?)",
+                (user_id, weight, now, source),
+            )
+            conn.commit()
+
+    def _get_user_bodyweight_history(
+        self, user_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT user_id, weight_kg, created_at, source
+                FROM bodyweight_history
+                WHERE user_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (user_id, int(limit)),
+            ).fetchall()
+            return [_row_to_dict(row) for row in rows if row is not None]
+
+    def _upsert_user(
+        self,
+        user_id: str,
+        display_name: str | None = None,
+        ha_username: str | None = None,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO users(id, display_name, ha_username, enabled, created_at)
+                VALUES(?, ?, ?, 1, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     display_name = CASE
                         WHEN excluded.display_name IS NOT NULL AND excluded.display_name != ''
                             THEN excluded.display_name
                         ELSE users.display_name
                     END,
+                    ha_username = CASE
+                        WHEN excluded.ha_username IS NOT NULL AND excluded.ha_username != ''
+                            THEN excluded.ha_username
+                        ELSE users.ha_username
+                    END,
                     enabled = 1
                 """,
-                (user_id, display_name, _isoformat(datetime.now(timezone.utc))),
+                (user_id, display_name, ha_username, _isoformat(datetime.now(timezone.utc))),
             )
             conn.commit()
 
@@ -1691,7 +1770,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, display_name, enabled, created_at
+                SELECT id, display_name, ha_username, bodyweight, enabled, created_at
                 FROM users
                 ORDER BY COALESCE(display_name, id) ASC
                 """
@@ -1702,7 +1781,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, display_name, enabled, created_at
+                SELECT id, display_name, ha_username, bodyweight, enabled, created_at
                 FROM users
                 WHERE id = ?
                 LIMIT 1

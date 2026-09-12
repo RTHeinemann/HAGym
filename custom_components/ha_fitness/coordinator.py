@@ -185,6 +185,8 @@ class HAFitnessCoordinator:
         self._current_user_id: str | None = None
         self._selected_user_id: str | None = None
         self._users: list[dict[str, Any]] = []
+        # Per-user statistics cache: {user_id: {total_volume, total_sets, workout_count, weekly_volume, weekly_sets}}
+        self._user_statistics: dict[str, dict[str, Any]] = {}
         self._personal_total_volume: float = 0.0
         self._personal_total_sets: int = 0
         self._personal_total_workouts: int = 0
@@ -210,6 +212,14 @@ class HAFitnessCoordinator:
         self._exercise_metric_stats_global: dict[str, dict[str, Any]] = {}
         self._exercise_metric_stats_personal: dict[str, dict[str, Any]] = {}
         self._exercise_metric_stats_household: dict[str, dict[str, Any]] = {}
+        # Per-user exercise metrics: {user_id: {exercise_id: {pr_weight, total_volume, total_sets, ...}}}
+        self._exercise_metric_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per-user equipment metrics: {user_id: {equipment_id: {total_volume, total_sets, total_trainings, ...}}}
+        self._equipment_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per-user muscle-group stats: {user_id: {muscle_group_id: {total_volume, total_sets, ...}}}
+        self._muscle_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per-user bodyweight (kg): {user_id: weight_kg}
+        self._user_bodyweights: dict[str, float] = {}
         self._listeners: list[Callable[[], None]] = []
         self._pending_confirmation_action: str | None = None
         self._pending_confirmation_expires_at: datetime | None = None
@@ -936,6 +946,30 @@ class HAFitnessCoordinator:
         self._added_weight = max(0.0, float(value))
         self._notify_listeners()
 
+    def get_user_bodyweight(self, user_id: str) -> float | None:
+        """Return the current bodyweight (kg) for a user, or None if unset."""
+        return self._user_bodyweights.get(user_id)
+
+    async def async_set_user_bodyweight(
+        self, user_id: str, weight_kg: float, source: str | None = None
+    ) -> None:
+        """Persist a new bodyweight and refresh local state."""
+        weight = max(0.0, float(weight_kg))
+        await self._store.async_set_user_bodyweight(user_id, weight, source)
+        self._user_bodyweights[user_id] = weight
+        self._notify_listeners()
+
+    async def async_refresh_user_bodyweights(self) -> None:
+        """Load the latest bodyweight per user from storage."""
+        try:
+            users = await self._store.async_get_users()
+            for user in users:
+                bodyweight = user.get("bodyweight")
+                if bodyweight is not None:
+                    self._user_bodyweights[user["id"]] = float(bodyweight)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.exception("HAGym: failed to refresh user bodyweights")
+
     def set_intensity(self, value: str) -> None:
         """Update selected intensity value for cardio activities."""
         normalized = str(value or "").strip().lower()
@@ -1268,6 +1302,25 @@ class HAFitnessCoordinator:
             for row in rows
             if row.get("muscle_group_id")
         }
+        # Per-user muscle-group stats cache
+        mg_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        for user_row in self._users:
+            uid = user_row.get("id")
+            if not uid:
+                continue
+            user_rows = await self._store.async_get_muscle_group_statistics(uid)
+            mg_stats_per_user[uid] = {
+                str(row.get("muscle_group_id")):
+                    {
+                        "total_volume": float(row.get("personal_volume", 0.0)),
+                        "total_sets": int(row.get("personal_sets", 0)),
+                        "last_used": row.get("personal_last_used"),
+                        "top_exercise": row.get("personal_top_exercise"),
+                    }
+                for row in user_rows
+                if row.get("muscle_group_id")
+            }
+        self._muscle_stats_per_user = mg_stats_per_user
         if notify:
             self._notify_listeners()
 
@@ -2816,14 +2869,99 @@ class HAFitnessCoordinator:
         """Refresh known users from storage."""
         self._users = await self._store.async_get_users()
 
+        for user in self._users:
+            bodyweight = user.get("bodyweight")
+            if bodyweight is not None:
+                self._user_bodyweights[user["id"]] = float(bodyweight)
+
         if self._selected_user_id is None and self._current_user_id is not None:
             self._selected_user_id = self._current_user_id
 
+    async def list_persons(self) -> list[dict[str, Any]]:
+        """Return all HA users with HAGym usage stats.
+
+        Reads live from hass.auth so newly created HA users appear
+        immediately, without waiting for a first workout.
+        """
+        ha_users: list[dict[str, Any]] = []
+        try:
+            for user in self.hass.auth.async_get_users():
+                ha_users.append({
+                    "id": user.id,
+                    "name": user.name,
+                    "username": user.username,
+                    "is_owner": user.is_owner,
+                    "is_local": user.is_local,
+                })
+        except Exception:
+            _LOGGER.warning("HAGym: failed to list HA users from hass.auth", exc_info=True)
+
+        hagym_users = {u["id"]: u for u in self._users}
+
+        persons: list[dict[str, Any]] = []
+        for ha_user in ha_users:
+            uid = ha_user["id"]
+            hagym_row = hagym_users.get(uid, {})
+            set_count = await self._store.async_get_set_count(uid)
+            workout_count = await self._store.async_get_workout_count(uid)
+            persons.append({
+                "id": uid,
+                "display_name": ha_user["name"] or hagym_row.get("display_name") or uid,
+                "username": ha_user["username"],
+                "is_owner": ha_user["is_owner"],
+                "is_local": ha_user["is_local"],
+                "in_hagym": uid in hagym_users,
+                "set_count": set_count,
+                "workout_count": workout_count,
+                "created_at": hagym_row.get("created_at"),
+            })
+        return persons
+
+    async def async_get_user_statistics(self, user_id: str) -> dict[str, Any]:
+        """Return all training statistics for one HA user.
+
+        This is the single entry point for per-user sensor values.
+        Every field here is filtered by user_id — no "active user" state.
+        """
+        total_volume = await self._store.async_get_total_volume(user_id)
+        total_sets = await self._store.async_get_set_count(user_id)
+        workout_count = await self._store.async_get_workout_count(user_id)
+        recent_sets = await self._store.async_get_recent_sets(10, user_id)
+        exercise_stats = await self._store.async_get_exercise_statistics(user_id=user_id)
+        muscle_stats = await self._store.async_get_muscle_group_statistics(user_id=user_id)
+
+        # Weekly summary (current week)
+        week_start_utc, week_end_utc = _current_week_bounds(self.hass)[3], _current_week_bounds(self.hass)[4]
+        weekly_summary = await self._store.async_get_weekly_summary(
+            week_start_utc, week_end_utc, user_id=user_id
+        )
+
+        return {
+            "user_id": user_id,
+            "total_volume": total_volume,
+            "total_sets": total_sets,
+            "workout_count": workout_count,
+            "recent_sets": recent_sets,
+            "exercise_statistics": exercise_stats,
+            "muscle_group_statistics": muscle_stats,
+            "weekly_summary": weekly_summary,
+        }
+
     async def resolve_user_id(self, context_user_id: str | None) -> str:
-        """Resolve effective user id from service context and upsert into users table."""
+        """Resolve effective user id from service context and upsert into users table.
+
+        If context_user_id is a valid HA user, the HA display name and username
+        are read from hass.auth and stored alongside the HAGym user row.
+        """
         resolved = context_user_id or self._resolve_personal_user_id()
-        fallback_display_name = context_user_id if context_user_id else resolved
-        await self._store.async_upsert_user(resolved, fallback_display_name)
+        ha_user = self._get_ha_user(resolved)
+        display_name = (
+            ha_user.name if ha_user and ha_user.name else resolved
+        )
+        ha_username = ha_user.username if ha_user else None
+        await self._store.async_upsert_user(
+            resolved, display_name, ha_username
+        )
 
         if context_user_id or self._current_user_id is None:
             self._current_user_id = resolved
@@ -2832,6 +2970,16 @@ class HAFitnessCoordinator:
             self._selected_user_id = resolved
 
         return resolved
+
+    def _get_ha_user(self, user_id: str):
+        """Look up a HA user by id from hass.auth. Returns None if not found."""
+        try:
+            for user in self.hass.auth.async_get_users():
+                if user.id == user_id:
+                    return user
+        except Exception:
+            _LOGGER.debug("HAGym: failed to list HA users for %s", user_id)
+        return None
 
     def _resolve_personal_user_id(self) -> str:
         """Return the user id used for personal statistics."""
@@ -2934,6 +3082,26 @@ class HAFitnessCoordinator:
             equipment_household = await self._store.async_get_household_equipment_statistics(
                 household_user_ids
             )
+            # Per-user equipment stats cache for all HAGym users
+            eq_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+            for user_row in self._users:
+                uid = user_row.get("id")
+                if not uid:
+                    continue
+                user_eq_rows = await self._store.async_get_user_equipment_statistics(uid)
+                eq_stats_per_user[uid] = {
+                    str(row.get("equipment_id")):
+                        {
+                            "total_volume": float(row.get("total_volume", 0.0)),
+                            "total_sets": int(row.get("total_sets", 0)),
+                            "total_trainings": int(row.get("total_trainings", 0)),
+                            "last_used": row.get("last_used"),
+                            "top_exercise": row.get("top_exercise"),
+                        }
+                    for row in user_eq_rows
+                    if row.get("equipment_id")
+                }
+            self._equipment_stats_per_user = eq_stats_per_user
             global_map = {
                 str(row.get("equipment_id")): row
                 for row in equipment_global
@@ -3069,12 +3237,41 @@ class HAFitnessCoordinator:
                 notify=False,
                 user_id=personal_user_id,
             )
+            await self._refresh_user_statistics()
         except sqlite3.Error as err:
             _LOGGER.exception("HAGym: failed to refresh statistics")
             raise HomeAssistantError("Failed to refresh statistics") from err
 
         if notify:
             self._notify_listeners()
+
+    async def _refresh_user_statistics(self) -> None:
+        """Build per-user stats cache for all HAGym users.
+
+        Called from async_refresh_statistics(). Populates
+        self._user_statistics so per-user sensors can read
+        values synchronously without a separate async call.
+        """
+        week_start_utc, week_end_utc = _current_week_bounds(self.hass)[3], _current_week_bounds(self.hass)[4]
+        new_stats: dict[str, dict[str, Any]] = {}
+        for user_row in self._users:
+            uid = user_row.get("id")
+            if not uid:
+                continue
+            total_volume = await self._store.async_get_total_volume(uid)
+            total_sets = await self._store.async_get_set_count(uid)
+            workout_count = await self._store.async_get_workout_count(uid)
+            weekly = await self._store.async_get_weekly_summary(
+                week_start_utc, week_end_utc, user_id=uid
+            )
+            new_stats[uid] = {
+                "total_volume": float(total_volume),
+                "total_sets": int(total_sets),
+                "workout_count": int(workout_count),
+                "weekly_volume": float(weekly.get("total_volume", 0.0)),
+                "weekly_sets": int(weekly.get("total_sets", 0)),
+            }
+        self._user_statistics = new_stats
 
     async def async_refresh_exercise_metric_statistics(
         self,
@@ -3130,6 +3327,23 @@ class HAFitnessCoordinator:
         self._exercise_metric_stats_global = global_stats
         self._exercise_metric_stats_personal = personal_stats
         self._exercise_metric_stats_household = household_stats
+
+        # Per-user exercise metrics for all HAGym users
+        per_user_stats: dict[str, dict[str, dict[str, Any]]] = {}
+        for user_row in self._users:
+            uid = user_row.get("id")
+            if not uid:
+                continue
+            user_exercises: dict[str, dict[str, Any]] = {}
+            for exercise_id in exercise_ids:
+                metric_type = self.exercise_metric_type(exercise_id)
+                user_exercises[exercise_id] = await self._store.async_get_exercise_metric_statistics(
+                    exercise_id=exercise_id,
+                    metric_type=metric_type,
+                    user_id=uid,
+                )
+            per_user_stats[uid] = user_exercises
+        self._exercise_metric_stats_per_user = per_user_stats
 
         if notify:
             self._notify_listeners()

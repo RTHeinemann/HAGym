@@ -15,7 +15,7 @@ from .const import (
     LEGACY_USER_NAME,
 )
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -65,6 +65,12 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 9:
         _apply_v9(conn)
+
+    if current_version < 10:
+        _apply_v10(conn)
+
+    if current_version < 11:
+        _apply_v11(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -354,6 +360,7 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
         "equipment": "PRAGMA table_info(equipment)",
         "muscle_groups": "PRAGMA table_info(muscle_groups)",
         "exercise_muscle_groups": "PRAGMA table_info(exercise_muscle_groups)",
+        "users": "PRAGMA table_info(users)",
     }
     pragma_sql = pragma_sql_by_table.get(table)
     if pragma_sql is None:
@@ -648,4 +655,55 @@ def _apply_v9(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
         (9, now),
+    )
+
+
+def _apply_v10(conn: sqlite3.Connection) -> None:
+    """Bind HAGym persons to Home Assistant users.
+
+    HAGym no longer tracks its own user list — the users table becomes a
+    thin cache of the HA users that HAGym has seen so far, keyed by the
+    HA user id (uuid). Adds optional ha_username for display fallback.
+    """
+    if not _column_exists(conn, "users", "ha_username"):
+        conn.execute("ALTER TABLE users ADD COLUMN ha_username TEXT")
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (10, now),
+    )
+
+
+def _apply_v11(conn: sqlite3.Connection) -> None:
+    """Add per-user bodyweight column and bodyweight history table.
+
+    The bodyweight column stores each user's current body weight in kg.
+    The bodyweight_history table records every change so dashboards can
+    show weight trends over time.
+    """
+    if not _column_exists(conn, "users", "bodyweight"):
+        conn.execute("ALTER TABLE users ADD COLUMN bodyweight REAL")
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bodyweight_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            weight_kg REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            source TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bodyweight_history_user_created "
+        "ON bodyweight_history(user_id, created_at)"
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (11, now),
     )

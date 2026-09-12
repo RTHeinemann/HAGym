@@ -91,6 +91,23 @@ _METRIC_TYPE_OPTIONS = [
 ]
 
 
+def _get_stored_bodyweight_factor(exercise: dict[str, Any]) -> float:
+    """Return stored bodyweight factor from exercise dict.
+
+    Returns 1.0 only when the key is truly missing or None (legacy row).
+    A stored value of 0.0 is preserved — never replaced by the default.
+    """
+    raw = exercise.get(ATTR_BODYWEIGHT_FACTOR)
+    if raw is None:
+        return 1.0
+    return float(raw)
+
+
+def _bodyweight_factor_to_percent(exercise: dict[str, Any]) -> int:
+    """Convert stored factor to percentage for form display (0–100)."""
+    return int(round(_get_stored_bodyweight_factor(exercise) * 100))
+
+
 class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HAGym."""
 
@@ -532,6 +549,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             return self.async_show_menu(
                 step_id="init",
                 menu_options=[
+                    "manage_persons",
                     "configure_household_users",
                     "manage_exercises",
                     "manage_equipment",
@@ -553,6 +571,40 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         except Exception:
             _LOGGER.exception("HAGym options flow init failed")
             return self.async_abort(reason="options_flow_error")
+
+    async def async_step_manage_persons(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Show all HA users with their HAGym usage."""
+        if user_input is not None:
+            # Navigate back to root menu (no action taken yet)
+            return await self.async_step_init()
+
+        persons: list[dict[str, Any]] = []
+        coordinator = self._coordinator
+        if coordinator is not None:
+            persons = await coordinator.list_persons()
+
+        # Build a human-readable summary table
+        lines: list[str] = []
+        for p in persons:
+            name = p.get("display_name") or p["id"]
+            username = p.get("username") or "—"
+            sets = p.get("set_count", 0)
+            workouts = p.get("workout_count", 0)
+            badge = "👤" if p.get("in_hagym") else ""
+            lines.append(f"{badge} {name}  (user: {username}) — {sets} Sets, {workouts} Workouts")
+
+        if not lines:
+            lines.append("Keine HA-Benutzer gefunden.")
+
+        return self.async_show_form(
+            step_id="manage_persons",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "person_table": "\n".join(lines),
+            },
+        )
 
     async def async_step_manage_exercises(
         self, user_input: dict | None = None
@@ -1612,12 +1664,18 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
 
             # Bodyweight fields
             uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
-            bodyweight_pct_raw = user_input.get(ATTR_BODYWEIGHT_FACTOR,
-                                                exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
-            try:
-                bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
-            except (TypeError, ValueError):
-                bodyweight_factor = float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0))
+            stored_factor_raw = exercise.get(ATTR_BODYWEIGHT_FACTOR)
+            stored_factor = 1.0 if stored_factor_raw is None else float(stored_factor_raw)
+            if ATTR_BODYWEIGHT_FACTOR in user_input:
+                # Formular sendet Prozent (0–100), konvertiere zu Faktor
+                bodyweight_pct_raw = user_input[ATTR_BODYWEIGHT_FACTOR]
+                try:
+                    bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
+                except (TypeError, ValueError):
+                    bodyweight_factor = stored_factor
+            else:
+                # Feld nicht im Formular — behalte den gespeicherten Faktor unverändert
+                bodyweight_factor = stored_factor
             # Clamp to [0.0, 1.0]
             bodyweight_factor = max(0.0, min(1.0, bodyweight_factor))
 
@@ -1757,13 +1815,9 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         ATTR_BODYWEIGHT_FACTOR,
-                        default=round(
-                            float(user_input.get(ATTR_BODYWEIGHT_FACTOR, 1.0)) * 100
-                        )
+                        default=int(round(user_input[ATTR_BODYWEIGHT_FACTOR]))
                         if user_input is not None and ATTR_BODYWEIGHT_FACTOR in user_input
-                        else int(round(
-                            float(exercise.get(ATTR_BODYWEIGHT_FACTOR, 1.0) or 1.0)
-                        ) * 100),
+                        else _bodyweight_factor_to_percent(exercise),
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=0,

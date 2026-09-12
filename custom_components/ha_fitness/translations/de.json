@@ -446,6 +446,11 @@
       "assign_muscle_groups_set_weights": {
         "title": "Muskelgruppen-Gewichtung festlegen",
         "description": "Passe die Gewichtsverteilung für jede ausgewählte Muskelgruppe an. Die Werte sind Prozentsätze und müssen exakt 100% ergeben."
+      },
+      "manage_persons": {
+        "title": "Personen verwalten",
+        "description": "Alle in Home Assistant angelegten Benutzer. Nur HA-Benutzer können HAGym nutzen. Jeder HA-Benutzer hat eine eigene Trainingshistorie.",
+        "placeholder": "{{ person_table }}"
       }
     },
     "error": {
@@ -887,6 +892,37 @@
       },
       "top_exercise": {
         "name": "Top-Übung"
+      },
+      "user_total_volume": {
+        "name": "Benutzer total volume",
+        "state_attributes": {}
+      },
+      "user_total_sets": {
+        "name": "Benutzer total sets"
+      },
+      "user_workout_count": {
+        "name": "Benutzer workouts"
+      },
+      "user_weekly_volume": {
+        "name": "Benutzer weekly volume"
+      },
+      "user_weekly_sets": {
+        "name": "Benutzer weekly sets"
+      },
+      "user_exercise_total_volume": {
+        "name": "Benutzerübung Gesamtvolumen"
+      },
+      "user_exercise_total_sets": {
+        "name": "Benutzerübung Gesamt-Sets"
+      },
+      "user_exercise_pr": {
+        "name": "Benutzerübung PR"
+      },
+      "user_exercise_total_reps": {
+        "name": "Benutzerübung Gesamt-Reps"
+      },
+      "user_exercise_total_duration": {
+        "name": "Benutzerübung Gesamtdauer"
       }
     },
     "button": {
@@ -944,6 +980,9 @@
       },
       "added_weight": {
         "name": "Zusatzgewicht"
+      },
+      "user_bodyweight": {
+        "name": "Körpergewicht"
       }
     },
     "text": {
@@ -1153,5 +1192,12 @@
     "please_select_exercise": {
       "message": "Bitte zuerst eine Übung auswählen."
     }
+  },
+  "sensor": {
+    "user_equipment_total_volume": "Gesamtes Volumen",
+    "user_equipment_total_sets": "Gesamt-Sätze",
+    "user_equipment_total_trainings": "Trainingsanzahl",
+    "user_muscle_total_volume": "Gesamtes Volumen",
+    "user_muscle_total_sets": "Gesamt-Sätze"
   }
 }

@@ -446,6 +446,11 @@
       "assign_muscle_groups_set_weights": {
         "title": "Set muscle group weights",
         "description": "Adjust the weight distribution for each selected muscle group. Values are percentages and must add up to exactly 100%."
+      },
+      "manage_persons": {
+        "title": "Manage persons",
+        "description": "All users registered in Home Assistant. Only HA users can use HAGym. Each HA user has their own training history.",
+        "placeholder": "{{ person_table }}"
       }
     },
     "error": {
@@ -887,6 +892,37 @@
       },
       "top_exercise": {
         "name": "Top Exercise"
+      },
+      "user_total_volume": {
+        "name": "User total volume",
+        "state_attributes": {}
+      },
+      "user_total_sets": {
+        "name": "User total sets"
+      },
+      "user_workout_count": {
+        "name": "User workouts"
+      },
+      "user_weekly_volume": {
+        "name": "User weekly volume"
+      },
+      "user_weekly_sets": {
+        "name": "User weekly sets"
+      },
+      "user_exercise_total_volume": {
+        "name": "User exercise total volume"
+      },
+      "user_exercise_total_sets": {
+        "name": "User exercise total sets"
+      },
+      "user_exercise_pr": {
+        "name": "User exercise PR"
+      },
+      "user_exercise_total_reps": {
+        "name": "User exercise total reps"
+      },
+      "user_exercise_total_duration": {
+        "name": "User exercise total duration"
       }
     },
     "button": {
@@ -944,6 +980,9 @@
       },
       "added_weight": {
         "name": "Added weight"
+      },
+      "user_bodyweight": {
+        "name": "Bodyweight"
       }
     },
     "text": {
@@ -1153,5 +1192,12 @@
     "please_select_exercise": {
       "message": "Please select an exercise first."
     }
+  },
+  "sensor": {
+    "user_equipment_total_volume": "Total Volume",
+    "user_equipment_total_sets": "Total Sets",
+    "user_equipment_total_trainings": "Training Count",
+    "user_muscle_total_volume": "Total Volume",
+    "user_muscle_total_sets": "Total Sets"
   }
 }
