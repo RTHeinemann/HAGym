@@ -2877,6 +2877,17 @@ class HAFitnessCoordinator:
         if self._selected_user_id is None and self._current_user_id is not None:
             self._selected_user_id = self._current_user_id
 
+    @staticmethod
+    def _ha_username(user: Any) -> str | None:
+        """Extract username from a HA auth user across HA versions."""
+        value = getattr(user, "username", None)
+        if value:
+            return value
+        system_options = getattr(user, "system_options", None)
+        if system_options is not None:
+            value = getattr(system_options, "username", None)
+        return value
+
     async def list_persons(self) -> list[dict[str, Any]]:
         """Return all HA users with HAGym usage stats.
 
@@ -2892,7 +2903,7 @@ class HAFitnessCoordinator:
                 ha_users.append({
                     "id": user.id,
                     "name": user.name,
-                    "username": user.username,
+                    "username": self._ha_username(user),
                     "is_owner": user.is_owner,
                     "is_local": user.is_local,
                 })
@@ -2961,7 +2972,7 @@ class HAFitnessCoordinator:
         display_name = (
             ha_user.name if ha_user and ha_user.name else resolved
         )
-        ha_username = ha_user.username if ha_user else None
+        ha_username = self._ha_username(ha_user) if ha_user else None
         await self._store.async_upsert_user(
             resolved, display_name, ha_username
         )
