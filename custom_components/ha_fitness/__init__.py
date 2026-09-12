@@ -1148,18 +1148,12 @@ def _register_services(hass: HomeAssistant) -> None:
     )
 
 
+    # Register with schema=None to bypass HA 2025.x UI validation issues.
+    # The handler validates data manually.
     hass.services.async_register(
         DOMAIN,
         SERVICE_BIND_USER,
         handle_bind_user,
-        schema=vol.Schema(
-            {
-                vol.Optional("hagym_user_id"): cv.string,
-                vol.Optional("ha_user_id"): cv.string,
-                vol.Optional("ha_username"): cv.string,
-                vol.Optional("display_name"): cv.string,
-            }
-        ),
     )
 
 
