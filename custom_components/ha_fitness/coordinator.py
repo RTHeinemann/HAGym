@@ -214,6 +214,8 @@ class HAFitnessCoordinator:
         self._exercise_metric_stats_household: dict[str, dict[str, Any]] = {}
         # Per-user exercise metrics: {user_id: {exercise_id: {pr_weight, total_volume, total_sets, ...}}}
         self._exercise_metric_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per-user equipment metrics: {user_id: {equipment_id: {total_volume, total_sets, total_trainings, ...}}}
+        self._equipment_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
         self._listeners: list[Callable[[], None]] = []
         self._pending_confirmation_action: str | None = None
         self._pending_confirmation_expires_at: datetime | None = None
@@ -3028,6 +3030,26 @@ class HAFitnessCoordinator:
             equipment_household = await self._store.async_get_household_equipment_statistics(
                 household_user_ids
             )
+            # Per-user equipment stats cache for all HAGym users
+            eq_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+            for user_row in self._users:
+                uid = user_row.get("id")
+                if not uid:
+                    continue
+                user_eq_rows = await self._store.async_get_user_equipment_statistics(uid)
+                eq_stats_per_user[uid] = {
+                    str(row.get("equipment_id")):
+                        {
+                            "total_volume": float(row.get("total_volume", 0.0)),
+                            "total_sets": int(row.get("total_sets", 0)),
+                            "total_trainings": int(row.get("total_trainings", 0)),
+                            "last_used": row.get("last_used"),
+                            "top_exercise": row.get("top_exercise"),
+                        }
+                    for row in user_eq_rows
+                    if row.get("equipment_id")
+                }
+            self._equipment_stats_per_user = eq_stats_per_user
             global_map = {
                 str(row.get("equipment_id")): row
                 for row in equipment_global

@@ -476,3 +476,87 @@ class TestPerUserExerciseSensor:
         assert attrs["user_id"] == "uuid-felicitas"
         assert attrs["exercise_id"] == "bench_press"
         assert attrs["exercise_key"] == "bench_press"
+
+
+# --- Per-user equipment sensors (Block 3) ---
+
+class TestPerUserEquipmentSensor:
+    def _setup(self):
+        from unittest.mock import MagicMock
+        from custom_components.ha_fitness.const import DOMAIN
+        coord = MagicMock()
+        coord._equipment_stats_per_user = {}
+        coord.enabled_equipment_ids = ["bench_press_rack"]
+        coord.list_persons.return_value = [
+            {"id": "uuid-lucas", "name": "Lucas", "in_hagym": True},
+            {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True},
+        ]
+        entry = MagicMock()
+        entry.entry_id = "entry-123"
+        return coord, entry
+
+    def test_build_strength_equipment_entities(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_equipment_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-lucas", "name": "Lucas", "in_hagym": True}
+        entities = _build_per_user_equipment_entities(coord, entry, user, "bench_press_rack")
+        assert len(entities) == 3
+        fields = {e._field for e in entities}
+        assert fields == {"total_volume", "total_sets", "total_trainings"}
+
+    def test_unique_ids_are_stable(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserEquipmentSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-lucas", "name": "Lucas", "in_hagym": True}
+        s1 = HAFitnessPerUserEquipmentSensor(
+            coord, entry, user, "bench_press_rack",
+            field="total_volume", translation_key="user_equipment_total_volume",
+        )
+        s2 = HAFitnessPerUserEquipmentSensor(
+            coord, entry, user, "bench_press_rack",
+            field="total_volume", translation_key="user_equipment_total_volume",
+        )
+        assert s1._attr_unique_id == s2._attr_unique_id
+        assert s1._attr_unique_id == "entry-123_user_uuid-lucas_equipment_bench_press_rack_total_volume"
+
+    def test_native_value_reads_per_user_stats(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserEquipmentSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        coord._equipment_stats_per_user = {
+            "uuid-felicitas": {
+                "bench_press_rack": {
+                    "total_volume": 8500.0,
+                    "total_sets": 42,
+                    "total_trainings": 8,
+                }
+            }
+        }
+        sensor = HAFitnessPerUserEquipmentSensor(
+            coord, entry, user, "bench_press_rack",
+            field="total_volume", translation_key="user_equipment_total_volume",
+        )
+        assert sensor.native_value == 8500.0
+
+    def test_native_value_returns_none_when_user_not_in_cache(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserEquipmentSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        coord._equipment_stats_per_user = {}
+        sensor = HAFitnessPerUserEquipmentSensor(
+            coord, entry, user, "bench_press_rack",
+            field="total_volume", translation_key="user_equipment_total_volume",
+        )
+        assert sensor.native_value is None
+
+    def test_extra_state_attributes(self):
+        from custom_components.ha_fitness.sensor import HAFitnessPerUserEquipmentSensor
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessPerUserEquipmentSensor(
+            coord, entry, user, "bench_press_rack",
+            field="total_volume", translation_key="user_equipment_total_volume",
+        )
+        attrs = sensor.extra_state_attributes
+        assert attrs["user_id"] == "uuid-felicitas"
+        assert attrs["equipment_id"] == "bench_press_rack"

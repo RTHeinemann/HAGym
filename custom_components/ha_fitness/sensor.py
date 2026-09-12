@@ -128,6 +128,8 @@ async def async_setup_entry(
         entities.extend(_build_per_user_entities(coordinator, entry, user))
         for exercise_id in coordinator.enabled_exercise_ids:
             entities.extend(_build_per_user_exercise_entities(coordinator, entry, user, exercise_id))
+        for equipment_id in coordinator.enabled_equipment_ids:
+            entities.extend(_build_per_user_equipment_entities(coordinator, entry, user, equipment_id))
 
     async_add_entities(entities)
 
@@ -2297,5 +2299,82 @@ def _build_per_user_exercise_entities(
             field="total_duration",
             translation_key="user_exercise_total_duration",
             unit=UnitOfTime.MINUTES,
+        ),
+    ]
+
+
+class HAFitnessPerUserEquipmentSensor(_HAFitnessSensorBase):
+    """Sensor for a single equipment metric of one HA user."""
+
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        user: dict[str, Any],
+        equipment_id: str,
+        field: str,
+        translation_key: str,
+        unit: str | None = None,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._user_id = user["id"]
+        self._equipment_id = equipment_id
+        self._field = field
+        self._attr_translation_key = translation_key
+        if unit:
+            self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        self._attr_unique_id = (
+            f"{entry.entry_id}_user_{self._user_id}_"
+            f"equipment_{equipment_id}_{field}"
+        )
+
+    @property
+    def _stats(self) -> dict[str, Any]:
+        user_stats = self._coordinator._equipment_stats_per_user.get(
+            self._user_id, {}
+        )
+        return user_stats.get(self._equipment_id, {})
+
+    @property
+    def native_value(self) -> float | int | None:
+        value = self._stats.get(self._field)
+        if value is None:
+            return None
+        return float(value)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "user_id": self._user_id,
+            "equipment_id": self._equipment_id,
+        }
+
+
+def _build_per_user_equipment_entities(
+    coordinator: HAFitnessCoordinator,
+    entry: ConfigEntry,
+    user: dict[str, Any],
+    equipment_id: str,
+) -> list[SensorEntity]:
+    """Build per-user equipment sensors for one user + one equipment."""
+    return [
+        HAFitnessPerUserEquipmentSensor(
+            coordinator, entry, user, equipment_id,
+            field="total_volume",
+            translation_key="user_equipment_total_volume",
+            unit=UnitOfMass.KILOGRAMS,
+        ),
+        HAFitnessPerUserEquipmentSensor(
+            coordinator, entry, user, equipment_id,
+            field="total_sets",
+            translation_key="user_equipment_total_sets",
+            unit="count",
+        ),
+        HAFitnessPerUserEquipmentSensor(
+            coordinator, entry, user, equipment_id,
+            field="total_trainings",
+            translation_key="user_equipment_total_trainings",
+            unit="count",
         ),
     ]
