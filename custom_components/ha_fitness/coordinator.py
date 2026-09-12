@@ -185,6 +185,8 @@ class HAFitnessCoordinator:
         self._current_user_id: str | None = None
         self._selected_user_id: str | None = None
         self._users: list[dict[str, Any]] = []
+        # Per-user statistics cache: {user_id: {total_volume, total_sets, workout_count, weekly_volume, weekly_sets}}
+        self._user_statistics: dict[str, dict[str, Any]] = {}
         self._personal_total_volume: float = 0.0
         self._personal_total_sets: int = 0
         self._personal_total_workouts: int = 0
@@ -2859,6 +2861,36 @@ class HAFitnessCoordinator:
             })
         return persons
 
+    async def async_get_user_statistics(self, user_id: str) -> dict[str, Any]:
+        """Return all training statistics for one HA user.
+
+        This is the single entry point for per-user sensor values.
+        Every field here is filtered by user_id — no "active user" state.
+        """
+        total_volume = await self._store.async_get_total_volume(user_id)
+        total_sets = await self._store.async_get_set_count(user_id)
+        workout_count = await self._store.async_get_workout_count(user_id)
+        recent_sets = await self._store.async_get_recent_sets(10, user_id)
+        exercise_stats = await self._store.async_get_exercise_statistics(user_id=user_id)
+        muscle_stats = await self._store.async_get_muscle_group_statistics(user_id=user_id)
+
+        # Weekly summary (current week)
+        week_start_utc, week_end_utc = _current_week_bounds(self.hass)[3], _current_week_bounds(self.hass)[4]
+        weekly_summary = await self._store.async_get_weekly_summary(
+            week_start_utc, week_end_utc, user_id=user_id
+        )
+
+        return {
+            "user_id": user_id,
+            "total_volume": total_volume,
+            "total_sets": total_sets,
+            "workout_count": workout_count,
+            "recent_sets": recent_sets,
+            "exercise_statistics": exercise_stats,
+            "muscle_group_statistics": muscle_stats,
+            "weekly_summary": weekly_summary,
+        }
+
     async def resolve_user_id(self, context_user_id: str | None) -> str:
         """Resolve effective user id from service context and upsert into users table.
 
@@ -3129,12 +3161,41 @@ class HAFitnessCoordinator:
                 notify=False,
                 user_id=personal_user_id,
             )
+            await self._refresh_user_statistics()
         except sqlite3.Error as err:
             _LOGGER.exception("HAGym: failed to refresh statistics")
             raise HomeAssistantError("Failed to refresh statistics") from err
 
         if notify:
             self._notify_listeners()
+
+    async def _refresh_user_statistics(self) -> None:
+        """Build per-user stats cache for all HAGym users.
+
+        Called from async_refresh_statistics(). Populates
+        self._user_statistics so per-user sensors can read
+        values synchronously without a separate async call.
+        """
+        week_start_utc, week_end_utc = _current_week_bounds(self.hass)[3], _current_week_bounds(self.hass)[4]
+        new_stats: dict[str, dict[str, Any]] = {}
+        for user_row in self._users:
+            uid = user_row.get("id")
+            if not uid:
+                continue
+            total_volume = await self._store.async_get_total_volume(uid)
+            total_sets = await self._store.async_get_set_count(uid)
+            workout_count = await self._store.async_get_workout_count(uid)
+            weekly = await self._store.async_get_weekly_summary(
+                week_start_utc, week_end_utc, user_id=uid
+            )
+            new_stats[uid] = {
+                "total_volume": float(total_volume),
+                "total_sets": int(total_sets),
+                "workout_count": int(workout_count),
+                "weekly_volume": float(weekly.get("total_volume", 0.0)),
+                "weekly_sets": int(weekly.get("total_sets", 0)),
+            }
+        self._user_statistics = new_stats
 
     async def async_refresh_exercise_metric_statistics(
         self,

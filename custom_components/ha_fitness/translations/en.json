@@ -892,6 +892,22 @@
       },
       "top_exercise": {
         "name": "Top Exercise"
+      },
+      "user_total_volume": {
+        "name": "User total volume",
+        "state_attributes": {}
+      },
+      "user_total_sets": {
+        "name": "User total sets"
+      },
+      "user_workout_count": {
+        "name": "User workouts"
+      },
+      "user_weekly_volume": {
+        "name": "User weekly volume"
+      },
+      "user_weekly_sets": {
+        "name": "User weekly sets"
       }
     },
     "button": {

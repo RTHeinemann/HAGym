@@ -258,3 +258,131 @@ class TestListPersons:
         coordinator._users = []
         persons = await coordinator.list_persons()
         assert persons == []
+
+
+# ---------------------------------------------------------------------------
+# Coordinator: async_get_user_statistics (per-user isolation)
+# ---------------------------------------------------------------------------
+
+class TestGetUserStatistics:
+    def _make_coord(self, ha_users=None):
+        hass = MagicMock()
+        hass.config.time_zone = "Europe/Berlin"
+        hass.data = {"ha_fitness": {"entry-1": None}}
+        coord = _coord_mod.HAFitnessCoordinator.__new__(_coord_mod.HAFitnessCoordinator)
+        coord.hass = hass
+        coord._store = MagicMock()
+        coord._store.async_get_total_volume = AsyncMock(return_value=1234.5)
+        coord._store.async_get_set_count = AsyncMock(return_value=42)
+        coord._store.async_get_workout_count = AsyncMock(return_value=7)
+        coord._store.async_get_recent_sets = AsyncMock(return_value=[{"id": 1}])
+        coord._store.async_get_exercise_statistics = AsyncMock(return_value=[{"exercise_id": "bench", "total_volume": 800.0}])
+        coord._store.async_get_muscle_group_statistics = AsyncMock(return_value=[{"muscle_group_id": "chest", "total_volume": 600.0}])
+        coord._store.async_get_weekly_summary = AsyncMock(return_value={"total_volume": 500.0, "active_days": 2})
+        return coord
+
+    @pytest.mark.asyncio
+    async def test_returns_all_stats_for_user(self):
+        coord = self._make_coord()
+        stats = await coord.async_get_user_statistics("uuid-felicitas")
+        assert stats["user_id"] == "uuid-felicitas"
+        assert stats["total_volume"] == 1234.5
+        assert stats["total_sets"] == 42
+        assert stats["workout_count"] == 7
+        assert stats["recent_sets"] == [{"id": 1}]
+        assert len(stats["exercise_statistics"]) == 1
+        assert len(stats["muscle_group_statistics"]) == 1
+        assert stats["weekly_summary"]["total_volume"] == 500.0
+
+    @pytest.mark.asyncio
+    async def test_user_id_passed_to_all_storage_calls(self):
+        coord = self._make_coord()
+        await coord.async_get_user_statistics("uuid-aaron")
+        # Verify user_id was passed to each storage method
+        coord._store.async_get_total_volume.assert_called_once_with("uuid-aaron")
+        coord._store.async_get_set_count.assert_called_once_with("uuid-aaron")
+        coord._store.async_get_workout_count.assert_called_once_with("uuid-aaron")
+        coord._store.async_get_recent_sets.assert_called_once_with(10, "uuid-aaron")
+        coord._store.async_get_exercise_statistics.assert_called_once_with(user_id="uuid-aaron")
+        coord._store.async_get_muscle_group_statistics.assert_called_once_with(user_id="uuid-aaron")
+        # weekly summary called with user_id kwarg
+        coord._store.async_get_weekly_summary.assert_called_once()
+        call = coord._store.async_get_weekly_summary.call_args
+        assert call.kwargs.get("user_id") == "uuid-aaron"
+
+
+# ---------------------------------------------------------------------------
+# Per-user sensor entities
+# ---------------------------------------------------------------------------
+
+class TestPerUserSensor:
+    def _setup(self):
+        coord = MagicMock()
+        coord.display_name = "Test"
+        coord.list_persons = MagicMock(return_value=[
+            {"id": "uuid-felicitas", "name": "Felicitas", "username": "felicitas", "in_hagym": True, "set_count": 42, "workout_count": 7},
+            {"id": "uuid-empty", "name": "Empty", "username": "empty", "in_hagym": False, "set_count": 0, "workout_count": 0},
+        ])
+        coord.async_get_user_statistics = AsyncMock(return_value={
+            "user_id": "uuid-felicitas",
+            "total_volume": 999.0,
+            "total_sets": 33,
+            "workout_count": 5,
+            "recent_sets": [],
+            "exercise_statistics": [],
+            "muscle_group_statistics": [],
+            "weekly_summary": {"total_volume": 100.0, "total_sets": 8},
+        })
+        entry = MagicMock()
+        entry.entry_id = "entry-1"
+        return coord, entry
+
+    def test_build_per_user_entities(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_entities, _PER_USER_METRICS
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        entities = _build_per_user_entities(coord, entry, user)
+        assert len(entities) == len(_PER_USER_METRICS)
+        for ent in entities:
+            assert ent._attr_unique_id.startswith("entry-1_user_uuid-felicitas_")
+            assert ent._user_id == "uuid-felicitas"
+
+    def test_unique_id_is_stable(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_entities
+        coord, entry = self._setup()
+        user = {"id": "uuid-aaron", "name": "Aaron", "in_hagym": True}
+        e1 = _build_per_user_entities(coord, entry, user)
+        e2 = _build_per_user_entities(coord, entry, user)
+        assert [e._attr_unique_id for e in e1] == [e._attr_unique_id for e in e2]
+
+    @pytest.mark.asyncio
+    async def test_native_value_reads_coordinator_cache(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_entities
+        coord, entry = self._setup()
+        # Simulate coordinator having populated _user_statistics during refresh
+        coord._user_statistics = {
+            "uuid-felicitas": {
+                "total_volume": 999.0,
+                "total_sets": 33,
+                "workout_count": 5,
+                "weekly_volume": 100.0,
+                "weekly_sets": 8,
+            }
+        }
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        entities = _build_per_user_entities(coord, entry, user)
+        vol_sensor = [e for e in entities if e._metric_key == "total_volume"][0]
+        assert vol_sensor.native_value == 999.0
+        sets_sensor = [e for e in entities if e._metric_key == "total_sets"][0]
+        assert sets_sensor.native_value == 33
+        weekly_sensor = [e for e in entities if e._metric_key == "weekly_volume"][0]
+        assert weekly_sensor.native_value == 100.0
+
+    def test_native_value_returns_defaults_when_user_not_in_cache(self):
+        from custom_components.ha_fitness.sensor import _build_per_user_entities
+        coord, entry = self._setup()
+        coord._user_statistics = {}  # empty — user not yet refreshed
+        user = {"id": "uuid-unknown", "name": "Unknown", "in_hagym": True}
+        entities = _build_per_user_entities(coord, entry, user)
+        vol_sensor = [e for e in entities if e._metric_key == "total_volume"][0]
+        assert vol_sensor.native_value == 0.0
