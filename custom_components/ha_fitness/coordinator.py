@@ -2905,7 +2905,7 @@ class HAFitnessCoordinator:
                     "name": user.name,
                     "username": self._ha_username(user),
                     "is_owner": user.is_owner,
-                    "is_local": user.is_local,
+                    "is_local": getattr(user, "is_local", False),
                 })
         except Exception:
             _LOGGER.warning("HAGym: failed to list HA users from hass.auth", exc_info=True)
