@@ -193,12 +193,67 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_UPDATE_SET,
         SERVICE_DELETE_SET,
         SERVICE_SAVE_ACTIVITY,
+        SERVICE_DEBUG_STATE,
     )
     if all(hass.services.has_service(DOMAIN, service) for service in required_services):
         return
 
     def _all_coordinators() -> list[HAFitnessCoordinator]:
         return list(hass.data.get(DOMAIN, {}).values())
+
+    async def handle_debug_state(call: ServiceCall) -> None:
+        """Return coordinator state for debugging unavailable entities."""
+        import json
+        import traceback
+
+        coordinators = _all_coordinators()
+        if not coordinators:
+            raise HomeAssistantError("No HAGym coordinators found.")
+
+        for coordinator in coordinators:
+            state: dict = {
+                "display_name": coordinator.display_name,
+                "workout_state": coordinator.workout_state,
+                "current_user_id": coordinator._current_user_id,
+                "selected_user_id": coordinator._selected_user_id,
+                "included_user_ids": coordinator._included_user_ids,
+                "users": [
+                    {
+                        "id": u.get("id"),
+                        "display_name": u.get("display_name"),
+                        "ha_username": u.get("ha_username"),
+                        "enabled": u.get("enabled"),
+                        "bodyweight": u.get("bodyweight"),
+                    }
+                    for u in coordinator._users
+                ],
+                "total_volume": coordinator._total_volume,
+                "total_sets": coordinator._total_sets,
+                "total_workouts": coordinator._total_workouts,
+                "personal_total_volume": coordinator._personal_total_volume,
+                "personal_total_sets": coordinator._personal_total_sets,
+                "household_total_volume": coordinator._household_total_volume,
+                "household_total_sets": coordinator._household_total_sets,
+                "exercise_count": len(coordinator._exercises),
+                "equipment_count": len(coordinator._equipment),
+                "muscle_group_count": len(coordinator._muscle_groups),
+                "user_bodyweights": dict(coordinator._user_bodyweights),
+                "user_statistics_count": len(coordinator._user_statistics),
+            }
+            # Try a test refresh to capture any error
+            try:
+                await coordinator.async_refresh_statistics(notify=False)
+                state["refresh_test"] = "ok"
+            except Exception as e:
+                state["refresh_test"] = f"ERROR: {type(e).__name__}: {e}"
+                state["refresh_traceback"] = traceback.format_exc()
+
+            # Fire an event with the debug payload
+            hass.bus.fire(
+                f"{DOMAIN}_debug_state",
+                {"entry_id": coordinator._entry_id, "state": state},
+            )
+            _LOGGER.warning("HAGym debug state: %s", json.dumps(state, indent=2, default=str))
 
     async def handle_start_workout(call: ServiceCall) -> None:
         force = bool(call.data.get(ATTR_FORCE, False))
@@ -997,6 +1052,12 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=vol.Schema({vol.Required(ATTR_SET_ID): vol.Coerce(int)}),
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DEBUG_STATE,
+        handle_debug_state,
+    )
+
 
 def _unregister_services(hass: HomeAssistant) -> None:
     """Remove integration services when last entry unloads."""
@@ -1026,6 +1087,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_SAVE_ACTIVITY,
         SERVICE_UPDATE_SET,
         SERVICE_DELETE_SET,
+        SERVICE_DEBUG_STATE,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

@@ -45,6 +45,7 @@ SERVICE_ADD_SET_TO_WORKOUT = "add_set_to_workout"
 SERVICE_UPDATE_SET = "update_set"
 SERVICE_DELETE_SET = "delete_set"
 SERVICE_SAVE_ACTIVITY = "save_activity"
+SERVICE_DEBUG_STATE = "debug_state"
 
 # Service field names
 ATTR_EXERCISE = "exercise"
