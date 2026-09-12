@@ -2913,6 +2913,9 @@ class HAFitnessCoordinator:
         hagym_users = {u["id"]: u for u in self._users}
 
         persons: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        # First: HA auth users (with HAGym binding or not)
         for ha_user in ha_users:
             uid = ha_user["id"]
             hagym_row = hagym_users.get(uid, {})
@@ -2929,6 +2932,26 @@ class HAFitnessCoordinator:
                 "workout_count": workout_count,
                 "created_at": hagym_row.get("created_at"),
             })
+            seen_ids.add(uid)
+
+        # Second: HAGym users NOT yet covered by HA auth (legacy / unbound)
+        for uid, hagym_row in hagym_users.items():
+            if uid in seen_ids:
+                continue
+            set_count = await self._store.async_get_set_count(uid)
+            workout_count = await self._store.async_get_workout_count(uid)
+            persons.append({
+                "id": uid,
+                "display_name": hagym_row.get("display_name") or uid,
+                "username": hagym_row.get("ha_username"),
+                "is_owner": False,
+                "is_local": True,
+                "in_hagym": True,
+                "set_count": set_count,
+                "workout_count": workout_count,
+                "created_at": hagym_row.get("created_at"),
+            })
+
         return persons
 
     async def async_get_user_statistics(self, user_id: str) -> dict[str, Any]:
