@@ -809,17 +809,23 @@ export_data:
 
 bind_user:
   name: Bind User
-  description: Binds a HAGym user row to an HA user. Use ha_user_id alone for a 1:1 binding (the HA user id becomes the HAGym user key). Use hagym_user_id to map an existing legacy HAGym row onto an HA user.
+  description: Binds a HAGym user row to an HA user. Provide ha_user_id or ha_username (e.g. felicitas) for a 1:1 binding. Use hagym_user_id to map an existing legacy HAGym row onto an HA user.
   fields:
     ha_user_id:
       name: HA User ID
-      description: The Home Assistant user ID (find it in the HA user profile or developer tools). At least one of ha_user_id or hagym_user_id is required.
+      description: The Home Assistant user ID (16-hex, from developer tools or user profile). Optional if ha_username is given.
+      required: false
+      selector:
+        text:
+    ha_username:
+      name: HA Username
+      description: The Home Assistant username (e.g. felicitas). Alternative to ha_user_id.
       required: false
       selector:
         text:
     hagym_user_id:
       name: HAGym User ID
-      description: An existing HAGym user row id (e.g. a legacy id). Optional when ha_user_id is given.
+      description: An existing HAGym user row id (e.g. a legacy id). Optional.
       required: false
       selector:
         text:
