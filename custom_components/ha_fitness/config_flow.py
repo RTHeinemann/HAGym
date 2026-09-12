@@ -598,12 +598,11 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         if not lines:
             lines.append("Keine HA-Benutzer gefunden.")
 
+        description = "\n".join(lines)
         return self.async_show_form(
             step_id="manage_persons",
             data_schema=vol.Schema({}),
-            description_placeholders={
-                "person_table": "\n".join(lines),
-            },
+            description=description,
         )
 
     async def async_step_manage_exercises(
