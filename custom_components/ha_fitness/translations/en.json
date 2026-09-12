@@ -446,6 +446,11 @@
       "assign_muscle_groups_set_weights": {
         "title": "Set muscle group weights",
         "description": "Adjust the weight distribution for each selected muscle group. Values are percentages and must add up to exactly 100%."
+      },
+      "manage_persons": {
+        "title": "Manage persons",
+        "description": "All users registered in Home Assistant. Only HA users can use HAGym. Each HA user has their own training history.",
+        "placeholder": "{{ person_table }}"
       }
     },
     "error": {

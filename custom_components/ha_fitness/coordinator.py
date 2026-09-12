@@ -2819,11 +2819,61 @@ class HAFitnessCoordinator:
         if self._selected_user_id is None and self._current_user_id is not None:
             self._selected_user_id = self._current_user_id
 
+    async def list_persons(self) -> list[dict[str, Any]]:
+        """Return all HA users with HAGym usage stats.
+
+        Reads live from hass.auth so newly created HA users appear
+        immediately, without waiting for a first workout.
+        """
+        ha_users: list[dict[str, Any]] = []
+        try:
+            for user in self.hass.auth.async_get_users():
+                ha_users.append({
+                    "id": user.id,
+                    "name": user.name,
+                    "username": user.username,
+                    "is_owner": user.is_owner,
+                    "is_local": user.is_local,
+                })
+        except Exception:
+            _LOGGER.warning("HAGym: failed to list HA users from hass.auth", exc_info=True)
+
+        hagym_users = {u["id"]: u for u in self._users}
+
+        persons: list[dict[str, Any]] = []
+        for ha_user in ha_users:
+            uid = ha_user["id"]
+            hagym_row = hagym_users.get(uid, {})
+            set_count = await self._store.async_get_set_count(uid)
+            workout_count = await self._store.async_get_workout_count(uid)
+            persons.append({
+                "id": uid,
+                "display_name": ha_user["name"] or hagym_row.get("display_name") or uid,
+                "username": ha_user["username"],
+                "is_owner": ha_user["is_owner"],
+                "is_local": ha_user["is_local"],
+                "in_hagym": uid in hagym_users,
+                "set_count": set_count,
+                "workout_count": workout_count,
+                "created_at": hagym_row.get("created_at"),
+            })
+        return persons
+
     async def resolve_user_id(self, context_user_id: str | None) -> str:
-        """Resolve effective user id from service context and upsert into users table."""
+        """Resolve effective user id from service context and upsert into users table.
+
+        If context_user_id is a valid HA user, the HA display name and username
+        are read from hass.auth and stored alongside the HAGym user row.
+        """
         resolved = context_user_id or self._resolve_personal_user_id()
-        fallback_display_name = context_user_id if context_user_id else resolved
-        await self._store.async_upsert_user(resolved, fallback_display_name)
+        ha_user = self._get_ha_user(resolved)
+        display_name = (
+            ha_user.name if ha_user and ha_user.name else resolved
+        )
+        ha_username = ha_user.username if ha_user else None
+        await self._store.async_upsert_user(
+            resolved, display_name, ha_username
+        )
 
         if context_user_id or self._current_user_id is None:
             self._current_user_id = resolved
@@ -2832,6 +2882,16 @@ class HAFitnessCoordinator:
             self._selected_user_id = resolved
 
         return resolved
+
+    def _get_ha_user(self, user_id: str):
+        """Look up a HA user by id from hass.auth. Returns None if not found."""
+        try:
+            for user in self.hass.auth.async_get_users():
+                if user.id == user_id:
+                    return user
+        except Exception:
+            _LOGGER.debug("HAGym: failed to list HA users for %s", user_id)
+        return None
 
     def _resolve_personal_user_id(self) -> str:
         """Return the user id used for personal statistics."""

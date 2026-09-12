@@ -446,6 +446,11 @@
       "assign_muscle_groups_set_weights": {
         "title": "Muskelgruppen-Gewichtung festlegen",
         "description": "Passe die Gewichtsverteilung für jede ausgewählte Muskelgruppe an. Die Werte sind Prozentsätze und müssen exakt 100% ergeben."
+      },
+      "manage_persons": {
+        "title": "Personen verwalten",
+        "description": "Alle in Home Assistant angelegten Benutzer. Nur HA-Benutzer können HAGym nutzen. Jeder HA-Benutzer hat eine eigene Trainingshistorie.",
+        "placeholder": "{{ person_table }}"
       }
     },
     "error": {

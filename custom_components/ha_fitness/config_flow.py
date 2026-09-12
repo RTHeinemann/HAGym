@@ -549,6 +549,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
             return self.async_show_menu(
                 step_id="init",
                 menu_options=[
+                    "manage_persons",
                     "configure_household_users",
                     "manage_exercises",
                     "manage_equipment",
@@ -570,6 +571,40 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
         except Exception:
             _LOGGER.exception("HAGym options flow init failed")
             return self.async_abort(reason="options_flow_error")
+
+    async def async_step_manage_persons(
+        self, user_input: dict | None = None
+    ) -> FlowResult:
+        """Show all HA users with their HAGym usage."""
+        if user_input is not None:
+            # Navigate back to root menu (no action taken yet)
+            return await self.async_step_init()
+
+        persons: list[dict[str, Any]] = []
+        coordinator = self._coordinator
+        if coordinator is not None:
+            persons = await coordinator.list_persons()
+
+        # Build a human-readable summary table
+        lines: list[str] = []
+        for p in persons:
+            name = p.get("display_name") or p["id"]
+            username = p.get("username") or "—"
+            sets = p.get("set_count", 0)
+            workouts = p.get("workout_count", 0)
+            badge = "👤" if p.get("in_hagym") else ""
+            lines.append(f"{badge} {name}  (user: {username}) — {sets} Sets, {workouts} Workouts")
+
+        if not lines:
+            lines.append("Keine HA-Benutzer gefunden.")
+
+        return self.async_show_form(
+            step_id="manage_persons",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "person_table": "\n".join(lines),
+            },
+        )
 
     async def async_step_manage_exercises(
         self, user_input: dict | None = None

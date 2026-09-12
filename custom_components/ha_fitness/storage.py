@@ -284,9 +284,16 @@ class HAFitnessStore:
         """Return most recent set rows, optionally filtered by user."""
         return await self._hass.async_add_executor_job(self._get_recent_sets, limit, user_id)
 
-    async def async_upsert_user(self, user_id: str, display_name: str | None = None) -> None:
+    async def async_upsert_user(
+        self,
+        user_id: str,
+        display_name: str | None = None,
+        ha_username: str | None = None,
+    ) -> None:
         """Insert or update one user row."""
-        await self._hass.async_add_executor_job(self._upsert_user, user_id, display_name)
+        await self._hass.async_add_executor_job(
+            self._upsert_user, user_id, display_name, ha_username
+        )
 
     async def async_get_users(self) -> list[dict[str, Any]]:
         """Return known users sorted by display_name/id."""
@@ -1669,21 +1676,31 @@ class HAFitnessStore:
             rows = conn.execute(sql, params).fetchall()
             return [_row_to_dict(row) for row in rows if row is not None]
 
-    def _upsert_user(self, user_id: str, display_name: str | None = None) -> None:
+    def _upsert_user(
+        self,
+        user_id: str,
+        display_name: str | None = None,
+        ha_username: str | None = None,
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO users(id, display_name, enabled, created_at)
-                VALUES(?, ?, 1, ?)
+                INSERT INTO users(id, display_name, ha_username, enabled, created_at)
+                VALUES(?, ?, ?, 1, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     display_name = CASE
                         WHEN excluded.display_name IS NOT NULL AND excluded.display_name != ''
                             THEN excluded.display_name
                         ELSE users.display_name
                     END,
+                    ha_username = CASE
+                        WHEN excluded.ha_username IS NOT NULL AND excluded.ha_username != ''
+                            THEN excluded.ha_username
+                        ELSE users.ha_username
+                    END,
                     enabled = 1
                 """,
-                (user_id, display_name, _isoformat(datetime.now(timezone.utc))),
+                (user_id, display_name, ha_username, _isoformat(datetime.now(timezone.utc))),
             )
             conn.commit()
 
@@ -1691,7 +1708,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, display_name, enabled, created_at
+                SELECT id, display_name, ha_username, enabled, created_at
                 FROM users
                 ORDER BY COALESCE(display_name, id) ASC
                 """
@@ -1702,7 +1719,7 @@ class HAFitnessStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, display_name, enabled, created_at
+                SELECT id, display_name, ha_username, enabled, created_at
                 FROM users
                 WHERE id = ?
                 LIMIT 1
