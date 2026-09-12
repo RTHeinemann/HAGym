@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Any
 
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfLength, UnitOfMass, UnitOfTime
@@ -126,6 +127,7 @@ async def async_setup_entry(
         if not user.get("in_hagym"):
             continue
         entities.extend(_build_per_user_entities(coordinator, entry, user))
+        entities.append(HAFitnessBodyweightNumber(coordinator, entry, user))
         for exercise_id in coordinator.enabled_exercise_ids:
             entities.extend(_build_per_user_exercise_entities(coordinator, entry, user, exercise_id))
         for equipment_id in coordinator.enabled_equipment_ids:
@@ -2185,6 +2187,48 @@ class HAFitnessPerUserSensor(_HAFitnessSensorBase):
         elif self._metric_key == "total_sets":
             attrs["weekly_sets"] = stats.get("weekly_sets")
         return attrs
+
+
+
+class HAFitnessBodyweightNumber(NumberEntity):
+    """Set the current bodyweight for a HAGym user directly from HA UI."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Körpergewicht"
+    _attr_native_max_value = 300.0
+    _attr_native_min_value = 20.0
+    _attr_native_step = 0.1
+    _attr_mode = NumberMode.BOX
+    _attr_unit_of_measurement = "kg"
+
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        user: dict[str, Any],
+    ) -> None:
+        super().__init__()
+        self._coordinator = coordinator
+        self._entry = entry
+        self._user_id = user["id"]
+        self._user_name = user.get("display_name") or user["id"]
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_bodyweight_{self._user_id}"
+        self._attr_translation_key = "bodyweight"
+        self._attr_translation_placeholders = {"name": self._user_name}
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current bodyweight."""
+        return self._coordinator._user_bodyweights.get(self._user_id)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Persist a new bodyweight."""
+        await self._coordinator.async_set_user_bodyweight(
+            self._user_id, value, "ui"
+        )
+        await self._coordinator.async_refresh_statistics(notify=False)
+        self._coordinator._notify_listeners()
+        self.async_write_ha_state()
 
 
 def _build_per_user_entities(
