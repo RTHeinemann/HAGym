@@ -805,3 +805,54 @@ refresh_statistics:
 export_data:
   name: Export Data
   description: Exports users plus global, personal, and household statistics to /config/ha_fitness/export.json.
+
+
+bind_user:
+  name: Bind User
+  description: Binds a HAGym user row to an HA user. Use ha_user_id alone for a 1:1 binding (the HA user id becomes the HAGym user key). Use hagym_user_id to map an existing legacy HAGym row onto an HA user.
+  fields:
+    ha_user_id:
+      name: HA User ID
+      description: The Home Assistant user ID (find it in the HA user profile or developer tools). At least one of ha_user_id or hagym_user_id is required.
+      required: false
+      selector:
+        text:
+    hagym_user_id:
+      name: HAGym User ID
+      description: An existing HAGym user row id (e.g. a legacy id). Optional when ha_user_id is given.
+      required: false
+      selector:
+        text:
+    display_name:
+      name: Display Name
+      description: Optional display name override for the bound user.
+      required: false
+      selector:
+        text:
+
+set_bodyweight:
+  name: Set Bodyweight
+  description: Sets the current bodyweight (in kg) for a HAGym user and refreshes statistics.
+  fields:
+    user_id:
+      name: User ID
+      description: The HAGym user id (or HA user id if bound 1:1).
+      required: true
+      selector:
+        text:
+    bodyweight:
+      name: Bodyweight (kg)
+      description: Current bodyweight in kilograms.
+      required: true
+      selector:
+        number:
+          min: 20
+          max: 300
+          step: 0.1
+          mode: box
+    source:
+      name: Source
+      description: Where this value came from (e.g. manual, scale, ui).
+      required: false
+      selector:
+        text:
