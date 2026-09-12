@@ -30,6 +30,16 @@ async def async_setup_entry(
         HAFitnessMaxHeartRateNumber(coordinator, entry),
         HAFitnessAddedWeightNumber(coordinator, entry),
     ]
+
+    # Per-user bodyweight number entities
+    try:
+        persons = await coordinator.list_persons()
+        for person in persons:
+            if person.get("in_hagym"):
+                entities.append(HAFitnessUserBodyweightNumber(coordinator, entry, person))
+    except Exception:
+        pass
+
     async_add_entities(entities)
 
 
@@ -252,3 +262,34 @@ class HAFitnessAddedWeightNumber(_HAFitnessNumberBase):
 
     async def async_set_native_value(self, value: float) -> None:
         self._coordinator.set_added_weight(value)
+
+
+class HAFitnessUserBodyweightNumber(_HAFitnessNumberBase):
+    """Writable number entity for a single user's bodyweight (kg)."""
+
+    _attr_translation_key = "user_bodyweight"
+    _attr_native_min_value = 20
+    _attr_native_max_value = 300
+    _attr_native_step = 0.1
+    _attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+
+    def __init__(
+        self,
+        coordinator: HAFitnessCoordinator,
+        entry: ConfigEntry,
+        user: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._user_id = user["id"]
+        self._attr_unique_id = f"{entry.entry_id}_user_{self._user_id}_bodyweight"
+
+    @property
+    def native_value(self) -> float | None:
+        return self._coordinator.get_user_bodyweight(self._user_id)
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self._coordinator.async_set_user_bodyweight(self._user_id, value, "number_entity")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"user_id": self._user_id}

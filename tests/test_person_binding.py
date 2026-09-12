@@ -37,7 +37,7 @@ from custom_components.ha_fitness import coordinator as _coord_mod
 
 class TestMigrationV10:
     def test_schema_version_is_10(self):
-        assert migrations.SCHEMA_VERSION == 10
+        assert migrations.SCHEMA_VERSION >= 10
 
     def test_v10_adds_ha_username_column(self):
         conn = sqlite3.connect(":memory:")
@@ -59,9 +59,43 @@ class TestMigrationV10:
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
         assert "ha_username" in cols
         ver = conn.execute("SELECT MAX(version) AS v FROM schema_migrations").fetchone()["v"]
-        assert ver == 10
+        assert ver >= 10
         row = conn.execute("SELECT id, display_name FROM users WHERE id='u1'").fetchone()
         assert row["display_name"] == "Alice"
+        conn.close()
+
+
+class TestMigrationV11:
+    def test_schema_version_is_11(self):
+        assert migrations.SCHEMA_VERSION == 11
+
+    def test_v11_adds_bodyweight_column_and_history(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE users (
+                id TEXT PRIMARY KEY,
+                display_name TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                ha_username TEXT,
+                bodyweight REAL
+            );
+            INSERT INTO users VALUES ('u1', 'Alice', 1, '2026-01-01', 'alice', NULL);
+            CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
+            INSERT INTO schema_migrations VALUES (10, '2026-01-01');
+            """
+        )
+        migrations.apply_migrations(conn)
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        assert "bodyweight" in cols
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()]
+        assert "bodyweight_history" in tables
+        ver = conn.execute("SELECT MAX(version) AS v FROM schema_migrations").fetchone()["v"]
+        assert ver == 11
         conn.close()
 
     def test_v10_is_idempotent(self):
@@ -74,7 +108,8 @@ class TestMigrationV10:
                 display_name TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                ha_username TEXT
+                ha_username TEXT,
+                bodyweight REAL
             );
             CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
             INSERT INTO schema_migrations VALUES (10, '2026-01-01');
@@ -102,7 +137,8 @@ class TestStorageUserHaUsername:
                 display_name TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                ha_username TEXT
+                ha_username TEXT,
+                bodyweight REAL
             );
             CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
             INSERT INTO schema_migrations VALUES (10, '2026-01-01');
@@ -644,3 +680,144 @@ class TestPerUserMuscleGroupSensor:
         attrs = sensor.extra_state_attributes
         assert attrs["user_id"] == "uuid-felicitas"
         assert attrs["muscle_group_id"] == "chest"
+
+
+# ---------------------------------------------------------------------------
+# Layer 2: Per-user bodyweight number entity
+# ---------------------------------------------------------------------------
+
+class TestUserBodyweightNumber:
+    def _setup(self):
+        coord = MagicMock()
+        coord.display_name = "Test"
+        coord._user_bodyweights = {}
+        coord.get_user_bodyweight = MagicMock(
+            side_effect=lambda uid: coord._user_bodyweights.get(uid)
+        )
+        coord.async_set_user_bodyweight = AsyncMock()
+        entry = MagicMock()
+        entry.entry_id = "entry-1"
+        return coord, entry
+
+    def test_entity_defaults(self):
+        from custom_components.ha_fitness.number import HAFitnessUserBodyweightNumber
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessUserBodyweightNumber(coord, entry, user)
+        assert sensor._attr_translation_key == "user_bodyweight"
+        assert sensor._attr_native_min_value == 20
+        assert sensor._attr_native_max_value == 300
+        assert sensor._attr_native_step == 0.1
+        assert sensor._attr_native_unit_of_measurement == "kg"
+        assert sensor._attr_unique_id == "entry-1_user_uuid-felicitas_bodyweight"
+
+    def test_native_value_returns_none_when_unset(self):
+        from custom_components.ha_fitness.number import HAFitnessUserBodyweightNumber
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessUserBodyweightNumber(coord, entry, user)
+        assert sensor.native_value is None
+
+    def test_native_value_returns_stored_weight(self):
+        from custom_components.ha_fitness.number import HAFitnessUserBodyweightNumber
+        coord, entry = self._setup()
+        coord._user_bodyweights["uuid-felicitas"] = 72.5
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessUserBodyweightNumber(coord, entry, user)
+        assert sensor.native_value == 72.5
+
+    @pytest.mark.asyncio
+    async def test_set_native_value_delegates_to_coordinator(self):
+        from custom_components.ha_fitness.number import HAFitnessUserBodyweightNumber
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessUserBodyweightNumber(coord, entry, user)
+        await sensor.async_set_native_value(75.0)
+        coord.async_set_user_bodyweight.assert_awaited_once_with(
+            "uuid-felicitas", 75.0, "number_entity"
+        )
+
+    def test_extra_state_attributes(self):
+        from custom_components.ha_fitness.number import HAFitnessUserBodyweightNumber
+        coord, entry = self._setup()
+        user = {"id": "uuid-felicitas", "name": "Felicitas", "in_hagym": True}
+        sensor = HAFitnessUserBodyweightNumber(coord, entry, user)
+        attrs = sensor.extra_state_attributes
+        assert attrs["user_id"] == "uuid-felicitas"
+
+
+class TestCoordinatorBodyweight:
+    @pytest.mark.asyncio
+    async def test_set_and_get_user_bodyweight(self):
+        from custom_components.ha_fitness.coordinator import HAFitnessCoordinator
+        coord = HAFitnessCoordinator.__new__(HAFitnessCoordinator)
+        coord._user_bodyweights = {}
+        coord._store = MagicMock()
+        coord._notify_listeners = MagicMock()
+        coord._store.async_set_user_bodyweight = AsyncMock()
+
+        await coord.async_set_user_bodyweight("uuid-felicitas", 68.0, "test")
+
+        assert coord.get_user_bodyweight("uuid-felicitas") == 68.0
+        assert coord._user_bodyweights["uuid-felicitas"] == 68.0
+        coord._store.async_set_user_bodyweight.assert_awaited_once_with(
+            "uuid-felicitas", 68.0, "test"
+        )
+
+    def test_get_user_bodyweight_returns_none_when_unset(self):
+        from custom_components.ha_fitness.coordinator import HAFitnessCoordinator
+        coord = HAFitnessCoordinator.__new__(HAFitnessCoordinator)
+        coord._user_bodyweights = {}
+        assert coord.get_user_bodyweight("unknown") is None
+
+
+class TestStorageBodyweight:
+    def _make_store(self, tmp_path):
+        store = _storage_mod.HAFitnessStore(MagicMock())
+        db = tmp_path / "test.db"
+        store._db_path = str(db)
+        conn = sqlite3.connect(str(db))
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE users (
+                id TEXT PRIMARY KEY,
+                display_name TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                ha_username TEXT,
+                bodyweight REAL
+            );
+            INSERT INTO users VALUES ('u1', 'Alice', 1, '2026-01-01', 'alice', NULL);
+            CREATE TABLE bodyweight_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                weight_kg REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                source TEXT
+            );
+            CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
+            INSERT INTO schema_migrations VALUES (11, '2026-01-01');
+            """
+        )
+        conn.close()
+        return store
+
+    def test_set_and_get_user_bodyweight(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store._set_user_bodyweight("u1", 70.5, "test")
+        row = store._get_user("u1")
+        assert row["bodyweight"] == 70.5
+
+    def test_bodyweight_history_recorded(self, tmp_path):
+        store = self._make_store(tmp_path)
+        store._set_user_bodyweight("u1", 70.0, "test")
+        store._set_user_bodyweight("u1", 69.5, "test")
+        history = store._get_user_bodyweight_history("u1")
+        assert len(history) == 2
+        assert history[0]["weight_kg"] == 69.5
+        assert history[1]["weight_kg"] == 70.0
+
+    def test_get_user_bodyweight_returns_none_for_unknown(self, tmp_path):
+        store = self._make_store(tmp_path)
+        assert store._get_user("unknown") is None

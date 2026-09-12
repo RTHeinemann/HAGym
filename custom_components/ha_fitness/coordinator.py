@@ -218,6 +218,8 @@ class HAFitnessCoordinator:
         self._equipment_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
         # Per-user muscle-group stats: {user_id: {muscle_group_id: {total_volume, total_sets, ...}}}
         self._muscle_stats_per_user: dict[str, dict[str, dict[str, Any]]] = {}
+        # Per-user bodyweight (kg): {user_id: weight_kg}
+        self._user_bodyweights: dict[str, float] = {}
         self._listeners: list[Callable[[], None]] = []
         self._pending_confirmation_action: str | None = None
         self._pending_confirmation_expires_at: datetime | None = None
@@ -943,6 +945,30 @@ class HAFitnessCoordinator:
         """Update added weight input for bodyweight activities."""
         self._added_weight = max(0.0, float(value))
         self._notify_listeners()
+
+    def get_user_bodyweight(self, user_id: str) -> float | None:
+        """Return the current bodyweight (kg) for a user, or None if unset."""
+        return self._user_bodyweights.get(user_id)
+
+    async def async_set_user_bodyweight(
+        self, user_id: str, weight_kg: float, source: str | None = None
+    ) -> None:
+        """Persist a new bodyweight and refresh local state."""
+        weight = max(0.0, float(weight_kg))
+        await self._store.async_set_user_bodyweight(user_id, weight, source)
+        self._user_bodyweights[user_id] = weight
+        self._notify_listeners()
+
+    async def async_refresh_user_bodyweights(self) -> None:
+        """Load the latest bodyweight per user from storage."""
+        try:
+            users = await self._store.async_get_users()
+            for user in users:
+                bodyweight = user.get("bodyweight")
+                if bodyweight is not None:
+                    self._user_bodyweights[user["id"]] = float(bodyweight)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.exception("HAGym: failed to refresh user bodyweights")
 
     def set_intensity(self, value: str) -> None:
         """Update selected intensity value for cardio activities."""
@@ -2842,6 +2868,11 @@ class HAFitnessCoordinator:
     async def async_refresh_users(self) -> None:
         """Refresh known users from storage."""
         self._users = await self._store.async_get_users()
+
+        for user in self._users:
+            bodyweight = user.get("bodyweight")
+            if bodyweight is not None:
+                self._user_bodyweights[user["id"]] = float(bodyweight)
 
         if self._selected_user_id is None and self._current_user_id is not None:
             self._selected_user_id = self._current_user_id

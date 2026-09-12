@@ -980,6 +980,9 @@
       },
       "added_weight": {
         "name": "Zusatzgewicht"
+      },
+      "user_bodyweight": {
+        "name": "Körpergewicht"
       }
     },
     "text": {

@@ -15,7 +15,7 @@ from .const import (
     LEGACY_USER_NAME,
 )
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -68,6 +68,9 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 10:
         _apply_v10(conn)
+
+    if current_version < 11:
+        _apply_v11(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -669,4 +672,38 @@ def _apply_v10(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
         (10, now),
+    )
+
+
+def _apply_v11(conn: sqlite3.Connection) -> None:
+    """Add per-user bodyweight column and bodyweight history table.
+
+    The bodyweight column stores each user's current body weight in kg.
+    The bodyweight_history table records every change so dashboards can
+    show weight trends over time.
+    """
+    if not _column_exists(conn, "users", "bodyweight"):
+        conn.execute("ALTER TABLE users ADD COLUMN bodyweight REAL")
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bodyweight_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            weight_kg REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            source TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bodyweight_history_user_created "
+        "ON bodyweight_history(user_id, created_at)"
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (11, now),
     )

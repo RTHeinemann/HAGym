@@ -980,6 +980,9 @@
       },
       "added_weight": {
         "name": "Added weight"
+      },
+      "user_bodyweight": {
+        "name": "Bodyweight"
       }
     },
     "text": {
