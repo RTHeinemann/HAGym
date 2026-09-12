@@ -278,24 +278,36 @@ def _register_services(hass: HomeAssistant) -> None:
 
 
     async def handle_bind_user(call: ServiceCall) -> None:
-        """Bind a HAGym user to an HA user."""
+        """Bind a HAGym user row to an HA user.
+
+        Simplest form: ha_user_id alone is enough — the HA user id becomes
+        the HAGym user row key (1:1 binding). hagym_user_id lets you map an
+        existing legacy HAGym row onto an HA user.
+        """
         hagym_user_id = (call.data.get("hagym_user_id") or "").strip()
         ha_user_id = (call.data.get("ha_user_id") or "").strip()
-        if not hagym_user_id or not ha_user_id:
-            raise HomeAssistantError("hagym_user_id and ha_user_id are required.")
+        if not hagym_user_id and not ha_user_id:
+            raise HomeAssistantError("ha_user_id or hagym_user_id is required.")
+        if not hagym_user_id:
+            hagym_user_id = ha_user_id
+        if not ha_user_id:
+            # Legacy row without HA binding: just refresh stats
+            ha_user_id = ""
         for coordinator in _all_coordinators():
-            # Look up the HA user to get display name + username
-            ha_user = coordinator._get_ha_user(ha_user_id)
-            display_name = ha_user.name if ha_user and ha_user.name else ha_user_id
+            ha_user = coordinator._get_ha_user(ha_user_id) if ha_user_id else None
+            display_name = (
+                ha_user.name if ha_user and ha_user.name else
+                (call.data.get("display_name") or hagym_user_id)
+            )
             ha_username = coordinator._ha_username(ha_user) if ha_user else None
-            # Upsert the HAGym user row with the HA binding
             await coordinator._store.async_upsert_user(
                 hagym_user_id, display_name, ha_username
             )
-            coordinator._user_bodyweights[hagym_user_id] = (
-                coordinator._user_bodyweights.get(ha_user_id)
-                or coordinator._user_bodyweights.get(hagym_user_id)
-            )
+            # Carry over bodyweight if it was stored under the HA user id
+            if ha_user_id and ha_user_id != hagym_user_id:
+                legacy_weight = coordinator._user_bodyweights.get(ha_user_id)
+                if legacy_weight is not None:
+                    coordinator._user_bodyweights[hagym_user_id] = legacy_weight
             await coordinator.async_refresh_statistics(notify=False)
             coordinator._notify_listeners()
 
@@ -1122,8 +1134,9 @@ def _register_services(hass: HomeAssistant) -> None:
         handle_bind_user,
         schema=vol.Schema(
             {
-                vol.Required("hagym_user_id"): cv.string,
-                vol.Required("ha_user_id"): cv.string,
+                vol.Optional("hagym_user_id"): cv.string,
+                vol.Optional("ha_user_id"): cv.string,
+                vol.Optional("display_name"): cv.string,
             }
         ),
     )
