@@ -122,7 +122,7 @@ async def async_setup_entry(
         entities.append(HAFitnessMuscleGroupTopExerciseSensor(coordinator, entry, muscle_group_id))
 
     # --- Per-user sensors: one set for every HA user with HAGym data ---
-    for user in coordinator.list_persons():
+    for user in await coordinator.list_persons():
         if not user.get("in_hagym"):
             continue
         entities.extend(_build_per_user_entities(coordinator, entry, user))

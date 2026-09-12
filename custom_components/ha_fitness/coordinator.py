@@ -2885,7 +2885,10 @@ class HAFitnessCoordinator:
         """
         ha_users: list[dict[str, Any]] = []
         try:
-            for user in self.hass.auth.async_get_users():
+            result = self.hass.auth.async_get_users()
+            if hasattr(result, "__await__"):
+                result = await result
+            for user in result:
                 ha_users.append({
                     "id": user.id,
                     "name": user.name,

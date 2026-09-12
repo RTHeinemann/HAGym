@@ -87,6 +87,7 @@ from .const import (
     SERVICE_UPDATE_MUSCLE_GROUP,
     SERVICE_UPDATE_WORKOUT,
     SERVICE_SAVE_ACTIVITY,
+    SERVICE_DEBUG_STATE,
     SUPPORTED_METRIC_TYPES,
 )
 from .coordinator import HAFitnessCoordinator
