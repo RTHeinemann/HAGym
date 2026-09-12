@@ -1154,10 +1154,10 @@ def _register_services(hass: HomeAssistant) -> None:
         handle_bind_user,
         schema=vol.Schema(
             {
-                vol.Optional("hagym_user_id"): vol.Any(str, None),
-                vol.Optional("ha_user_id"): vol.Any(str, None),
-                vol.Optional("ha_username"): vol.Any(str, None),
-                vol.Optional("display_name"): vol.Any(str, None),
+                vol.Optional("hagym_user_id"): cv.string,
+                vol.Optional("ha_user_id"): cv.string,
+                vol.Optional("ha_username"): cv.string,
+                vol.Optional("display_name"): cv.string,
             }
         ),
     )
