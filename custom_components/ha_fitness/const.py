@@ -46,6 +46,7 @@ SERVICE_UPDATE_SET = "update_set"
 SERVICE_DELETE_SET = "delete_set"
 SERVICE_SAVE_ACTIVITY = "save_activity"
 SERVICE_DEBUG_STATE = "debug_state"
+SERVICE_SET_BODYWEIGHT = "set_bodyweight"
 
 # Service field names
 ATTR_EXERCISE = "exercise"
@@ -93,6 +94,8 @@ ATTR_SOURCE = "source"
 ATTR_ADDED_WEIGHT = "added_weight"
 ATTR_USES_BODYWEIGHT = "uses_bodyweight"
 ATTR_BODYWEIGHT_FACTOR = "bodyweight_factor"
+ATTR_BODYWEIGHT = "bodyweight"
+ATTR_SOURCE = "source"
 
 # Exercise/set metric types
 METRIC_TYPE_STRENGTH = "strength"

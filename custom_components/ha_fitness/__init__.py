@@ -88,6 +88,9 @@ from .const import (
     SERVICE_UPDATE_WORKOUT,
     SERVICE_SAVE_ACTIVITY,
     SERVICE_DEBUG_STATE,
+    SERVICE_SET_BODYWEIGHT,
+    ATTR_BODYWEIGHT,
+    ATTR_SOURCE,
     SUPPORTED_METRIC_TYPES,
 )
 from .coordinator import HAFitnessCoordinator
@@ -195,6 +198,7 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_DELETE_SET,
         SERVICE_SAVE_ACTIVITY,
         SERVICE_DEBUG_STATE,
+        SERVICE_SET_BODYWEIGHT,
     )
     if all(hass.services.has_service(DOMAIN, service) for service in required_services):
         return
@@ -255,6 +259,20 @@ def _register_services(hass: HomeAssistant) -> None:
                 {"state": state},
             )
             _LOGGER.warning("HAGym debug state: %s", json.dumps(state, indent=2, default=str))
+
+
+    async def handle_set_bodyweight(call: ServiceCall) -> None:
+        """Set bodyweight for a HAGym user."""
+        user_id = (call.data.get(ATTR_USER_ID) or "").strip()
+        weight = float(call.data[ATTR_BODYWEIGHT])
+        source = (call.data.get(ATTR_SOURCE) or "manual").strip() or "manual"
+        if not user_id:
+            raise HomeAssistantError("user_id must not be empty.")
+        if weight <= 0:
+            raise HomeAssistantError("bodyweight must be > 0 kg.")
+        for coordinator in _all_coordinators():
+            await coordinator.async_set_user_bodyweight(user_id, weight, source)
+            await coordinator.async_refresh_statistics(notify=False)
 
     async def handle_start_workout(call: ServiceCall) -> None:
         force = bool(call.data.get(ATTR_FORCE, False))
@@ -1059,6 +1077,19 @@ def _register_services(hass: HomeAssistant) -> None:
         handle_debug_state,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_BODYWEIGHT,
+        handle_set_bodyweight,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_USER_ID): cv.string,
+                vol.Required(ATTR_BODYWEIGHT): vol.Coerce(float),
+                vol.Optional(ATTR_SOURCE): cv.string,
+            }
+        ),
+    )
+
 
 def _unregister_services(hass: HomeAssistant) -> None:
     """Remove integration services when last entry unloads."""
@@ -1089,6 +1120,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_UPDATE_SET,
         SERVICE_DELETE_SET,
         SERVICE_DEBUG_STATE,
+        SERVICE_SET_BODYWEIGHT,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)
