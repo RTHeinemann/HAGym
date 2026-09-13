@@ -110,6 +110,7 @@ async def _auto_bind_known_users(hass: HomeAssistant) -> None:
 
     Bypasses the HA service-call validation problem entirely.
     Idempotent (upsert). Safe to run on every start.
+    Binds ALL HA users regardless of included_user_ids filter.
     """
     coordinators = list(hass.data.get(DOMAIN, {}).values())
     if not coordinators:
@@ -122,14 +123,19 @@ async def _auto_bind_known_users(hass: HomeAssistant) -> None:
         bound = 0
         for u in users:
             username = coordinator._ha_username(u)
-            if not username or not u.name:
+            name = u.name if u.name else username
+            if not name:
                 continue
-            await coordinator._store.async_upsert_user(u.id, u.name, username)
+            await coordinator._store.async_upsert_user(u.id, name, username)
             bound += 1
+            _LOGGER.debug("HAGym: bound HA user %s (username=%s) -> HAGym row %s",
+                          u.name, username, u.id)
         if bound:
             _LOGGER.info("HAGym: auto-bound %d HA user(s) to HAGym rows", bound)
             await coordinator.async_refresh_statistics(notify=False)
             coordinator._notify_listeners()
+        else:
+            _LOGGER.info("HAGym: no HA users to auto-bind (0 found or all skipped)")
     except Exception:
         _LOGGER.warning("HAGym: auto-bind failed", exc_info=True)
 
