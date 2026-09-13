@@ -105,6 +105,35 @@ _STATIC_REGISTERED_KEY = f"{DOMAIN}_static_registered"
 _STATIC_URL = "/hagym_static"
 
 
+async def _auto_bind_known_users(hass: HomeAssistant) -> None:
+    """Bind HA auth users to HAGym rows on setup.
+
+    Bypasses the HA service-call validation problem entirely.
+    Idempotent (upsert). Safe to run on every start.
+    """
+    coordinators = list(hass.data.get(DOMAIN, {}).values())
+    if not coordinators:
+        return
+    coordinator = coordinators[0]
+    try:
+        users = coordinator.hass.auth.async_get_users()
+        if hasattr(users, "__await__"):
+            users = await users
+        bound = 0
+        for u in users:
+            username = coordinator._ha_username(u)
+            if not username or not u.name:
+                continue
+            await coordinator._store.async_upsert_user(u.id, u.name, username)
+            bound += 1
+        if bound:
+            _LOGGER.info("HAGym: auto-bound %d HA user(s) to HAGym rows", bound)
+            await coordinator.async_refresh_statistics(notify=False)
+            coordinator._notify_listeners()
+    except Exception:
+        _LOGGER.warning("HAGym: auto-bind failed", exc_info=True)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HAGym from a config entry."""
     _update_legacy_entry_branding(hass, entry)
@@ -122,7 +151,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    await _auto_bind_known_users()
+    await _auto_bind_known_users(hass)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await _async_register_static_path(hass)
@@ -209,37 +238,6 @@ def _register_services(hass: HomeAssistant) -> None:
 
     def _all_coordinators() -> list[HAFitnessCoordinator]:
         return list(hass.data.get(DOMAIN, {}).values())
-
-    async def _auto_bind_known_users() -> None:
-        """One-time: bind HA users to HAGym rows by username.
-
-        Bypasses the service-call validation problem entirely.
-        Runs on every setup; idempotent (upsert).
-        """
-        coordinator = _all_coordinators()[0] if _all_coordinators() else None
-        if coordinator is None:
-            return
-        try:
-            users = coordinator.hass.auth.async_get_users()
-            if hasattr(users, "__await__"):
-                users = await users
-            bound = 0
-            for u in users:
-                username = coordinator._ha_username(u)
-                if not username or not u.name:
-                    continue
-                # Only bind users whose name matches a known HAGym row
-                # or create a fresh row keyed by HA user id
-                await coordinator._store.async_upsert_user(
-                    u.id, u.name, username
-                )
-                bound += 1
-            if bound:
-                _LOGGER.info("HAGym: auto-bound %d HA user(s) to HAGym rows", bound)
-                await coordinator.async_refresh_statistics(notify=False)
-                coordinator._notify_listeners()
-        except Exception:
-            _LOGGER.debug("HAGym: auto-bind skipped", exc_info=True)
 
     async def handle_debug_state(call: ServiceCall) -> None:
         """Return coordinator state for debugging unavailable entities."""
