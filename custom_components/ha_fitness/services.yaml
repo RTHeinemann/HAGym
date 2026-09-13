@@ -805,3 +805,35 @@ refresh_statistics:
 export_data:
   name: Export Data
   description: Exports users plus global, personal, and household statistics to /config/ha_fitness/export.json.
+
+
+bind_user:
+  name: Bind User
+  description: Binds a HAGym user row to an HA user.
+  fields:
+    ha_user_id:
+      name: HA User ID
+      description: The Home Assistant user ID.
+      required: false
+      example: "abc123def456"
+      selector:
+        text:
+    ha_username:
+      name: HA Username
+      description: The Home Assistant username.
+      required: false
+      example: "felicitas"
+      selector:
+        text:
+    hagym_user_id:
+      name: HAGym User ID
+      description: An existing HAGym user row id.
+      required: false
+      selector:
+        text:
+    display_name:
+      name: Display Name
+      description: Optional display name override.
+      required: false
+      selector:
+        text:
