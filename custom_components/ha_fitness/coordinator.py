@@ -2888,6 +2888,30 @@ class HAFitnessCoordinator:
             value = getattr(system_options, "username", None)
         return value
 
+    async def async_refresh_users_from_ha(self) -> None:
+        """Update HAGym user rows with fresh HA user display names.
+
+        Called on HA startup to ensure the users table reflects
+        the current HA user names (not stale UUIDs from old bindings).
+        """
+        try:
+            ha_users = self.hass.auth.async_get_users()
+            if hasattr(ha_users, "__await__"):
+                ha_users = await ha_users
+            updated = 0
+            for u in ha_users:
+                display = getattr(u, "name", None) or self._ha_username(u)
+                username = self._ha_username(u)
+                if display:
+                    await self._store.async_upsert_user(u.id, display, username)
+                    updated += 1
+            if updated:
+                _LOGGER.info("HAGym: refreshed %d user row(s) with HA display names", updated)
+                # Refresh the coordinator's cached user list
+                self._users = await self._store.async_get_users()
+        except Exception:
+            _LOGGER.debug("HAGym: user refresh failed", exc_info=True)
+
     async def list_persons(self) -> list[dict[str, Any]]:
         """Return all HA users with HAGym usage stats.
 
