@@ -123,13 +123,14 @@ async def _auto_bind_known_users(hass: HomeAssistant) -> None:
         bound = 0
         for u in users:
             username = coordinator._ha_username(u)
-            name = u.name if u.name else username
-            if not name:
+            # Prefer the HA user's display name, fall back to username
+            display = getattr(u, "name", None) or username
+            if not display:
                 continue
-            await coordinator._store.async_upsert_user(u.id, name, username)
+            await coordinator._store.async_upsert_user(u.id, display, username)
             bound += 1
-            _LOGGER.debug("HAGym: bound HA user %s (username=%s) -> HAGym row %s",
-                          u.name, username, u.id)
+            _LOGGER.debug("HAGym: bound HA user '%s' (username=%s) -> HAGym row %s",
+                          display, username, u.id)
         if bound:
             _LOGGER.info("HAGym: auto-bound %d HA user(s) to HAGym rows", bound)
             await coordinator.async_refresh_statistics(notify=False)
