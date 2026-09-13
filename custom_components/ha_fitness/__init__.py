@@ -1154,6 +1154,7 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_BIND_USER,
         handle_bind_user,
+        schema=None,
     )
 
 
