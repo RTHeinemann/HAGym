@@ -159,7 +159,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     # Force-refresh HAGym user rows with fresh HA display names
-    await coordinator._store.async_refresh_users_from_ha()
+    await coordinator.async_refresh_users_from_ha()
     await _auto_bind_known_users(hass)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
