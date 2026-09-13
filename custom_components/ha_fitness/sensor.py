@@ -2182,9 +2182,9 @@ class HAFitnessPerUserSensor(_HAFitnessSensorBase):
             "user_id": self._user_id,
             "user_name": self._user_name,
         }
-        if self._metric_key == "total_volume":
+        if self._metric_key in ("total_volume", "weekly_volume"):
             attrs["weekly_volume"] = stats.get("weekly_volume")
-        elif self._metric_key == "total_sets":
+        if self._metric_key in ("total_sets", "weekly_sets"):
             attrs["weekly_sets"] = stats.get("weekly_sets")
         return attrs
 
@@ -2212,9 +2212,8 @@ class HAFitnessBodyweightNumber(NumberEntity):
         self._entry = entry
         self._user_id = user["id"]
         self._user_name = user.get("display_name") or user["id"]
-        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_bodyweight_{self._user_id}"
-        self._attr_translation_key = "bodyweight"
-        self._attr_translation_placeholders = {"name": self._user_name}
+        self._attr_unique_id = f"{entry.entry_id}_user_{self._user_id}_bodyweight"
+        self._attr_translation_key = "user_bodyweight"
 
     @property
     def native_value(self) -> float | None:
@@ -2292,6 +2291,9 @@ class HAFitnessPerUserExerciseSensor(_HAFitnessSensorBase):
             "user_id": self._user_id,
             "exercise_id": self._exercise_id,
             "exercise_key": self._exercise_key,
+            "exercise_name": self._coordinator.exercise_display_name(
+                self._exercise_id
+            ),
         }
 
 
@@ -2391,10 +2393,16 @@ class HAFitnessPerUserEquipmentSensor(_HAFitnessSensorBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {
+        attrs: dict[str, Any] = {
             "user_id": self._user_id,
             "equipment_id": self._equipment_id,
         }
+        name = self._coordinator.equipment_display_name(
+            self._equipment_id
+        )
+        if name:
+            attrs["equipment_name"] = name
+        return attrs
 
 
 def _build_per_user_equipment_entities(
@@ -2468,10 +2476,16 @@ class HAFitnessPerUserMuscleGroupSensor(_HAFitnessSensorBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {
+        attrs: dict[str, Any] = {
             "user_id": self._user_id,
             "muscle_group_id": self._muscle_group_id,
         }
+        name = self._coordinator.muscle_group_display_name(
+            self._muscle_group_id
+        )
+        if name:
+            attrs["muscle_group_name"] = name
+        return attrs
 
 
 def _build_per_user_muscle_group_entities(
