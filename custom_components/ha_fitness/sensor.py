@@ -2149,7 +2149,7 @@ class HAFitnessPerUserSensor(_HAFitnessSensorBase):
     ) -> None:
         super().__init__(coordinator, entry)
         self._user_id = user["id"]
-        self._user_name = user.get("name") or self._user_id
+        self._user_name = user.get("display_name") or user.get("name") or self._user_id
         self._metric_key = metric_key
         self._attr_translation_key = _PER_USER_METRICS[metric_key]["translation_key"]
         self._attr_state_class = _PER_USER_METRICS[metric_key]["state_class"]
