@@ -2224,6 +2224,18 @@ class HAFitnessBodyweightNumber(NumberEntity):
         """Return the current bodyweight."""
         return self._coordinator._user_bodyweights.get(self._user_id)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the current attributes (user_id + user_name).
+
+        Uses the property (not just _attr_) because HA's cached_property
+        on the base Entity class was stripping custom keys.
+        """
+        return {
+            "user_id": self._user_id,
+            "user_name": self._user_name,
+        }
+
     async def async_set_native_value(self, value: float) -> None:
         """Persist a new bodyweight."""
         await self._coordinator.async_set_user_bodyweight(
