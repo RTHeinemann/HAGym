@@ -2220,6 +2220,13 @@ class HAFitnessBodyweightNumber(NumberEntity):
         """Return the current bodyweight."""
         return self._coordinator._user_bodyweights.get(self._user_id)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "user_id": self._user_id,
+            "user_name": self._user_name,
+        }
+
     async def async_set_native_value(self, value: float) -> None:
         """Persist a new bodyweight."""
         await self._coordinator.async_set_user_bodyweight(
