@@ -2214,10 +2214,6 @@ class HAFitnessBodyweightNumber(NumberEntity):
         self._user_name = user.get("display_name") or user["id"]
         self._attr_unique_id = f"{entry.entry_id}_user_{self._user_id}_bodyweight"
         self._attr_translation_key = "user_bodyweight"
-        self._attr_extra_state_attributes = {
-            "user_id": self._user_id,
-            "user_name": self._user_name,
-        }
 
     @property
     def native_value(self) -> float | None:
@@ -2226,15 +2222,11 @@ class HAFitnessBodyweightNumber(NumberEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the current attributes (user_id + user_name).
-
-        Uses the property (not just _attr_) because HA's cached_property
-        on the base Entity class was stripping custom keys.
-        """
-        return {
-            "user_id": self._user_id,
-            "user_name": self._user_name,
-        }
+        """Expose user_id and user_name in the state attributes panel."""
+        attrs = super().extra_state_attributes or {}
+        attrs["user_id"] = self._user_id
+        attrs["user_name"] = self._user_name
+        return attrs
 
     async def async_set_native_value(self, value: float) -> None:
         """Persist a new bodyweight."""
