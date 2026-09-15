@@ -22,6 +22,7 @@ from .const import (
     ATTR_BODY_REGION,
     ATTR_BODYWEIGHT_FACTOR,
     ATTR_DESCRIPTION,
+    ATTR_DOBBEL_ZAEHLEN,
     ATTR_ENABLED,
     ATTR_EQUIPMENT,
     ATTR_EQUIPMENT_ID,
@@ -327,6 +328,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Bodyweight fields
                 uses_bodyweight = bool(user_input.get(ATTR_USES_BODYWEIGHT, False))
                 bodyweight_pct_raw = user_input.get(ATTR_BODYWEIGHT_FACTOR, 100)
+                doppel_zaehlen = bool(user_input.get(ATTR_DOBBEL_ZAEHLEN, False))
                 try:
                     bodyweight_factor = round(float(bodyweight_pct_raw) / 100.0, 4)
                 except (TypeError, ValueError):
@@ -370,6 +372,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             sort_order=sort_order,
                             uses_bodyweight=uses_bodyweight,
                             bodyweight_factor=bodyweight_factor,
+                            doppel_zaehlen=doppel_zaehlen,
                         )
                     else:
                         store = HAFitnessStore(self.hass)
@@ -386,6 +389,7 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             sort_order=sort_order,
                             uses_bodyweight=uses_bodyweight,
                             bodyweight_factor=bodyweight_factor,
+                            doppel_zaehlen=doppel_zaehlen,
                         )
 
                     self.hass.async_create_task(
@@ -511,6 +515,13 @@ class HAFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             mode="box",
                         )
                     ),
+                    # Double-count (two-sided exercises count entered weight twice)
+                    vol.Optional(
+                        ATTR_DOBBEL_ZAEHLEN,
+                        default=bool(user_input.get(ATTR_DOBBEL_ZAEHLEN, False))
+                        if user_input
+                        else False,
+                    ): bool,
                 }
             ),
             errors=errors,
@@ -1489,6 +1500,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     sort_order=sort_order,
                     uses_bodyweight=uses_bodyweight,
                     bodyweight_factor=bodyweight_factor,
+                    doppel_zaehlen=doppel_zaehlen,
                 )
                 return await self.async_step_manage_exercises()
 
@@ -1597,6 +1609,13 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                             mode="box",
                         )
                     ),
+                    # Double-count (two-sided exercises count entered weight twice)
+                    vol.Optional(
+                        ATTR_DOBBEL_ZAEHLEN,
+                        default=bool(user_input.get(ATTR_DOBBEL_ZAEHLEN, False))
+                        if user_input
+                        else False,
+                    ): bool,
                 }
             ),
             errors=errors,
@@ -1681,6 +1700,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                 bodyweight_factor = stored_factor
             # Clamp to [0.0, 1.0]
             bodyweight_factor = max(0.0, min(1.0, bodyweight_factor))
+            doppel_zaehlen = bool(user_input.get(ATTR_DOBBEL_ZAEHLEN, False))
 
             if not name_en:
                 errors[ATTR_NAME_EN] = "name_required"
@@ -1702,6 +1722,7 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                     sort_order=sort_order,
                     uses_bodyweight=uses_bodyweight,
                     bodyweight_factor=bodyweight_factor,
+                    doppel_zaehlen=doppel_zaehlen,
                 )
                 return await self.async_step_manage_exercises()
 
@@ -1829,6 +1850,13 @@ class HAFitnessOptionsFlow(config_entries.OptionsFlow):
                             mode="box",
                         )
                     ),
+                    # Double-count (two-sided exercises count entered weight twice)
+                    vol.Optional(
+                        ATTR_DOBBEL_ZAEHLEN,
+                        default=bool(user_input.get(ATTR_DOBBEL_ZAEHLEN, False))
+                        if user_input
+                        else bool(int(exercise.get(ATTR_DOBBEL_ZAEHLEN, 0) or 0)),
+                    ): bool,
                 }
             ),
             errors=errors,

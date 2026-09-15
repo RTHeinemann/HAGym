@@ -347,6 +347,7 @@ class HAFitnessStore:
         sort_order: int = 0,
         uses_bodyweight: bool = False,
         bodyweight_factor: float = 1.0,
+        doppel_zaehlen: bool = False,
     ) -> None:
         """Insert one exercise row or reactivate/update if it already exists."""
         await self._hass.async_add_executor_job(
@@ -362,6 +363,7 @@ class HAFitnessStore:
             sort_order,
             uses_bodyweight,
             bodyweight_factor,
+            doppel_zaehlen,
         )
 
     async def async_update_exercise(
@@ -377,6 +379,7 @@ class HAFitnessStore:
         sort_order: int | None = None,
         uses_bodyweight: bool | None = None,
         bodyweight_factor: float | None = None,
+        doppel_zaehlen: bool | None = None,
     ) -> bool:
         """Update one exercise row and return whether a row was modified."""
         return await self._hass.async_add_executor_job(
@@ -392,6 +395,7 @@ class HAFitnessStore:
             sort_order,
             uses_bodyweight,
             bodyweight_factor,
+            doppel_zaehlen,
         )
 
     async def async_get_exercise_metric_type(self, exercise_id: str) -> str:
@@ -1793,7 +1797,7 @@ class HAFitnessStore:
     def _get_exercises(self, enabled_only: bool) -> list[dict[str, Any]]:
         sql = """
             SELECT id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type,
-                   enabled, sort_order, uses_bodyweight, bodyweight_factor, created_at
+                   enabled, sort_order, uses_bodyweight, bodyweight_factor, doppel_zaehlen, created_at
             FROM exercises
         """
         params: tuple[Any, ...] = ()
@@ -1809,7 +1813,7 @@ class HAFitnessStore:
             row = conn.execute(
                 """
                 SELECT id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type,
-                       enabled, sort_order, uses_bodyweight, bodyweight_factor, created_at
+                       enabled, sort_order, uses_bodyweight, bodyweight_factor, doppel_zaehlen, created_at
                 FROM exercises
                 WHERE id = ?
                 LIMIT 1
@@ -1860,6 +1864,7 @@ class HAFitnessStore:
         sort_order: int,
         uses_bodyweight: bool = False,
         bodyweight_factor: float = 1.0,
+        doppel_zaehlen: bool = False,
     ) -> None:
         resolved_metric_type = _normalize_metric_type(metric_type)
         with self._connect() as conn:
@@ -1867,9 +1872,9 @@ class HAFitnessStore:
                 """
                 INSERT INTO exercises(
                     id, name_en, name_de, muscle_group, equipment, equipment_id, metric_type,
-                    enabled, sort_order, uses_bodyweight, bodyweight_factor, created_at
+                    enabled, sort_order, uses_bodyweight, bodyweight_factor, doppel_zaehlen, created_at
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name_en = excluded.name_en,
                     name_de = excluded.name_de,
@@ -1880,7 +1885,8 @@ class HAFitnessStore:
                     enabled = excluded.enabled,
                     sort_order = excluded.sort_order,
                     uses_bodyweight = excluded.uses_bodyweight,
-                    bodyweight_factor = excluded.bodyweight_factor
+                    bodyweight_factor = excluded.bodyweight_factor,
+                    doppel_zaehlen = excluded.doppel_zaehlen
                 """,
                 (
                     exercise_id,
@@ -1894,6 +1900,7 @@ class HAFitnessStore:
                     sort_order,
                     1 if uses_bodyweight else 0,
                     bodyweight_factor,
+                    1 if doppel_zaehlen else 0,
                     _isoformat(datetime.now(timezone.utc)),
                 ),
             )
@@ -1912,6 +1919,7 @@ class HAFitnessStore:
         sort_order: int | None,
         uses_bodyweight: bool | None = None,
         bodyweight_factor: float | None = None,
+        doppel_zaehlen: bool | None = None,
     ) -> bool:
         updates: list[str] = []
         params: list[Any] = []
@@ -1945,6 +1953,9 @@ class HAFitnessStore:
         if bodyweight_factor is not None:
             updates.append("bodyweight_factor = ?")
             params.append(bodyweight_factor)
+        if doppel_zaehlen is not None:
+            updates.append("doppel_zaehlen = ?")
+            params.append(1 if doppel_zaehlen else 0)
         if not updates:
             return False
 

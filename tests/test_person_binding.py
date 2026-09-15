@@ -67,7 +67,7 @@ class TestMigrationV10:
 
 class TestMigrationV11:
     def test_schema_version_is_11(self):
-        assert migrations.SCHEMA_VERSION == 11
+        assert migrations.SCHEMA_VERSION >= 11
 
     def test_v11_adds_bodyweight_column_and_history(self):
         conn = sqlite3.connect(":memory:")
@@ -79,10 +79,9 @@ class TestMigrationV11:
                 display_name TEXT,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                ha_username TEXT,
-                bodyweight REAL
+                ha_username TEXT
             );
-            INSERT INTO users VALUES ('u1', 'Alice', 1, '2026-01-01', 'alice', NULL);
+            INSERT INTO users VALUES ('u1', 'Alice', 1, '2026-01-01', 'alice');
             CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
             INSERT INTO schema_migrations VALUES (10, '2026-01-01');
             """
@@ -95,7 +94,7 @@ class TestMigrationV11:
         ).fetchall()]
         assert "bodyweight_history" in tables
         ver = conn.execute("SELECT MAX(version) AS v FROM schema_migrations").fetchone()["v"]
-        assert ver == 11
+        assert ver >= 11
         conn.close()
 
     def test_v10_is_idempotent(self):
@@ -116,6 +115,73 @@ class TestMigrationV11:
             """
         )
         migrations.apply_migrations(conn)
+        conn.close()
+
+
+class TestMigrationV12:
+    """v12 adds doppel_zaehlen column to the exercises table."""
+
+    def test_schema_version_is_12(self):
+        assert migrations.SCHEMA_VERSION == 12
+
+    def test_v12_adds_doppel_zaehlen_to_exercises(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE users (
+                id TEXT PRIMARY KEY,
+                display_name TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                ha_username TEXT,
+                bodyweight REAL
+            );
+            CREATE TABLE exercises (
+                id TEXT PRIMARY KEY,
+                name_en TEXT,
+                name_de TEXT,
+                muscle_group TEXT,
+                equipment TEXT,
+                metric_type TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT,
+                uses_bodyweight INTEGER NOT NULL DEFAULT 0,
+                bodyweight_factor REAL NOT NULL DEFAULT 1.0
+            );
+            INSERT INTO exercises VALUES
+                ('curl', 'Curl', null, 'arms', 'dumbbell', 'weight', 1, 0, '2026-01-01', 0, 1.0);
+            CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
+            INSERT INTO schema_migrations VALUES (11, '2026-01-01');
+            """
+        )
+        migrations.apply_migrations(conn)
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(exercises)").fetchall()]
+        assert "doppel_zaehlen" in cols
+        # Existing rows default to 0 (single-count behavior unchanged).
+        row = conn.execute("SELECT doppel_zaehlen FROM exercises WHERE id='curl'").fetchone()
+        assert row["doppel_zaehlen"] == 0
+        ver = conn.execute("SELECT MAX(version) AS v FROM schema_migrations").fetchone()["v"]
+        assert ver == 12
+        conn.close()
+
+    def test_v12_idempotent_when_column_present(self):
+        """Running v12 twice (or with column already present) must not fail."""
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE exercises (
+                id TEXT PRIMARY KEY,
+                doppel_zaehlen INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT);
+            INSERT INTO schema_migrations VALUES (11, '2026-01-01');
+            """
+        )
+        migrations.apply_migrations(conn)  # applies v12
+        migrations.apply_migrations(conn)  # no-op, must not raise
         conn.close()
 
 

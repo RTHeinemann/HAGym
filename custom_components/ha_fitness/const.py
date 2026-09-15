@@ -95,6 +95,7 @@ ATTR_SOURCE = "source"
 ATTR_ADDED_WEIGHT = "added_weight"
 ATTR_USES_BODYWEIGHT = "uses_bodyweight"
 ATTR_BODYWEIGHT_FACTOR = "bodyweight_factor"
+ATTR_DOBBEL_ZAEHLEN = "doppel_zaehlen"
 ATTR_BODYWEIGHT = "bodyweight"
 ATTR_SOURCE = "source"
 

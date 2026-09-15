@@ -230,6 +230,7 @@ class HAFitnessActiveExerciseSensor(_HAFitnessSensorBase):
             "active_exercise_id": self._coordinator.active_exercise,
             "metric_type": self._coordinator.active_exercise_metric_type,
             "workout_active": self._coordinator.is_workout_active,
+            "doppel_zaehlen": self._coordinator.exercise_double_count(self._coordinator.active_exercise),
         }
 
 

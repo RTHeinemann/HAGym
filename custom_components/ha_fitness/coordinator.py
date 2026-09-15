@@ -2340,6 +2340,7 @@ class HAFitnessCoordinator:
         sort_order: int = 0,
         uses_bodyweight: bool = False,
         bodyweight_factor: float = 1.0,
+        doppel_zaehlen: bool = False,
     ) -> None:
         """Add one exercise and refresh runtime exercise/stat caches."""
         await self._store.async_add_exercise(
@@ -2354,6 +2355,7 @@ class HAFitnessCoordinator:
             sort_order=sort_order,
             uses_bodyweight=uses_bodyweight,
             bodyweight_factor=bodyweight_factor,
+            doppel_zaehlen=doppel_zaehlen,
         )
         await self.async_refresh_exercises(notify=False)
         await self.async_refresh_statistics(notify=False)
@@ -2372,6 +2374,7 @@ class HAFitnessCoordinator:
         sort_order: int | None = None,
         uses_bodyweight: bool | None = None,
         bodyweight_factor: float | None = None,
+        doppel_zaehlen: bool | None = None,
     ) -> bool:
         """Update one exercise and refresh runtime caches if changed."""
         updated = await self._store.async_update_exercise(
@@ -2386,6 +2389,7 @@ class HAFitnessCoordinator:
             sort_order=sort_order,
             uses_bodyweight=uses_bodyweight,
             bodyweight_factor=bodyweight_factor,
+            doppel_zaehlen=doppel_zaehlen,
         )
         if updated:
             await self.async_refresh_exercises(notify=False)
@@ -2731,6 +2735,22 @@ class HAFitnessCoordinator:
         if raw in SUPPORTED_METRIC_TYPES:
             return raw
         return DEFAULT_METRIC_TYPE
+
+
+    def exercise_double_count(self, exercise_id: str | None) -> bool:
+        """Return whether an exercise counts its entered weight twice.
+
+        Two-sided exercises (e.g. dumbbell curls with two dumbbells)
+        are flagged so the entered per-side weight is doubled toward
+        total volume. One-sided exercises and all existing exercises
+        default to False (weight counted once).
+        """
+        if not exercise_id:
+            return False
+        row = self._exercise_by_id.get(exercise_id)
+        if not row:
+            return False
+        return bool(row.get("doppel_zaehlen", 0))
 
     def exercise_id_from_input(self, exercise: str) -> str | None:
         """Resolve exercise id from id or localized label/name."""
@@ -4139,7 +4159,8 @@ class HAFitnessCoordinator:
             raise HomeAssistantError(
                 "Selected exercise is not strength-based. Use save_activity for non-strength activities."
             )
-        volume = weight * reps
+        double_count = self.exercise_double_count(exercise_id)
+        volume = weight * reps * (2 if double_count else 1)
         created_at = _now_utc()
         resolved_equipment_id = (
             selected_equipment_id
@@ -4184,6 +4205,7 @@ class HAFitnessCoordinator:
             "weight": weight,
             "reps": reps,
             "volume": volume,
+            "double_count": double_count,
             "notes": notes,
             "created_at": created_at.isoformat(),
         }

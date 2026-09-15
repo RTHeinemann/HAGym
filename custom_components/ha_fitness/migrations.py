@@ -15,7 +15,7 @@ from .const import (
     LEGACY_USER_NAME,
 )
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -71,6 +71,9 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
 
     if current_version < 11:
         _apply_v11(conn)
+
+    if current_version < 12:
+        _apply_v12(conn)
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -706,4 +709,28 @@ def _apply_v11(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
         (11, now),
+    )
+
+
+def _apply_v12(conn: sqlite3.Connection) -> None:
+    """Add double-count flag for two-sided strength exercises.
+
+    Exercises marked as ``doppel_zaehlen`` count the entered weight twice
+    toward volume (e.g. dumbbell curls with two dumbbells). One-sided
+    exercises keep the default and count the weight once. Existing
+    exercises default to 0 so current data and behavior are unchanged.
+    """
+    _table_exists_sql = (
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='exercises'"
+    )
+    if conn.execute(_table_exists_sql).fetchone() is not None:
+        if not _column_exists(conn, "exercises", "doppel_zaehlen"):
+            conn.execute(
+                "ALTER TABLE exercises ADD COLUMN doppel_zaehlen INTEGER NOT NULL DEFAULT 0"
+            )
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+        (12, now),
     )
