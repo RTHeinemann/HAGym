@@ -90,8 +90,10 @@ from .const import (
     SERVICE_DEBUG_STATE,
     SERVICE_SET_BODYWEIGHT,
     SERVICE_BIND_USER,
+    SERVICE_SET_DOBBEL_ZAEHLEN,
     ATTR_BODYWEIGHT,
     ATTR_SOURCE,
+    ATTR_VALUE,
     SUPPORTED_METRIC_TYPES,
 )
 from .coordinator import HAFitnessCoordinator
@@ -241,6 +243,7 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_DEBUG_STATE,
         SERVICE_SET_BODYWEIGHT,
         SERVICE_BIND_USER,
+        SERVICE_SET_DOBBEL_ZAEHLEN,
     )
     if all(hass.services.has_service(DOMAIN, service) for service in required_services):
         return
@@ -315,6 +318,19 @@ def _register_services(hass: HomeAssistant) -> None:
         for coordinator in _all_coordinators():
             await coordinator.async_set_user_bodyweight(user_id, weight, source)
             await coordinator.async_refresh_statistics(notify=False)
+
+
+    async def handle_set_doppel_zaehlen(call: ServiceCall) -> None:
+        """Toggle the doppel_zaehlen flag on the active exercise."""
+        value = bool(call.data.get(ATTR_VALUE, True))
+        for coordinator in _all_coordinators():
+            exercise_id = coordinator.active_exercise
+            if not exercise_id:
+                _LOGGER.warning("HAGym: set_doppel_zaehlen called but no active exercise")
+                continue
+            await coordinator.async_update_exercise(
+                exercise_id, doppel_zaehlen=value
+            )
 
 
     async def handle_bind_user(call: ServiceCall) -> None:
@@ -1197,6 +1213,17 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=None,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_DOBBEL_ZAEHLEN,
+        handle_set_doppel_zaehlen,
+        schema=vol.Schema(
+            {
+                vol.Optional(ATTR_VALUE, default=True): cv.boolean,
+            }
+        ),
+    )
+
 
 def _unregister_services(hass: HomeAssistant) -> None:
     """Remove integration services when last entry unloads."""
@@ -1229,6 +1256,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
         SERVICE_DEBUG_STATE,
         SERVICE_SET_BODYWEIGHT,
         SERVICE_BIND_USER,
+        SERVICE_SET_DOBBEL_ZAEHLEN,
     ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)

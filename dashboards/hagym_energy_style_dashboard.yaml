@@ -394,15 +394,59 @@ views:
                     icon: mdi:repeat
                     display_mode: buttons
                     layout: vertical
-              - type: custom:mushroom-entity-card
-                entity: sensor.hafitness_aktive_ubung
-                name: |
+              - type: custom:button-card
+                name: Beidarmig
+                icon: mdi:weight-kilogram-variant
+                style: |
+                  ha-card {
+                    background: transparent;
+                    border-radius: 12px;
+                    padding: 12px 16px;
+                  }
+                  .name {
+                    font-size: 0.95rem;
+                    font-weight: 600;
+                    color: var(--primary-color);
+                  }
+                  .label {
+                    font-size: 0.85rem;
+                    color: var(--secondary-text-color);
+                  }
+                  ha-icon {
+                    color: var(--secondary-text-color);
+                  }
+                  ha-card {
+                    --switch-color: var(--primary-color);
+                  }
+                state:
+                  - operator: template
+                    value: "[[[ return states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true; ]]]"
+                    style: |
+                      .name {
+                        color: var(--primary-color);
+                      }
+                      .label {
+                        color: var(--primary-color);
+                        font-weight: 600;
+                      }
+                      ha-icon {
+                        color: var(--primary-color);
+                      }
+                label: |
                   [[[
                     const doppel = states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true;
-                    return doppel ? 'Beidarmig: AN' : 'Beidarmig: AUS';
+                    return doppel ? 'Beidarmig: AN (×2)' : 'Beidarmig: AUS (×1)';
                   ]]]
-                icon: mdi:weight-kilogram-variant
-                layout: horizontal
+                tap_action:
+                  action: call-service
+                  service: ha_fitness.set_doppel_zaehlen
+                  data:
+                    value: >-
+                      [[[ return states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen !== true; ]]]
+                show_state: false
+                show_name: true
+                show_label: true
+                show_icon: true
               - type: custom:mushroom-entity-card
                 entity: text.hafitness_notizen
                 name: Notizen

@@ -805,3 +805,15 @@ refresh_statistics:
 export_data:
   name: Export Data
   description: Exports users plus global, personal, and household statistics to /config/ha_fitness/export.json.
+
+set_doppel_zaehlen:
+  name: Set Doppel-Zaehlen
+  description: Sets the doppel_zaehlen flag on the active exercise. True = weight counted twice (two-armed), False = weight counted once (one-armed).
+  fields:
+    value:
+      name: Value
+      description: True for two-armed (doppel-zaehlen), False for one-armed.
+      required: false
+      default: true
+      selector:
+        boolean:

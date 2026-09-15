@@ -48,6 +48,7 @@ SERVICE_SAVE_ACTIVITY = "save_activity"
 SERVICE_DEBUG_STATE = "debug_state"
 SERVICE_SET_BODYWEIGHT = "set_bodyweight"
 SERVICE_BIND_USER = "bind_user"
+SERVICE_SET_DOBBEL_ZAEHLEN = "set_doppel_zaehlen"
 
 # Service field names
 ATTR_EXERCISE = "exercise"
@@ -96,6 +97,7 @@ ATTR_ADDED_WEIGHT = "added_weight"
 ATTR_USES_BODYWEIGHT = "uses_bodyweight"
 ATTR_BODYWEIGHT_FACTOR = "bodyweight_factor"
 ATTR_DOBBEL_ZAEHLEN = "doppel_zaehlen"
+ATTR_VALUE = "value"
 ATTR_BODYWEIGHT = "bodyweight"
 ATTR_SOURCE = "source"
 
