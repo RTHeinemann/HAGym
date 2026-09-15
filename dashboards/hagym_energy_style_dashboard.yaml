@@ -394,56 +394,15 @@ views:
                     icon: mdi:repeat
                     display_mode: buttons
                     layout: vertical
-              - type: custom:button-card
+              - type: custom:mushroom-entity-card
                 entity: sensor.hafitness_aktive_ubung
                 name: |
                   [[[
-                    const active = states['select.hafitness_aktive_ubung']?.state;
-                    const activeEx = states['sensor.hafitness_aktive_ubung'];
-                    if (!active || active === 'none' || !activeEx) return 'Beidarmig';
-                    const exercise = activeEx?.state?.toLowerCase() || '';
-                    const doppel = activeEx?.attributes?.doppel_zaehlen === true;
+                    const doppel = states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true;
                     return doppel ? 'Beidarmig: AN' : 'Beidarmig: AUS';
                   ]]]
                 icon: mdi:weight-kilogram-variant
-                show_state: true
-                state: |
-                  [[[
-                    const active = states['select.hafitness_aktive_ubung']?.state;
-                    if (!active || active === 'none') return '';
-                    return states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true ? 'Gewicht zählt doppelt' : 'Gewicht zählt einfach';
-                  ]]]
-                tap_action:
-                  action: none
-                styles:
-                  card:
-                    - background: |
-                        [[[
-                          const active = states['select.hafitness_aktive_ubung']?.state;
-                          const doppel = states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true;
-                          if (active && active !== 'none' && doppel) return 'rgba(255, 193, 7, 0.18)';
-                          return 'rgba(158, 158, 158, 0.08)';
-                        ]]]
-                    - border-radius: 12px
-                    - padding: 10px 16px
-                  name:
-                    - font-size: 14px
-                    - font-weight: 600
-                    - color: |
-                        [[[
-                          const doppel = states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true;
-                          const active = states['select.hafitness_aktive_ubung']?.state;
-                          if (active && active !== 'none' && doppel) return '#ff9800';
-                          return '#757575';
-                        ]]]
-                  state:
-                    - font-size: 13px
-                    - color: |
-                        [[[
-                          const doppel = states['sensor.hafitness_aktive_ubung']?.attributes?.doppel_zaehlen === true;
-                          if (doppel) return '#ff9800';
-                          return '#9e9e9e';
-                        ]]]
+                layout: horizontal
               - type: custom:mushroom-entity-card
                 entity: text.hafitness_notizen
                 name: Notizen
