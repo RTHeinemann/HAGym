@@ -321,16 +321,10 @@ def _register_services(hass: HomeAssistant) -> None:
 
 
     async def handle_set_doppel_zaehlen(call: ServiceCall) -> None:
-        """Toggle the doppel_zaehlen flag on the active exercise."""
+        """Toggle the doppel_zaehlen flag for the current workout session."""
         value = bool(call.data.get(ATTR_VALUE, True))
         for coordinator in _all_coordinators():
-            exercise_id = coordinator.active_exercise
-            if not exercise_id:
-                _LOGGER.warning("HAGym: set_doppel_zaehlen called but no active exercise")
-                continue
-            await coordinator.async_update_exercise(
-                exercise_id, doppel_zaehlen=value
-            )
+            coordinator.set_doppel_zaehlen(value)
 
 
     async def handle_bind_user(call: ServiceCall) -> None:

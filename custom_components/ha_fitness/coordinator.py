@@ -146,6 +146,7 @@ class HAFitnessCoordinator:
         self._exercise_options: list[str] = []
         self._active_equipment_id: str | None = None
         self._active_equipment_is_idle: bool = True
+        self._doppel_zaehlen: bool = False
         self._equipment: list[dict[str, Any]] = []
         self._equipment_by_id: dict[str, dict[str, Any]] = {}
         self._equipment_display_to_id: dict[str, str] = {}
@@ -700,6 +701,7 @@ class HAFitnessCoordinator:
         self._active_equipment_id = None
         self._active_equipment_is_idle = True
         self._active_exercise_id = None
+        self._doppel_zaehlen = False
         self._weight = 0.0
         self._reps = 0
         self._notes = ""
@@ -2745,12 +2747,12 @@ class HAFitnessCoordinator:
         total volume. One-sided exercises and all existing exercises
         default to False (weight counted once).
         """
-        if not exercise_id:
-            return False
-        row = self._exercise_by_id.get(exercise_id)
-        if not row:
-            return False
-        return bool(row.get("doppel_zaehlen", 0))
+        return self._doppel_zaehlen
+
+    def set_doppel_zaehlen(self, value: bool) -> None:
+        """Set the doppel_zaehlen flag for the current workout session."""
+        self._doppel_zaehlen = bool(value)
+        self._notify_listeners()
 
     def exercise_id_from_input(self, exercise: str) -> str | None:
         """Resolve exercise id from id or localized label/name."""
